@@ -10,23 +10,23 @@
   <header id="topbar">
     <div class="brand"><strong>Copytube</strong></div>
 
-    <!-- 오른쪽 영역 -->
+    <!-- 오른쪽 끝 영역 -->
     <div class="right" style="position:relative;">
       <a id="signupLink" class="link" href="signup.html">Sign up</a>
       <a id="signinLink" class="link" href="signin.html">Sign in</a>
       <span id="welcome" class="welcome"></span>
       <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
 
-      <!-- 三 아래 드롭다운 (로그인 시, 클릭했을 때만 show) -->
+      <!-- 三 바로 아래 드롭다운 (로그인 시, 버튼 눌렀을 때만 표시) -->
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
-        <button type="button" onclick="signOut()">Sign out</button>
-        <button type="button" onclick="location.href='upload.html'">추천영상등록</button>
-        <button type="button" onclick="scrollToCategory()">Category 선택</button>
+        <button id="btnSignOut"    type="button">Sign out</button>
+        <button id="btnGoUpload"   type="button">추천영상등록</button>
+        <button id="btnGoCategory" type="button">Category 선택</button>
       </div>
     </div>
   </header>
 
-  <!-- 안내 + 카테고리 (첫 화면) -->
+  <!-- 첫 화면: 안내 + 카테고리 -->
   <section id="categorySection" class="intro">
     <div>
       <p class="lead">쇼츠처럼 화면을 올려 영상 시청하세요.</p>
