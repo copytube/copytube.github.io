@@ -8,25 +8,28 @@
 </head>
 <body>
   <header id="topbar">
-    <div><strong>Copytube</strong></div>
-    <div class="right" style="position: relative;">
-      <a id="signupLink" href="signup.html">Sign up</a>
-      <a id="signinLink" href="signin.html">Sign in</a>
-      <span id="welcome"></span>
-      <button id="menuBtn" class="hidden">三</button>
-      <!-- ▼ 드롭다운 메뉴 -->
-      <div id="dropdownMenu" class="hidden">
-        <button onclick="signOut()">Sign out</button>
-        <button onclick="location.href='upload.html'">추천영상등록</button>
-        <button onclick="scrollToCategory()">Category 선택</button>
+    <div class="brand"><strong>Copytube</strong></div>
+
+    <!-- 오른쪽 영역 -->
+    <div class="right" style="position:relative;">
+      <a id="signupLink" class="link" href="signup.html">Sign up</a>
+      <a id="signinLink" class="link" href="signin.html">Sign in</a>
+      <span id="welcome" class="welcome"></span>
+      <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
+
+      <!-- 三 아래 드롭다운 (로그인 시, 클릭했을 때만 show) -->
+      <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
+        <button type="button" onclick="signOut()">Sign out</button>
+        <button type="button" onclick="location.href='upload.html'">추천영상등록</button>
+        <button type="button" onclick="scrollToCategory()">Category 선택</button>
       </div>
     </div>
   </header>
 
-  <!-- 안내 + 카테고리 -->
+  <!-- 안내 + 카테고리 (첫 화면) -->
   <section id="categorySection" class="intro">
     <div>
-      <p>쇼츠처럼 화면을 올려 영상 시청하세요.</p>
+      <p class="lead">쇼츠처럼 화면을 올려 영상 시청하세요.</p>
       <h3>카테고리 선택</h3>
       <div class="categories">
         <label><input type="checkbox" class="cat" value="all" checked> 전체보기</label>
@@ -44,7 +47,7 @@
     </div>
   </section>
 
-  <!-- 영상 리스트 -->
+  <!-- 쇼츠 영역 -->
   <main id="videoContainer"></main>
 
   <script type="module" src="js/firebase-init.js"></script>
