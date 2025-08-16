@@ -1,47 +1,52 @@
 import { auth, db } from './firebase-init.js';
-import { 
-  onAuthStateChanged, 
-  signOut as fbSignOut 
-} from './auth.js';
-import { 
-  collection, getDocs, query, where, orderBy 
-} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
+import { collection, getDocs, query, where, orderBy } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-// DOM 요소
+// DOM
 const signupLink=document.getElementById("signupLink");
 const signinLink=document.getElementById("signinLink");
 const welcome=document.getElementById("welcome");
 const menuBtn=document.getElementById("menuBtn");
-const floating=document.getElementById("floatingMenu");
+const dropdown=document.getElementById("dropdownMenu");
 const videoContainer=document.getElementById("videoContainer");
 const catBoxes=document.querySelectorAll(".cat");
 
 // 로그인 상태 감시
 onAuthStateChanged(auth, (user)=>{
   if(user){
-    // 로그인 상태
     signupLink.style.display="none";
     signinLink.style.display="none";
     welcome.textContent=`안녕하세요, ${user.displayName||'회원'}님`;
     menuBtn.classList.remove("hidden");
+    dropdown.classList.add("hidden");
   } else {
-    // 로그아웃 상태
     signupLink.style.display="inline";
     signinLink.style.display="inline";
     welcome.textContent="";
     menuBtn.classList.add("hidden");
-    floating.classList.add("hidden");
+    dropdown.classList.add("hidden");
   }
 });
 
-// 메뉴 토글
-menuBtn.onclick=()=> floating.classList.toggle("hidden");
+// 三 버튼 클릭 → 드롭다운 토글
+menuBtn.onclick=(e)=>{
+  e.stopPropagation(); // 클릭 이벤트 버블링 막기
+  dropdown.classList.toggle("hidden");
+};
 
-// export된 함수 (HTML에서 호출)
+// 바깥 영역 클릭 시 드롭다운 닫기
+document.addEventListener("click",(e)=>{
+  if(!dropdown.classList.contains("hidden")){
+    if(!dropdown.contains(e.target) && e.target!==menuBtn){
+      dropdown.classList.add("hidden");
+    }
+  }
+});
+
+// export
 export function signOut(){ fbSignOut(auth); }
 export function scrollToCategory(){ 
-  document.getElementById("categorySection")
-    .scrollIntoView({behavior:"smooth"}); 
+  document.getElementById("categorySection").scrollIntoView({behavior:"smooth"}); 
 }
 
 // ▶ 영상 렌더링
@@ -57,13 +62,12 @@ function renderVideos(urls){
   urls.forEach(u=>{
     const div=document.createElement("div");
     div.className="video";
-    div.innerHTML=`<iframe src="https://www.youtube.com/embed/${extractId(u)}?mute=1" 
-                    frameborder="0" allowfullscreen></iframe>`;
+    div.innerHTML=`<iframe src="https://www.youtube.com/embed/${extractId(u)}?mute=1" frameborder="0" allowfullscreen></iframe>`;
     videoContainer.appendChild(div);
   });
 }
 
-// ▶ 유튜브 URL → 영상 ID 추출
+// ▶ 유튜브 ID 추출
 function extractId(url){
   const m=url.match(/(?:youtu\.be\/|v=)([^&]+)/);
   return m?m[1]:url;
@@ -87,15 +91,10 @@ async function loadVideos(){
 // ▶ 카테고리 체크박스 로직
 catBoxes.forEach(cb=>cb.addEventListener("change",()=>{
   if(cb.value==="all"){
-    if(cb.checked){
-      catBoxes.forEach(c=>c.checked=true);
-    } else {
-      catBoxes.forEach(c=>c.checked=false);
-    }
+    if(cb.checked){ catBoxes.forEach(c=>c.checked=true); }
+    else { catBoxes.forEach(c=>c.checked=false); }
   } else {
-    if(!cb.checked){ 
-      document.querySelector('.cat[value="all"]').checked=false; 
-    }
+    if(!cb.checked){ document.querySelector('.cat[value="all"]').checked=false; }
   }
   loadVideos();
 }));
