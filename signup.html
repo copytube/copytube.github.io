@@ -1,93 +1,57 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>회원가입 - copytube</title>
-  <style>
-    body { margin:0; font-family: system-ui, Arial, sans-serif; }
-    main { max-width:420px; margin:40px auto; padding:0 16px; }
-    label { display:block; margin-top:14px; font-size:14px; }
-    input { width:100%; padding:10px; margin-top:6px; box-sizing:border-box; border:1px solid #ccc; border-radius:6px; }
-    button { margin-top:18px; width:100%; padding:12px; border:0; border-radius:8px; background:#0366d6; color:#fff; font-weight:600; cursor:pointer; }
-    .msg { margin-top:10px; font-size:13px; color:#333; white-space:pre-line; }
-    a { color:#0366d6; text-decoration:none; }
-    small { color:#666; }
-  </style>
-</head>
-<body>
-  <main>
-    <h2>회원가입</h2>
-    <p><small>이제 회원가입은 닉네임과 비밀번호만 필요합니다.</small></p>
+<script type="module">
+  import {
+    auth, db,
+    createUserWithEmailAndPassword,
+    updateProfile,
+    runTransaction, doc,
+    deleteUser
+  } from './js/auth.js';
+  import { sanitizeNickname } from './js/auth.js';
 
-    <label>닉네임
-      <input id="nickname" placeholder="화면에 보일 이름 (예: coolboy)" />
-    </label>
+  const $ = (id) => document.getElementById(id);
+  const msg = $('msg');
 
-    <label>비밀번호
-      <input id="password" type="password" placeholder="4자 이상" autocomplete="new-password"/>
-    </label>
+  $('submitBtn').addEventListener('click', async () => {
+    msg.textContent = '처리 중...';
 
-    <button id="submitBtn">가입하기</button>
-    <div class="msg" id="msg"></div>
+    const rawNick = $('nickname').value.trim();
+    const password = $('password').value;
 
-    <p style="margin-top:12px;">이미 계정이 있으신가요? <a href="signin.html">Sign in</a></p>
-  </main>
+    if (!rawNick || !password) { msg.textContent = '닉네임과 비밀번호를 입력해 주세요.'; return; }
+    if (password.length < 4) { msg.textContent = '비밀번호는 4자 이상으로 해주세요.'; return; }
 
-  <script type="module" src="js/firebase-init.js"></script>
-  <script type="module" src="js/auth.js"></script>
-  <script type="module">
-    import { auth, db, createUserWithEmailAndPassword, updateProfile, runTransaction, doc } from './js/auth.js';
-    import { sanitizeNickname } from './js/auth.js';
+    const nickname = sanitizeNickname(rawNick);
+    if (!nickname) { msg.textContent = '닉네임은 영문/숫자/한글/[-_.]만 허용, 길이 2~20자입니다.'; return; }
 
-    const $ = (id) => document.getElementById(id);
-    const msg = $('msg');
+    const pseudoEmail = `${nickname.toLowerCase()}@copytube.local`;
 
-    $('submitBtn').addEventListener('click', async () => {
-      msg.textContent = '처리 중...';
+    let createdUser = null;
+    try {
+      // 1) 사용자 먼저 생성(→ 이 시점부터 request.auth != null)
+      const cred = await createUserWithEmailAndPassword(auth, pseudoEmail, password);
+      createdUser = cred.user;
 
-      const rawNick = $('nickname').value.trim();
-      const password = $('password').value;
+      // 2) 닉네임 점유 (트랜잭션)
+      await runTransaction(db, async (tx) => {
+        const key = nickname.toLowerCase();
+        const ref = doc(db, 'usernames', key);
+        const snap = await tx.get(ref);
+        if (snap.exists()) throw new Error('이미 사용 중인 닉네임입니다.');
+        tx.set(ref, { reserved: true, uid: createdUser.uid, createdAt: Date.now() });
+      });
 
-      // 기본 검증
-      if (!rawNick || !password) {
-        msg.textContent = '닉네임과 비밀번호를 입력해 주세요.';
-        return;
+      // 3) 표시 이름 업데이트
+      await updateProfile(createdUser, { displayName: nickname });
+
+      msg.textContent = '회원가입 완료! 로그인 페이지로 이동합니다...';
+      setTimeout(() => { location.href = 'signin.html'; }, 600);
+
+    } catch (e) {
+      // 닉네임 점유 실패 등의 경우, 방금 만든 계정 롤백
+      if (createdUser) {
+        try { await deleteUser(createdUser); } catch (_) { /* 이미 삭제/만료일 수 있음 */ }
       }
-      if (password.length < 4) {
-        msg.textContent = '비밀번호는 4자 이상으로 해주세요.';
-        return;
-      }
-
-      const nickname = sanitizeNickname(rawNick);
-      if (!nickname) {
-        msg.textContent = '닉네임은 영문/숫자/한글/[-_.]만 허용, 길이 2~20자입니다.';
-        return;
-      }
-
-      // 닉네임을 내부용 가짜 이메일로 변환
-      const pseudoEmail = `${nickname.toLowerCase()}@copytube.local`;
-
-      try {
-        // 닉네임 중복 방지: usernames/{nicknameLower} 점유
-        await runTransaction(db, async (tx) => {
-          const key = nickname.toLowerCase();
-          const ref = doc(db, 'usernames', key);
-          const snap = await tx.get(ref);
-          if (snap.exists()) throw new Error('이미 사용 중인 닉네임입니다.');
-          tx.set(ref, { reserved: true, createdAt: Date.now() });
-        });
-
-        // 사용자 생성 (이메일 대신 가짜 이메일 사용)
-        const cred = await createUserWithEmailAndPassword(auth, pseudoEmail, password);
-        await updateProfile(cred.user, { displayName: nickname });
-
-        msg.textContent = '회원가입 완료! 로그인 페이지로 이동합니다...';
-        setTimeout(() => { location.href = 'signin.html'; }, 600);
-      } catch (e) {
-        msg.textContent = `오류: ${e.message}`;
-      }
-    });
-  </script>
-</body>
-</html>
+      msg.textContent = `오류: ${e.message}`;
+    }
+  });
+</script>
