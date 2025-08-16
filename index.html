@@ -18,11 +18,12 @@
       <span id="welcome" class="welcome"></span>
       <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
 
-      <!-- 三 바로 아래 드롭다운 -->
+      <!-- 三 아래 드롭다운 (로그인 시, 클릭했을 때만 표시) -->
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
         <button id="btnSignOut"    type="button">Sign out</button>
         <button id="btnGoUpload"   type="button">추천영상등록</button>
         <button id="btnGoCategory" type="button">Category 선택</button>
+        <button id="btnMyUploads"  type="button">업로드영상</button>
       </div>
     </div>
   </header>
@@ -33,7 +34,7 @@
       <p class="lead">쇼츠처럼 화면을 올려 영상 시청하세요.</p>
       <h3>카테고리 선택</h3>
 
-      <!-- 라디오 버튼: 하나만 선택. 같은 항목을 다시 탭하면 전체 해제 -->
+      <!-- 라디오: 하나만 선택, 같은 항목을 다시 누르면 전체 해제 -->
       <div class="categories radios">
         <label><input type="radio" name="cat" class="cat-radio" value="__ALL__" checked> 전체선택</label>
         <label><input type="radio" name="cat" class="cat-radio" value="review"> 영상리뷰</label>
