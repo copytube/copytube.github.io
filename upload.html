@@ -5,18 +5,43 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>추천영상 등록 - Copytube</title>
   <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    /* 업로드 폼 약간의 스타일 (다크 테마 유지) */
+    .form {
+      max-width: 820px; margin: 24px auto; padding: 0 16px;
+    }
+    .form label { display:block; margin: 12px 0 6px; font-weight:600; }
+    .form input[type="url"], .form input[type="text"] {
+      width:100%; padding:10px; border-radius:8px; border:1px solid var(--border,#333);
+      background:#0f0f0f; color:#fff;
+    }
+    .form button {
+      margin-top:14px; padding:10px 14px; border:0; border-radius:8px; cursor:pointer;
+      background:#2b66f6; color:#fff; font-weight:600;
+    }
+    .msg { margin-top:10px; color:#d6d6d6; font-size:14px; min-height:1.2em; }
+    header#topbar .right .link { color:#4ea1ff; }
+  </style>
 </head>
 <body>
-  <header>
-    <strong>추천영상 등록</strong>
+  <!-- 간단 헤더 (로그인 가드가 있으므로 여긴 삼 메뉴 없이) -->
+  <header id="topbar">
+    <div class="brand"><strong>Copytube</strong></div>
+    <div class="right">
+      <a class="link" href="index.html">← 홈으로</a>
+      <a id="signupLink" class="link" href="signup.html">Sign up</a>
+      <a id="signinLink" class="link" href="signin.html">Sign in</a>
+      <span id="welcome" class="welcome"></span>
+    </div>
   </header>
 
   <main class="form">
-    <label>유튜브 공유 URL
-      <input id="videoUrl" type="text" placeholder="https://youtu.be/..."/>
-    </label>
+    <h2>추천영상 등록</h2>
 
-    <h3>카테고리 선택 (최대 3개)</h3>
+    <label for="videoUrl">유튜브 공유 URL</label>
+    <input id="videoUrl" type="url" placeholder="https://youtu.be/..., https://youtube.com/shorts/..." />
+
+    <h3 style="margin:16px 0 10px;">카테고리 선택 (최대 3개)</h3>
     <div class="categories">
       <label><input type="checkbox" class="cat" value="review"> 영상리뷰</label>
       <label><input type="checkbox" class="cat" value="edu"> 교육</label>
@@ -30,8 +55,8 @@
       <label><input type="checkbox" class="cat" value="etc"> 미분류</label>
     </div>
 
-    <button id="submitBtn">등록하기</button>
-    <div id="msg"></div>
+    <button id="submitBtn" type="button">등록하기</button>
+    <div id="msg" class="msg"></div>
   </main>
 
   <script type="module">
@@ -40,21 +65,68 @@
     import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
     const msg = document.getElementById("msg");
-    document.getElementById("submitBtn").onclick = async () => {
+    const signupLink = document.getElementById("signupLink");
+    const signinLink = document.getElementById("signinLink");
+    const welcome = document.getElementById("welcome");
+    const submitBtn = document.getElementById("submitBtn");
+    const catBoxes = document.querySelectorAll(".cat");
+
+    let currentUser = null;
+
+    // 로그인 가드 + 헤더 우측 링크 토글
+    onAuthStateChanged(auth, (user)=>{
+      currentUser = user;
+      const loggedIn = !!user;
+      signupLink.style.display = loggedIn ? "none" : "inline";
+      signinLink.style.display = loggedIn ? "none" : "inline";
+      welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
+
+      if(!loggedIn){
+        msg.textContent = "로그인이 필요합니다. (Sign in으로 이동합니다)";
+        setTimeout(()=>location.href = "signin.html?next=upload.html", 700);
+      } else {
+        msg.textContent = "";
+      }
+    });
+
+    // 카테고리 최대 3개 제한
+    catBoxes.forEach(cb => cb.addEventListener('change', () => {
+      const checked = [...catBoxes].filter(c => c.checked);
+      if (checked.length > 3) {
+        cb.checked = false;
+        msg.textContent = "카테고리는 최대 3개까지 선택 가능합니다.";
+      } else {
+        msg.textContent = "";
+      }
+    }));
+
+    // URL 간단 검증 (선택)
+    function validYouTube(url) {
+      return /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//.test(url);
+    }
+
+    submitBtn.onclick = async () => {
+      if(!currentUser){ msg.textContent = "로그인 후 이용해 주세요."; return; }
+
       const url = document.getElementById("videoUrl").value.trim();
       const cats = [...document.querySelectorAll(".cat:checked")].map(c=>c.value);
       const selected = cats.length ? cats.slice(0,3) : ["etc"];
-      if (!url) { msg.textContent="URL을 입력하세요."; return; }
+
+      if (!url) { msg.textContent = "URL을 입력하세요."; return; }
+      if (!validYouTube(url)) { msg.textContent = "유튜브 공유 URL 형식이 아닙니다."; return; }
 
       try {
         await addDoc(collection(db,"videos"), {
-          url, categories:selected, createdAt:serverTimestamp(), uid:auth.currentUser.uid
+          url,
+          categories: selected,
+          uid: currentUser.uid,
+          createdAt: serverTimestamp()
         });
-        msg.textContent="등록 완료!";
-        document.getElementById("videoUrl").value="";
+        msg.textContent = "등록 완료!";
+        document.getElementById("videoUrl").value = "";
         document.querySelectorAll(".cat").forEach(c=>c.checked=false);
       } catch(e){
-        msg.textContent="오류: "+e.message;
+        msg.textContent = "오류: " + (e.message || e.code || e);
       }
     };
   </script>
