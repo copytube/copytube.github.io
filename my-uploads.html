@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>내 업로드 영상 - Copytube</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    /* 페이지 전용 간단 스타일 */
+    main { max-width: 860px; margin: 24px auto; padding: 0 16px; }
+    .desc { color:#cfcfcf; margin: 4px 0 16px; }
+    .list { list-style:none; padding:0; margin:0; }
+    .item {
+      display:flex; gap:12px; align-items:center;
+      padding:10px 12px; border:1px solid var(--border,#333);
+      background:#1b1b1b; border-radius:10px; margin-bottom:10px;
+    }
+    .item .meta { flex:1; min-width:0; }
+    .item .title { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .item .tags { color:#9aa0a6; font-size:12px; margin-top:4px; }
+    #deleteBtn {
+      margin-top:14px; padding:10px 14px; border:0; border-radius:8px; cursor:pointer;
+      background:#ef4444; color:#fff; font-weight:700;
+    }
+    #deleteBtn:disabled { opacity:.5; cursor:not-allowed; }
+    #msg { margin-top:10px; color:#d6d6d6; min-height:1.2em; }
+  </style>
+</head>
+<body>
+  <!-- 헤더(로고 클릭 시 홈 이동) -->
+  <header id="topbar">
+    <div class="brand"><a href="index.html">Copytube</a></div>
+    <div class="right">
+      <a class="link" href="index.html">← 홈으로</a>
+      <a id="signupLink" class="link" href="signup.html">Sign up</a>
+      <a id="signinLink" class="link" href="signin.html">Sign in</a>
+      <span id="welcome" class="welcome"></span>
+    </div>
+  </header>
+
+  <main>
+    <h2>내 업로드 영상</h2>
+    <p class="desc">내가 등록한 영상만 표시됩니다. 삭제는 선택 후 <b>삭제하기</b> 버튼을 누르세요.</p>
+
+    <ul id="videoList" class="list"></ul>
+
+    <button id="deleteBtn" type="button" disabled>선택 삭제</button>
+    <div id="msg"></div>
+  </main>
+
+  <script type="module">
+    import { auth, db } from './js/firebase-init.js';
+    import { onAuthStateChanged } from './js/auth.js';
+    import {
+      collection, query, where, getDocs,
+      deleteDoc, doc
+    } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+    const list = document.getElementById('videoList');
+    const msg  = document.getElementById('msg');
+    const delBtn = document.getElementById('deleteBtn');
+    const signupLink = document.getElementById('signupLink');
+    const signinLink = document.getElementById('signinLink');
+    const welcome    = document.getElementById('welcome');
+
+    let currentUser = null;
+    let currentPick = null; // 선택된 문서 id
+
+    onAuthStateChanged(auth, async (user)=>{
+      currentUser = user;
+      const loggedIn = !!user;
+      signupLink.style.display = loggedIn ? "none" : "inline";
+      signinLink.style.display = loggedIn ? "none" : "inline";
+      welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
+
+      if(!loggedIn){
+        msg.textContent = "로그인이 필요합니다. (Sign in으로 이동합니다)";
+        setTimeout(()=> location.href = "signin.html?next=my-uploads.html", 700);
+        return;
+      }
+      await loadMyVideos();
+    });
+
+    function extractId(url){
+      const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
+      return m ? m[1] : url;
+    }
+
+    async function loadMyVideos(){
+      list.innerHTML = "<li class='item'><div class='meta'>불러오는 중...</div></li>";
+      currentPick = null; delBtn.disabled = true;
+
+      try{
+        const q = query(collection(db, "videos"), where("uid", "==", auth.currentUser.uid));
+        const snap = await getDocs(q);
+
+        // 로컬 정렬 (createdAt이 있을 때만)
+        const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }))
+          .sort((a,b)=> (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
+
+        if(rows.length === 0){
+          list.innerHTML = "<li class='item'><div class='meta'>업로드한 영상이 없습니다.</div></li>";
+          return;
+        }
+
+        list.innerHTML = "";
+        rows.forEach(row=>{
+          const li = document.createElement('li');
+          li.className = 'item';
+
+          const input = document.createElement('input');
+          input.type = 'radio';
+          input.name = 'pick';
+          input.value = row.id;
+          input.addEventListener('change', ()=>{
+            currentPick = input.checked ? row.id : null;
+            delBtn.disabled = !currentPick;
+          });
+
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          const title = document.createElement('div');
+          title.className = 'title';
+          title.textContent = extractId(row.url); // 제목이 없으므로 ID/URL 표시
+          const tags = document.createElement('div');
+          tags.className = 'tags';
+          tags.textContent = (row.categories && row.categories.length)
+            ? row.categories.join(' · ')
+            : '미분류';
+          meta.appendChild(title);
+          meta.appendChild(tags);
+
+          li.appendChild(input);
+          li.appendChild(meta);
+          list.appendChild(li);
+        });
+
+      }catch(e){
+        list.innerHTML = "<li class='item'><div class='meta'>목록을 불러오지 못했습니다.</div></li>";
+        msg.textContent = "오류: " + (e.message || e.code || e);
+      }
+    }
+
+    delBtn.addEventListener('click', async ()=>{
+      if(!currentPick) return;
+      if(!confirm("선택한 영상을 삭제할까요?")) return;
+      try{
+        await deleteDoc(doc(db, "videos", currentPick));
+        msg.textContent = "삭제 완료!";
+        await loadMyVideos();
+      }catch(e){
+        msg.textContent = "삭제 실패: " + (e.message || e.code || e);
+      }
+    });
+  </script>
+</body>
+</html>
