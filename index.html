@@ -7,21 +7,20 @@
   <link rel="stylesheet" href="css/style.css"/>
 </head>
 <body>
-  <header id="topbar">
-    <div><strong>Copytube</strong></div>
-    <div class="right">
-      <span id="welcome"></span>
-      <button id="menuBtn">三</button>
-    </div>
-  </header>
+<header id="topbar">
+  <div><strong>Copytube</strong></div>
+  <div class="right">
+    <a id="signupLink" href="signup.html">Sign up</a>
+    <a id="signinLink" href="signin.html">Sign in</a>
+    <span id="welcome"></span>
+    <button id="menuBtn" class="hidden">三</button>
+  </div>
+</header>
 
-  <!-- 첫 안내 문구 -->
-  <section class="intro">
+<!-- 안내 + 카테고리 (첫 화면에서 같이 보임) -->
+<section id="categorySection" class="intro">
+  <div>
     <p>쇼츠처럼 화면을 올려 영상 시청하세요.</p>
-  </section>
-
-  <!-- 카테고리 선택 -->
-  <section id="categorySection">
     <h3>카테고리 선택</h3>
     <div class="categories">
       <label><input type="checkbox" class="cat" value="all" checked> 전체보기</label>
@@ -36,7 +35,9 @@
       <label><input type="checkbox" class="cat" value="christian"> 기독교</label>
       <label><input type="checkbox" class="cat" value="etc"> 미분류</label>
     </div>
-  </section>
+  </div>
+</section>
+
 
   <!-- 영상 리스트 -->
   <main id="videoContainer">
