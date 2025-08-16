@@ -2,14 +2,30 @@ import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { collection, getDocs, query, where, orderBy } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-// DOM
+// DOM 레퍼런스
 const signupLink = document.getElementById("signupLink");
 const signinLink = document.getElementById("signinLink");
 const welcome    = document.getElementById("welcome");
 const menuBtn    = document.getElementById("menuBtn");
 const dropdown   = document.getElementById("dropdownMenu");
+const btnSignOut = document.getElementById("btnSignOut");
+const btnGoUpload= document.getElementById("btnGoUpload");
+const btnGoCat   = document.getElementById("btnGoCategory");
+
 const videoContainer = document.getElementById("videoContainer");
 const catBoxes   = document.querySelectorAll(".cat");
+
+// 드롭다운 제어 함수
+function openDropdown(){
+  dropdown.classList.remove("hidden");
+  // 리플로우 후 show 적용(애니메이션)
+  requestAnimationFrame(()=> dropdown.classList.add("show"));
+}
+function closeDropdown(){
+  dropdown.classList.remove("show");
+  // transition 끝난 뒤 hidden 처리
+  setTimeout(()=> dropdown.classList.add("hidden"), 180);
+}
 
 // 로그인 상태 반영
 onAuthStateChanged(auth, (user)=>{
@@ -17,33 +33,38 @@ onAuthStateChanged(auth, (user)=>{
   signupLink.classList.toggle("hidden", loggedIn);
   signinLink.classList.toggle("hidden", loggedIn);
   menuBtn.classList.toggle("hidden", !loggedIn);
-  dropdown.classList.add("hidden");      // 상태 바뀔 때 항상 닫기
-  dropdown.classList.remove("show");     // 애니메이션 클래스 제거
-  welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName||'회원'}님` : "";
+  welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
+  closeDropdown(); // 상태 전환 시 드롭다운 닫기
 });
 
 // 三 클릭 → 드롭다운 토글
 menuBtn.addEventListener("click", (e)=>{
   e.stopPropagation();
-  // hidden ↔ show 토글 (완전 비노출 보장)
-  const willOpen = dropdown.classList.contains("hidden");
-  dropdown.classList.toggle("hidden", !willOpen ? true : false);
-  dropdown.classList.toggle("show",   willOpen);
+  if (dropdown.classList.contains("hidden")) openDropdown();
+  else closeDropdown();
 });
 
 // 바깥 클릭 → 드롭다운 닫기
 document.addEventListener("click", ()=>{
-  if(!dropdown.classList.contains("hidden")){
-    dropdown.classList.add("hidden");
-    dropdown.classList.remove("show");
-  }
+  if (!dropdown.classList.contains("hidden")) closeDropdown();
 });
 
-// HTML에서 호출할 함수
-export function signOut(){ fbSignOut(auth); }
-export function scrollToCategory(){
+// 드롭다운 내부 클릭 버블 방지
+dropdown.addEventListener("click", (e)=> e.stopPropagation());
+
+// 드롭다운 버튼 동작
+btnSignOut.addEventListener("click", async ()=>{
+  await fbSignOut(auth);
+  closeDropdown();
+});
+btnGoUpload.addEventListener("click", ()=>{
+  location.href = "upload.html";
+  closeDropdown();
+});
+btnGoCat.addEventListener("click", ()=>{
   document.getElementById("categorySection").scrollIntoView({behavior:"smooth"});
-}
+  closeDropdown();
+});
 
 // -------------------- 영상 목록 --------------------
 function renderVideos(urls){
@@ -63,9 +84,8 @@ function renderVideos(urls){
   });
 }
 
-// 유튜브 공유 URL → ID
+// 유튜브 공유 URL → ID (youtu.be / watch?v= / shorts/)
 function extractId(url){
-  // youtu.be/ID  또는  youtube.com/watch?v=ID  또는 /shorts/ID
   const m = url.match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
   return m ? m[1] : url;
 }
@@ -73,9 +93,20 @@ function extractId(url){
 // Firestore에서 영상 로드
 async function loadVideos(){
   const active = [...catBoxes].filter(c=>c.checked).map(c=>c.value);
+
+  // 아무것도 선택 안 된 경우
+  if (active.length === 0){
+    renderVideos([]);
+    return;
+  }
+
   let q = query(collection(db,"videos"), orderBy("createdAt","desc"));
   if(!active.includes("all")){
-    q = query(collection(db,"videos"), where("categories","array-contains-any", active), orderBy("createdAt","desc"));
+    q = query(
+      collection(db,"videos"),
+      where("categories","array-contains-any", active),
+      orderBy("createdAt","desc")
+    );
   }
   const snap = await getDocs(q);
   renderVideos(snap.docs.map(d=>d.data().url));
