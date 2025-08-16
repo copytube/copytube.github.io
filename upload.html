@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>추천영상 등록 - Copytube</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+  <header>
+    <strong>추천영상 등록</strong>
+  </header>
+
+  <main class="form">
+    <label>유튜브 공유 URL
+      <input id="videoUrl" type="text" placeholder="https://youtu.be/..."/>
+    </label>
+
+    <h3>카테고리 선택 (최대 3개)</h3>
+    <div class="categories">
+      <label><input type="checkbox" class="cat" value="review"> 영상리뷰</label>
+      <label><input type="checkbox" class="cat" value="edu"> 교육</label>
+      <label><input type="checkbox" class="cat" value="life"> 생활팁</label>
+      <label><input type="checkbox" class="cat" value="cook"> 요리</label>
+      <label><input type="checkbox" class="cat" value="fun"> 유머</label>
+      <label><input type="checkbox" class="cat" value="music"> 음악</label>
+      <label><input type="checkbox" class="cat" value="exercise"> 운동</label>
+      <label><input type="checkbox" class="cat" value="politics"> 정치</label>
+      <label><input type="checkbox" class="cat" value="christian"> 기독교</label>
+      <label><input type="checkbox" class="cat" value="etc"> 미분류</label>
+    </div>
+
+    <button id="submitBtn">등록하기</button>
+    <div id="msg"></div>
+  </main>
+
+  <script type="module">
+    import { auth, db } from './js/firebase-init.js';
+    import { onAuthStateChanged } from './js/auth.js';
+    import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+    const msg = document.getElementById("msg");
+    document.getElementById("submitBtn").onclick = async () => {
+      const url = document.getElementById("videoUrl").value.trim();
+      const cats = [...document.querySelectorAll(".cat:checked")].map(c=>c.value);
+      const selected = cats.length ? cats.slice(0,3) : ["etc"];
+      if (!url) { msg.textContent="URL을 입력하세요."; return; }
+
+      try {
+        await addDoc(collection(db,"videos"), {
+          url, categories:selected, createdAt:serverTimestamp(), uid:auth.currentUser.uid
+        });
+        msg.textContent="등록 완료!";
+        document.getElementById("videoUrl").value="";
+        document.querySelectorAll(".cat").forEach(c=>c.checked=false);
+      } catch(e){
+        msg.textContent="오류: "+e.message;
+      }
+    };
+  </script>
+</body>
+</html>
