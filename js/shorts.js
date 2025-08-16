@@ -2,7 +2,7 @@ import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { collection, getDocs, query, where, orderBy } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-// DOM 레퍼런스
+// DOM
 const signupLink = document.getElementById("signupLink");
 const signinLink = document.getElementById("signinLink");
 const welcome    = document.getElementById("welcome");
@@ -11,16 +11,17 @@ const dropdown   = document.getElementById("dropdownMenu");
 const btnSignOut = document.getElementById("btnSignOut");
 const btnGoUpload= document.getElementById("btnGoUpload");
 const btnGoCat   = document.getElementById("btnGoCategory");
+const btnMyUploads = document.getElementById("btnMyUploads");
 const brandHome  = document.getElementById("brandHome");
 
 const videoContainer = document.getElementById("videoContainer");
 const radios   = document.querySelectorAll('input.cat-radio[name="cat"]');
 
 const ALL = "__ALL__";
-let currentCat = ALL;     // 디폴트: 전체선택
-let lastMouseDownChecked = false; // 라디오 재탭 해제 구현용
+let currentCat = ALL;               // 기본: 전체선택
+let lastMouseDownChecked = false;   // 라디오 재탭 해제 구현용
 
-// ---------- 드롭다운 제어 ----------
+// 드롭다운 제어
 function openDropdown(){
   dropdown.classList.remove("hidden");
   requestAnimationFrame(()=> dropdown.classList.add("show"));
@@ -40,7 +41,7 @@ onAuthStateChanged(auth, (user)=>{
   closeDropdown();
 });
 
-// 三 클릭 → 드롭다운 토글
+// 三 버튼 → 드롭다운 토글
 menuBtn.addEventListener("click", (e)=>{
   e.stopPropagation();
   if (dropdown.classList.contains("hidden")) openDropdown();
@@ -66,8 +67,12 @@ btnGoCat.addEventListener("click", ()=>{
   document.getElementById("categorySection").scrollIntoView({behavior:"smooth"});
   closeDropdown();
 });
+btnMyUploads.addEventListener("click", ()=>{
+  location.href = "my-uploads.html";
+  closeDropdown();
+});
 
-// 로고 클릭 → 카테고리 화면으로
+// 로고 → 첫 화면으로
 brandHome.addEventListener("click", (e)=>{
   e.preventDefault();
   closeDropdown();
@@ -75,28 +80,24 @@ brandHome.addEventListener("click", (e)=>{
   document.getElementById("categorySection").scrollIntoView({ behavior:"smooth", block:"start" });
 });
 
-// ---------- 라디오(단일 선택, 재탭 시 전체 해제) ----------
+// ---------- 라디오(단일 선택, 같은 항목 재탭 → 전체 해제) ----------
 radios.forEach(r=>{
-  // 클릭 직전 상태 기억
   r.addEventListener('mousedown', ()=> { lastMouseDownChecked = r.checked; });
   r.addEventListener('touchstart', ()=> { lastMouseDownChecked = r.checked; }, {passive:true});
-
   r.addEventListener('click', (e)=>{
-    // 같은 라디오를 다시 탭하면 전체 해제(모두 미선택)
     if(lastMouseDownChecked){
       r.checked = false;
-      currentCat = null;          // 아무 카테고리도 선택 안 함
+      currentCat = null;           // 아무 카테고리도 선택 안 함
       loadVideos();
-      e.preventDefault();         // 기본 라디오 선택 동작 취소
+      e.preventDefault();
       return;
     }
-    // 새로운 선택 반영
-    currentCat = r.value;
+    currentCat = r.value;          // 새 선택
     loadVideos();
   });
 });
 
-// ---------- 영상 렌더링 ----------
+// ---------- 렌더 ----------
 function renderVideos(urls, hint){
   videoContainer.innerHTML="";
   if(hint){
@@ -121,15 +122,14 @@ function renderVideos(urls, hint){
   });
 }
 
-// 유튜브 공유 URL → ID (youtu.be / watch?v= / shorts/)
+// 유튜브 URL → ID
 function extractId(url){
-  const m = url.match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
+  const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
   return m ? m[1] : url;
 }
 
-// Firestore에서 영상 로드
+// ---------- 데이터 로드 ----------
 async function loadVideos(){
-  // 아무 라디오도 선택 안 된 상태
   if(currentCat === null){
     renderVideos([], "카테고리를 선택하세요.");
     return;
