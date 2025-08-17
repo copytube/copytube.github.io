@@ -30,7 +30,7 @@ body{
 
 /* 로고 이미지 (큰 소스여도 자동 축소) */
 .brand-logo{
-  height:24px; width:auto; display:block; object-fit:contain;
+  height:48px; width:auto; display:block; object-fit:contain;
 }
 @media (max-width: 420px){
   .brand-logo{ height:22px; }
