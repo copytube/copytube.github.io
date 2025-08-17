@@ -20,6 +20,7 @@
       <span id="welcome" class="welcome"></span>
       <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
 
+      <!-- 드롭다운: 로그인 시 三 눌렀을 때만 표시 -->
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
         <button id="btnSignOut"    type="button">Sign out</button>
         <button id="btnGoUpload"   type="button">추천영상등록</button>
@@ -29,12 +30,12 @@
     </div>
   </header>
 
+  <!-- 첫 화면: 안내 + 카테고리(체크박스를 라디오처럼 사용) -->
   <section id="categorySection" class="intro">
     <div>
       <p class="lead">쇼츠처럼 화면을 올려 영상 시청하세요.</p>
       <h3>카테고리 선택</h3>
 
-      <!-- 체크박스를 라디오처럼 사용 (다중 선택/해제 지원) -->
       <div class="categories radios">
         <label><input type="checkbox" class="cat-box" value="__ALL__"> 전체선택</label>
 
