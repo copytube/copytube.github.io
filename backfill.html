@@ -1,0 +1,47 @@
+<!DOCTYPE html><meta charset="utf-8">
+<title>Backfill (once)</title>
+<script type="module">
+import { auth, db } from './js/firebase-init.js';
+import { onAuthStateChanged } from './js/auth.js';
+import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp } 
+  from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+async function fetchYTTitle(url){
+  try{
+    const r = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+    if(!r.ok) return '';
+    const j = await r.json();
+    return j.title || '';
+  }catch{ return ''; }
+}
+
+onAuthStateChanged(auth, async (user)=>{
+  if(!user){ document.body.textContent='로그인 필요'; return; }
+  document.body.textContent='보정 중...';
+
+  const q = query(collection(db,'videos'), where('uid','==',user.uid));
+  const snap = await getDocs(q);
+  let updated = 0;
+
+  for (const d of snap.docs){
+    const v = d.data();
+    const patch = {};
+
+    // createdAt 없으면 지금 시각으로 보정(정렬용)
+    if (!v.createdAt) patch.createdAt = serverTimestamp();
+
+    // title 없으면 oEmbed로 보강
+    if (!v.title) {
+      const t = await fetchYTTitle(v.url);
+      if (t) patch.title = t;
+    }
+
+    if (Object.keys(patch).length){
+      await updateDoc(doc(db,'videos', d.id), patch);
+      updated++;
+    }
+  }
+
+  document.body.textContent = `완료: ${updated}건 보정됨. 이제 my-uploads 페이지를 새로고침하세요.`;
+});
+</script>
