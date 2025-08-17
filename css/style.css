@@ -66,7 +66,8 @@ body{
   padding:72px 24px 24px;  /* 56px 헤더 + 여유 */
   background:var(--bg-2); border-bottom:1px solid var(--border);
 }
-.lead{ font-size:20px; color:#e6e6e6; margin:0 0 16px; }
+.lead{ font-size:20px; color:#e6e6e6; margin:0 0 8px; }
+.sublead{ font-size:14px; color:#9aa0a6; margin:0 0 16px; }
 .intro h3{ margin:12px 0 10px; }
 
 /* 카테고리 (라디오처럼 보이는 체크박스) */
