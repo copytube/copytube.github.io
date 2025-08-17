@@ -21,14 +21,21 @@
   </header>
 
   <main class="intro" style="align-items:flex-start; padding-top:96px;">
-    <div style="max-width:720px;width:100%;text-align:left;">
-      <h2>업로드한 영상</h2>
-      <div id="msg" class="welcome" style="margin:8px 0 12px;"></div>
+    <div style="max-width:900px;width:100%;text-align:left;">
+      <h2 style="display:flex;align-items:center;gap:10px;">
+        업로드한 영상
+        <small id="adminBadge" class="welcome hidden" style="font-weight:700;color:#9ef01a;">
+          (관리자 모드: 전체 표시)
+        </small>
+      </h2>
 
+      <div id="msg" class="welcome" style="margin:8px 0 12px;"></div>
       <div id="list" style="display:flex;flex-direction:column;gap:8px;"></div>
 
       <div style="margin-top:14px;display:flex;gap:8px;">
-        <button id="btnDelete" style="padding:10px 14px;border:0;border-radius:8px;background:#dc2626;color:#fff;cursor:pointer;">선택 삭제</button>
+        <button id="btnDelete" style="padding:10px 14px;border:0;border-radius:8px;background:#dc2626;color:#fff;cursor:pointer;">
+          선택 삭제
+        </button>
         <a href="./" class="link" style="align-self:center;">← 돌아가기</a>
       </div>
     </div>
@@ -38,12 +45,13 @@
     import { auth, db } from './js/firebase-init.js';
     import { onAuthStateChanged } from './js/auth.js';
     import {
-      collection, query, where, orderBy, getDocs, deleteDoc, doc
+      collection, query, where, getDocs, deleteDoc, doc, getDoc
     } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
     const $ = (s)=>document.querySelector(s);
     const list = $('#list');
     const msg  = $('#msg');
+    const adminBadge = $('#adminBadge');
     let selectedId = null;
 
     onAuthStateChanged(auth, async (user)=>{
@@ -52,65 +60,64 @@
       $('#welcome').textContent = user ? `안녕하세요, ${user.displayName||'회원'}님` : '';
 
       if(!user){ msg.textContent = '로그인 후 이용하세요.'; list.innerHTML=''; return; }
+
       msg.textContent = '불러오는 중...';
 
+      const admin = await isAdmin(user.uid);
+      adminBadge.classList.toggle('hidden', !admin);
+
       try{
-        // 1차: uid + orderBy(createdAt desc) (정상은 이 경로)
-        const q1 = query(
-          collection(db,'videos'),
-          where('uid','==',user.uid),
-          orderBy('createdAt','desc')
-        );
-        const snap = await getDocs(q1);
-        await renderList(snap.docs.map(d=>({ id:d.id, ...d.data() })));
-        msg.textContent = ''; // 성공
+        const rows = await fetchRowsNoIndex(user.uid, admin); // 인덱스 없이도 동작
+        renderListImmediate(rows);           // 먼저 URL로 즉시 렌더
+        backfillTitles(rows).catch(()=>{});  // 제목은 배경에서 보강
+        msg.textContent = rows.length ? '' : '영상이 없습니다.';
       }catch(err){
-        console.warn('복합 인덱스 필요 또는 쿼리 실패. 대안 경로로 진행:', err);
-
-        // 2차 대안: uid=만 걸고 가져온 후 클라이언트에서 createdAt desc 정렬
-        try{
-          const q2 = query(
-            collection(db,'videos'),
-            where('uid','==',user.uid)
-          );
-          const snap2 = await getDocs(q2);
-          const rows = snap2.docs.map(d=>({ id:d.id, ...d.data() }));
-
-          rows.sort((a,b)=>{
-            const ta = (a.createdAt && a.createdAt.toMillis) ? a.createdAt.toMillis() : 0;
-            const tb = (b.createdAt && b.createdAt.toMillis) ? b.createdAt.toMillis() : 0;
-            return tb - ta;
-          });
-
-          await renderList(rows);
-          msg.innerHTML = '인덱스 미구성으로 임시 정렬 중입니다. 콘솔에서 복합 인덱스를 만들면 더 빨라집니다.';
-        }catch(err2){
-          console.error('대안 경로도 실패:', err2);
-          msg.textContent = `목록을 불러오지 못했습니다: ${err2.message || err2}`;
-          list.innerHTML = '';
-        }
+        console.error(err);
+        msg.textContent = `목록을 불러오지 못했습니다: ${err.message||err}`;
+        list.innerHTML = '';
       }
     });
 
-    async function renderList(rows){
+    async function isAdmin(uid){
+      try{
+        const s = await getDoc(doc(db,'admins', uid));
+        return s.exists();
+      }catch{ return false; }
+    }
+
+    // 인덱스 없이 가져와 클라이언트에서 정렬
+    async function fetchRowsNoIndex(uid, adminMode){
+      let snap;
+      if (adminMode){
+        snap = await getDocs(collection(db,'videos'));       // 전체
+      }else{
+        const qMine = query(collection(db,'videos'), where('uid','==',uid)); // 내 것만
+        snap = await getDocs(qMine);
+      }
+      const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+      rows.sort((a,b)=> toMs(b.createdAt) - toMs(a.createdAt)); // 최신순
+      return rows;
+    }
+
+    function toMs(t){
+      try { return t?.toMillis ? t.toMillis() : (typeof t==='number' ? t : 0); }
+      catch { return 0; }
+    }
+
+    // 1) 즉시 렌더(제목 없으면 URL로 먼저)
+    function renderListImmediate(rows){
       list.innerHTML = '';
-      if(!rows.length){ msg.textContent = '업로드한 영상이 없습니다.'; return; }
-
-      // 타이틀 보강(oEmbed) — 타이틀 없는 항목만 병렬 보강
-      const filled = await Promise.all(rows.map(async (v)=>{
-        if(v.title && v.title.trim()) return v;
-        const t = await fetchTitleFallback(v.url);
-        return { ...v, title: t || v.url };
-      }));
-
-      for(const v of filled){
+      for (const v of rows){
         const el = document.createElement('label');
+        el.dataset.id = v.id;
         el.style.cssText = 'display:flex;gap:8px;align-items:flex-start;background:#1b1b1b;border:1px solid #333;border-radius:8px;padding:10px;';
         el.innerHTML = `
           <input type="radio" name="sel" value="${v.id}" style="margin-top:4px;">
           <div style="display:flex;flex-direction:column;gap:4px;overflow:hidden;">
-            <div style="font-weight:700;">${escapeHTML(v.title || v.url)}</div>
-            <div style="font-size:12px;color:#9aa0a6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHTML(v.url)}</div>
+            <div class="title" style="font-weight:700;">${escapeHTML(v.title || v.url)}</div>
+            <div style="font-size:12px;color:#9aa0a6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              ${escapeHTML(v.url)}${v.uid ? ' • 업로더: '+escapeHTML(v.uid) : ''}
+            </div>
           </div>
         `;
         el.querySelector('input').addEventListener('change', (e)=> selectedId = e.target.value);
@@ -118,15 +125,32 @@
       }
     }
 
-    async function fetchTitleFallback(url){
+    // 2) 제목 보강을 비동기로 수행(렌더 차단 X)
+    async function backfillTitles(rows){
+      const tasks = rows.map(async v=>{
+        if (v.title && v.title.trim()) return;
+        const t = await fetchTitle(v.url);
+        if (!t) return;
+        const node = list.querySelector(`label[data-id="${v.id}"] .title`);
+        if (node) node.textContent = t;
+      });
+      await Promise.allSettled(tasks);
+    }
+
+    async function fetchTitle(url){
       try{
         const r = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
-        if(!r.ok) return url;
+        if(!r.ok) return '';
         const j = await r.json();
-        return j.title || url;
-      }catch(e){ return url; }
+        return j.title || '';
+      }catch{ return ''; }
     }
-    function escapeHTML(s){ return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+    function escapeHTML(s){
+      return String(s).replace(/[&<>"']/g, m=>({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[m]));
+    }
 
     document.getElementById('btnDelete').addEventListener('click', async ()=>{
       if(!selectedId){ msg.textContent = '삭제할 영상을 선택하세요.'; return; }
