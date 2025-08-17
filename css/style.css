@@ -45,16 +45,20 @@ body{
 .dropdown{
   position:absolute; right:0; top:100%;
   background:var(--bg-2); border:1px solid var(--border); border-radius:8px;
-  display:flex; flex-direction:column; min-width:160px; padding:6px 0;
+  display:flex; flex-direction:column; min-width:180px; padding:6px 0;
   opacity:0; transform:translateY(-8px); pointer-events:none;
   transition:opacity .18s ease, transform .18s ease;
 }
 .dropdown.show{ opacity:1; transform:translateY(0); pointer-events:auto; }
 .dropdown button{
   background:none; border:0; color:var(--fg); text-align:left;
-  padding:10px 14px; cursor:pointer; font-size:14px;
+  padding:11px 16px; cursor:pointer; font-size:14px; line-height:1.25;
 }
 .dropdown button:hover{ background:var(--bg-3); }
+/* 강조 항목: 한 사이즈 크게 + 굵게 */
+.dropdown .menu-strong{
+  font-size:16px; font-weight:700;
+}
 
 /* 첫 화면: fixed 헤더 높이만큼 여백 */
 .intro{
