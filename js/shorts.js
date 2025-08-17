@@ -4,18 +4,26 @@ import {
   collection, getDocs, query, where, orderBy, limit, startAfter
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
+/* ---------- 뷰포트 높이 보정 (모바일 100vh 이슈) ---------- */
+function updateVh(){
+  document.documentElement.style.setProperty('--app-vh', `${window.innerHeight}px`);
+}
+updateVh();
+window.addEventListener('resize', updateVh);
+window.addEventListener('orientationchange', updateVh);
+
 /* ----------------- DOM ----------------- */
-const topbar      = document.getElementById("topbar");
-const signupLink  = document.getElementById("signupLink");
-const signinLink  = document.getElementById("signinLink");
-const welcome     = document.getElementById("welcome");
-const menuBtn     = document.getElementById("menuBtn");
-const dropdown    = document.getElementById("dropdownMenu");
-const btnSignOut  = document.getElementById("btnSignOut");
-const btnGoUpload = document.getElementById("btnGoUpload");
-const btnGoCat    = document.getElementById("btnGoCategory");
-const btnMyUploads= document.getElementById("btnMyUploads");
-const brandHome   = document.getElementById("brandHome");
+const topbar       = document.getElementById("topbar");
+const signupLink   = document.getElementById("signupLink");
+const signinLink   = document.getElementById("signinLink");
+const welcome      = document.getElementById("welcome");
+const menuBtn      = document.getElementById("menuBtn");
+const dropdown     = document.getElementById("dropdownMenu");
+const btnSignOut   = document.getElementById("btnSignOut");
+const btnGoUpload  = document.getElementById("btnGoUpload");
+const btnGoCat     = document.getElementById("btnGoCategory");
+const btnMyUploads = document.getElementById("btnMyUploads");
+const brandHome    = document.getElementById("brandHome");
 
 const categorySection = document.getElementById("categorySection");
 const videoContainer  = document.getElementById("videoContainer");
@@ -41,7 +49,7 @@ let hideTimer = null;
 /* ----------------- 드롭다운 ----------------- */
 function openDropdown(){
   isMenuOpen = true;
-  showTopbarTemp();                 // 보이게
+  showTopbarTemp();
   dropdown.classList.remove("hidden");
   requestAnimationFrame(()=> dropdown.classList.add("show"));
 }
@@ -49,7 +57,6 @@ function closeDropdown(){
   isMenuOpen = false;
   dropdown.classList.remove("show");
   setTimeout(()=> dropdown.classList.add("hidden"), 180);
-  // 닫으면 2초 후 자동 숨김 재개(영상 모드일 때만)
   scheduleHide();
 }
 
@@ -62,79 +69,89 @@ onAuthStateChanged(auth, (user)=>{
   closeDropdown();
 });
 
-menuBtn.addEventListener("click", (e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown(); });
-document.addEventListener("click", ()=>{ if(!dropdown.classList.contains("hidden")) closeDropdown(); });
+menuBtn.addEventListener("click", (e)=>{
+  e.stopPropagation();
+  dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown();
+});
+document.addEventListener("click", ()=>{
+  if(!dropdown.classList.contains("hidden")) closeDropdown();
+});
 dropdown.addEventListener("click", (e)=> e.stopPropagation());
 
-btnSignOut.addEventListener("click", async ()=>{ await fbSignOut(auth); closeDropdown(); });
-btnGoUpload.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
-btnGoCat.addEventListener("click", ()=>{ categorySection.scrollIntoView({behavior:"smooth"}); closeDropdown(); });
-btnMyUploads?.addEventListener("click", ()=>{ location.href = "my-uploads.html"; closeDropdown(); });
+btnSignOut.addEventListener("click", async ()=>{
+  await fbSignOut(auth);
+  closeDropdown();
+});
+btnGoUpload.addEventListener("click", ()=>{
+  location.href = "upload.html";
+  closeDropdown();
+});
+btnGoCat.addEventListener("click", ()=>{
+  categorySection.scrollIntoView({behavior:"smooth"});
+  closeDropdown();
+});
+btnMyUploads?.addEventListener("click", ()=>{
+  location.href = "my-uploads.html";
+  closeDropdown();
+});
 
 brandHome.addEventListener("click", (e)=>{
-  e.preventDefault(); closeDropdown();
+  e.preventDefault();
+  closeDropdown();
   videoContainer.scrollTo({ top: 0, behavior: "auto" });
   categorySection.scrollIntoView({ behavior:"smooth", block:"start" });
 });
 
 /* ----------------- 카테고리 로직 ----------------- */
-// 기본: 전체선택 = 전부 체크
+// 전체선택 = 전부 체크 / 해제 = 전부 해제
 function checkAll(on){
   allBox.checked = !!on;
   catBoxes.forEach(b=> b.checked = !!on);
-  selected = on ? "ALL" : null; // 전체선택 해제 → 전부 해제
+  selected = on ? "ALL" : null;
   resetFeed();
   if (selected === null) showHint("카테고리를 선택하세요.");
   else loadMore(true);
 }
-checkAll(true); // 초기 디폴트
+// 초기 디폴트: 전체선택 ON
+checkAll(true);
 
-let allLastDown = false;
-allBox.addEventListener('mousedown', ()=> allLastDown = allBox.checked);
-allBox.addEventListener('touchstart', ()=> allLastDown = allBox.checked, {passive:true});
-allBox.addEventListener('click', (e)=>{
-  // 전체선택이 눌릴 때: 이미 체크였다면 → 모두 해제, 아니면 → 모두 선택
-  if(allLastDown){ checkAll(false); e.preventDefault(); }
-  else { checkAll(true); }
+// 전체선택: change 이벤트로 단순화
+allBox.addEventListener('change', ()=>{
+  checkAll(allBox.checked);
 });
 
-catBoxes.forEach(b=>{
-  let lastDown = false;
-  b.addEventListener('mousedown', ()=> lastDown = b.checked);
-  b.addEventListener('touchstart', ()=> lastDown = b.checked, {passive:true});
-  b.addEventListener('click', ()=>{
-    // 기본 토글 후 전체선택 동기화
-    setTimeout(()=>{
-      const anyChecked  = catBoxes.some(x=>x.checked);
-      const allChecked  = catBoxes.every(x=>x.checked);
+// 개별 카테고리: change 시 동기화
+function syncSelection(){
+  const any  = catBoxes.some(x=>x.checked);
+  const all  = catBoxes.every(x=>x.checked);
 
-      if(allChecked){ allBox.checked = true; selected = "ALL"; }
-      else{
-        allBox.checked = false;
-        selected = anyChecked ? catBoxes.filter(x=>x.checked).map(x=>x.value) : null;
-      }
+  if(all){
+    allBox.checked = true;
+    selected = "ALL";
+  }else{
+    allBox.checked = false;
+    selected = any ? catBoxes.filter(x=>x.checked).map(x=>x.value) : null;
+  }
 
-      resetFeed();
-      if(selected === null) showHint("카테고리를 선택하세요.");
-      else loadMore(true);
-    }, 0);
-  });
-});
+  resetFeed();
+  if(selected === null) showHint("카테고리를 선택하세요.");
+  else loadMore(true);
+}
+catBoxes.forEach(b=> b.addEventListener('change', syncSelection));
 
 /* ----------------- 상단바 자동 숨김 ----------------- */
 function enterWatchMode(on){
-  document.body.classList.toggle('watch-mode', on);
+  // 카테고리 화면이 벗어나면 watch-mode
   if(on){
     topbar.classList.add('autohide');
-    showTopbarTemp();   // 보였다가
-    scheduleHide();     // 2초 뒤 숨김
+    showTopbarTemp();
+    scheduleHide();
   }else{
     cancelHide();
-    topbar.classList.remove('hide','autohide'); // 항상 표시
+    topbar.classList.remove('hide','autohide');
   }
 }
-
-// 카테고리 섹션이 화면에 안 보일 때 = 영상 모드
+// 카테고리 섹션 가시성으로 watch-mode 판단
 const catIO = new IntersectionObserver((entries)=>{
   entries.forEach(entry=>{
     const inView = entry.isIntersecting && entry.intersectionRatio > 0.15;
@@ -143,14 +160,14 @@ const catIO = new IntersectionObserver((entries)=>{
 }, { root:null, threshold:[0,0.15,1] });
 catIO.observe(categorySection);
 
-// “보이기 + 2초 후 숨기기” 공통
+// “보이기 + 2초 후 숨기기”
 function showTopbarTemp(){
   topbar.classList.remove('hide');
   scheduleHide();
 }
 function scheduleHide(){
   cancelHide();
-  if(document.body.classList.contains('watch-mode') && !isMenuOpen){
+  if(!isMenuOpen){
     hideTimer = setTimeout(()=> topbar.classList.add('hide'), 2000);
   }
 }
@@ -158,17 +175,17 @@ function cancelHide(){
   if(hideTimer){ clearTimeout(hideTimer); hideTimer = null; }
 }
 
-// 사용자의 제스처/스크롤 → 잠깐 보였다가 다시 숨김
+// 사용자 인터랙션 시 잠깐 보였다가 다시 숨김
 ['scroll','wheel','touchstart','mousemove','keydown'].forEach(ev=>{
   const target = ev==='scroll' ? videoContainer : window;
   target.addEventListener(ev, ()=>{
-    if(document.body.classList.contains('watch-mode') && !isMenuOpen){
+    if(!isMenuOpen){
       showTopbarTemp();
     }
   }, { passive:true });
 });
 
-/* ----------------- YouTube 제어 (자동 언뮤트) ----------------- */
+/* ----------------- YouTube 제어 (첫 제스처 후 언뮤트) ----------------- */
 function ytCmd(iframe, func, args = []) {
   if (!iframe || !iframe.contentWindow) return;
   iframe.contentWindow.postMessage(JSON.stringify({ event:"command", func, args }), "*");
@@ -178,7 +195,11 @@ function grantSoundAndUnmuteCurrent(){
   const iframe = currentActive?.querySelector('iframe');
   if (iframe){ ytCmd(iframe,"unMute"); ytCmd(iframe,"playVideo"); }
 }
-const oneTimeGesture = ()=>{ grantSoundAndUnmuteCurrent(); window.removeEventListener('click', oneTimeGesture); window.removeEventListener('touchstart', oneTimeGesture); };
+const oneTimeGesture = ()=>{
+  grantSoundAndUnmuteCurrent();
+  window.removeEventListener('click', oneTimeGesture);
+  window.removeEventListener('touchstart', oneTimeGesture);
+};
 window.addEventListener('click', oneTimeGesture, { once:true });
 window.addEventListener('touchstart', oneTimeGesture, { once:true, passive:true });
 
@@ -214,7 +235,8 @@ function makeCard(url, docId){
   const id = extractId(url);
   const card = document.createElement('div');
   card.className = 'video';
-  card.dataset.vid = id; card.dataset.docId = docId;
+  card.dataset.vid = id;
+  card.dataset.docId = docId;
 
   card.innerHTML = `
     <div class="thumb" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#000;position:relative;">
@@ -274,7 +296,8 @@ async function loadMore(initial=false){
     if(selected === "ALL"){
       parts.push(orderBy("createdAt","desc"));
     }else if(Array.isArray(selected) && selected.length){
-      const cats = selected.length > 10 ? null : selected; // array-contains-any 최대 10개
+      // array-contains-any 최대 10개 제한
+      const cats = selected.length > 10 ? null : selected;
       if(cats){
         parts.push(where("categories","array-contains-any", cats));
         parts.push(orderBy("createdAt","desc"));
