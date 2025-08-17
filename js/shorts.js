@@ -186,7 +186,7 @@ function showTopbarTemp(){
 function scheduleHide(){
   cancelHide();
   if(!isMenuOpen){
-    hideTimer = setTimeout(()=> topbar.classList.add('hide'), 2000);
+    hideTimer = setTimeout(()=> topbar.classList.add('hide'), 1000);
   }
 }
 function cancelHide(){
