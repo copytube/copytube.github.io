@@ -28,9 +28,9 @@ body{
 }
 .brand a:hover{ opacity:.9; cursor:pointer; }
 
-/* 로고: 데스크톱 48px / 모바일 44px */
+/* 로고: 데스크톱 48px / 모바일 40px */
 .brand-logo{ height:48px; width:auto; display:block; object-fit:contain; }
-@media (max-width:420px){ .brand-logo{ height:44px; } }
+@media (max-width:420px){ .brand-logo{ height:40px; } }
 
 .link{ color:var(--accent); text-decoration:none; font-size:14px; }
 .welcome{ font-size:14px; color:var(--muted); }
