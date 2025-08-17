@@ -20,12 +20,13 @@
       <span id="welcome" class="welcome"></span>
       <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
 
-      <!-- 드롭다운: 로그인 시 三 눌렀을 때만 표시 -->
+      <!-- 로그인 시 三 클릭하면 표시 -->
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
-        <button id="btnSignOut"    type="button">Sign out</button>
-        <button id="btnGoUpload"   type="button">추천영상등록</button>
-        <button id="btnGoCategory" type="button">Category 선택</button>
-        <button id="btnMyUploads"  type="button">업로드영상</button>
+        <!-- 순서/스타일 요청 반영 -->
+        <button id="btnGoCategory" class="menu-strong" type="button">Category 선택</button>
+        <button id="btnMyUploads" type="button">업로드영상</button>
+        <button id="btnSignOut" type="button">Sign out</button>
+        <button id="btnGoUpload" class="menu-strong" type="button">추천영상등록</button>
       </div>
     </div>
   </header>
