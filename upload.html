@@ -28,23 +28,7 @@
       </label>
 
       <p style="margin:14px 0 6px;">카테고리(최대 3개)</p>
-      <div id="cats" class="categories radios" style="text-align:left;">
-        <label><input type="checkbox" class="cat" value="review"> 영상리뷰</label>
-        <label><input type="checkbox" class="cat" value="fun"> 유머</label>
-        <label><input type="checkbox" class="cat" value="variety"> 예능</label>
-        <label><input type="checkbox" class="cat" value="baby"> 아기</label>
-        <label><input type="checkbox" class="cat" value="animal"> 동물</label>
-        <label><input type="checkbox" class="cat" value="life"> 생활팁</label>
-        <label><input type="checkbox" class="cat" value="cook"> 요리</label>
-        <label><input type="checkbox" class="cat" value="food"> 맛집</label>
-        <label><input type="checkbox" class="cat" value="music"> 음악</label>
-        <label><input type="checkbox" class="cat" value="exercise"> 운동</label>
-        <label><input type="checkbox" class="cat" value="it"> IT</label>
-        <label><input type="checkbox" class="cat" value="edu"> 교육</label>
-        <label><input type="checkbox" class="cat" value="christian"> 기독교</label>
-        <label><input type="checkbox" class="cat" value="politics"> 정치</label>
-        <label><input type="checkbox" class="cat" value="etc"> 미분류</label>
-      </div>
+      <div id="cats" class="categories radios" style="text-align:left;"><!-- JS 렌더링 --></div>
 
       <button id="submitBtn" style="margin-top:18px;width:100%;padding:12px;border:0;border-radius:8px;background:#4ea1ff;color:#fff;font-weight:700;cursor:pointer;">등록</button>
       <div id="msg" class="welcome" style="margin-top:10px;"></div>
@@ -55,9 +39,13 @@
     import { auth, db } from './js/firebase-init.js';
     import { onAuthStateChanged } from './js/auth.js';
     import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+    import { renderCategoryCheckboxes } from './js/categories.js';
 
     const $ = (s)=>document.querySelector(s);
     const msg = $('#msg');
+
+    // 카테고리 체크박스 렌더링
+    renderCategoryCheckboxes(document.getElementById('cats'), 'cat');
 
     onAuthStateChanged(auth, (user)=>{
       $('#signupLink').classList.toggle('hidden', !!user);
