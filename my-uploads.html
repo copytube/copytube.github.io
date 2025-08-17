@@ -51,40 +51,72 @@
       $('#signinLink').classList.toggle('hidden', !!user);
       $('#welcome').textContent = user ? `안녕하세요, ${user.displayName||'회원'}님` : '';
 
-      if(!user){ msg.textContent = '로그인 후 이용하세요.'; return; }
+      if(!user){ msg.textContent = '로그인 후 이용하세요.'; list.innerHTML=''; return; }
       msg.textContent = '불러오는 중...';
 
-      const q = query(
-        collection(db,'videos'),
-        where('uid','==',user.uid),
-        orderBy('createdAt','desc'),
-      );
-      const snap = await getDocs(q);
-      list.innerHTML = '';
-      if(snap.empty){ msg.textContent = '업로드한 영상이 없습니다.'; return; }
+      try{
+        // 1차: uid + orderBy(createdAt desc) (정상은 이 경로)
+        const q1 = query(
+          collection(db,'videos'),
+          where('uid','==',user.uid),
+          orderBy('createdAt','desc')
+        );
+        const snap = await getDocs(q1);
+        await renderList(snap.docs.map(d=>({ id:d.id, ...d.data() })));
+        msg.textContent = ''; // 성공
+      }catch(err){
+        console.warn('복합 인덱스 필요 또는 쿼리 실패. 대안 경로로 진행:', err);
 
-      // 병렬로 타이틀 보강
-      const rows = await Promise.all(snap.docs.map(async (d)=>{
-        const v = d.data();
-        const title = v.title || await fetchTitleFallback(v.url);
-        return { id: d.id, url: v.url, title };
+        // 2차 대안: uid=만 걸고 가져온 후 클라이언트에서 createdAt desc 정렬
+        try{
+          const q2 = query(
+            collection(db,'videos'),
+            where('uid','==',user.uid)
+          );
+          const snap2 = await getDocs(q2);
+          const rows = snap2.docs.map(d=>({ id:d.id, ...d.data() }));
+
+          rows.sort((a,b)=>{
+            const ta = (a.createdAt && a.createdAt.toMillis) ? a.createdAt.toMillis() : 0;
+            const tb = (b.createdAt && b.createdAt.toMillis) ? b.createdAt.toMillis() : 0;
+            return tb - ta;
+          });
+
+          await renderList(rows);
+          msg.innerHTML = '인덱스 미구성으로 임시 정렬 중입니다. 콘솔에서 복합 인덱스를 만들면 더 빨라집니다.';
+        }catch(err2){
+          console.error('대안 경로도 실패:', err2);
+          msg.textContent = `목록을 불러오지 못했습니다: ${err2.message || err2}`;
+          list.innerHTML = '';
+        }
+      }
+    });
+
+    async function renderList(rows){
+      list.innerHTML = '';
+      if(!rows.length){ msg.textContent = '업로드한 영상이 없습니다.'; return; }
+
+      // 타이틀 보강(oEmbed) — 타이틀 없는 항목만 병렬 보강
+      const filled = await Promise.all(rows.map(async (v)=>{
+        if(v.title && v.title.trim()) return v;
+        const t = await fetchTitleFallback(v.url);
+        return { ...v, title: t || v.url };
       }));
 
-      for(const row of rows){
+      for(const v of filled){
         const el = document.createElement('label');
         el.style.cssText = 'display:flex;gap:8px;align-items:flex-start;background:#1b1b1b;border:1px solid #333;border-radius:8px;padding:10px;';
         el.innerHTML = `
-          <input type="radio" name="sel" value="${row.id}" style="margin-top:4px;">
+          <input type="radio" name="sel" value="${v.id}" style="margin-top:4px;">
           <div style="display:flex;flex-direction:column;gap:4px;overflow:hidden;">
-            <div style="font-weight:700;">${escapeHTML(row.title)}</div>
-            <div style="font-size:12px;color:#9aa0a6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHTML(row.url)}</div>
+            <div style="font-weight:700;">${escapeHTML(v.title || v.url)}</div>
+            <div style="font-size:12px;color:#9aa0a6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHTML(v.url)}</div>
           </div>
         `;
         el.querySelector('input').addEventListener('change', (e)=> selectedId = e.target.value);
         list.appendChild(el);
       }
-      msg.textContent = '';
-    });
+    }
 
     async function fetchTitleFallback(url){
       try{
