@@ -36,7 +36,7 @@ const PAGE_SIZE = 12;
 let isLoading = false, hasMore = true, lastDoc = null;
 let loadedIds = new Set();
 
-let userSoundConsent = false;  // 첫 제스처 이후
+let userSoundConsent = false;  // 첫 제스처 이후 허용
 let currentActive    = null;   // 현재 화면의 활성 .video
 
 // 선택 상태: null=아무것도 선택 안 함, "ALL"=전체선택, array=특정 카테고리들
@@ -73,12 +73,18 @@ menuBtn.addEventListener("click", (e)=>{
   e.stopPropagation();
   dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown();
 });
-document.addEventListener("click", ()=>{
-  if(!dropdown.classList.contains("hidden")) closeDropdown();
-});
+
+// 바깥 클릭/터치/포인터 → 자동 닫힘 (캡처 단계)
+function onOutsidePointer(e){
+  if (dropdown.classList.contains('hidden')) return;
+  const inside = e.target.closest('#dropdownMenu, #menuBtn');
+  if (!inside) closeDropdown();
+}
+document.addEventListener('pointerdown', onOutsidePointer, true);
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
+
 dropdown.addEventListener("click", (e)=> e.stopPropagation());
 
-// 메뉴 동작
 btnGoCategory.addEventListener("click", ()=>{
   categorySection.scrollIntoView({behavior:"smooth"});
   closeDropdown();
@@ -142,7 +148,6 @@ catBoxes.forEach(b=> b.addEventListener('change', syncSelection));
 
 /* ----------------- 상단바 자동 숨김 ----------------- */
 function enterWatchMode(on){
-  // 카테고리 화면이 벗어나면 watch-mode
   if(on){
     topbar.classList.add('autohide');
     showTopbarTemp();
@@ -152,7 +157,6 @@ function enterWatchMode(on){
     topbar.classList.remove('hide','autohide');
   }
 }
-// 카테고리 섹션 가시성으로 watch-mode 판단
 const catIO = new IntersectionObserver((entries)=>{
   entries.forEach(entry=>{
     const inView = entry.isIntersecting && entry.intersectionRatio > 0.15;
@@ -161,7 +165,6 @@ const catIO = new IntersectionObserver((entries)=>{
 }, { root:null, threshold:[0,0.15,1] });
 catIO.observe(categorySection);
 
-// “보이기 + 2초 후 숨기기”
 function showTopbarTemp(){
   topbar.classList.remove('hide');
   scheduleHide();
@@ -175,14 +178,10 @@ function scheduleHide(){
 function cancelHide(){
   if(hideTimer){ clearTimeout(hideTimer); hideTimer = null; }
 }
-
-// 사용자 인터랙션 시 잠깐 보였다가 다시 숨김
 ['scroll','wheel','touchstart','mousemove','keydown'].forEach(ev=>{
   const target = ev==='scroll' ? videoContainer : window;
   target.addEventListener(ev, ()=>{
-    if(!isMenuOpen){
-      showTopbarTemp();
-    }
+    if(!isMenuOpen){ showTopbarTemp(); }
   }, { passive:true });
 });
 
@@ -196,13 +195,17 @@ function grantSoundAndUnmuteCurrent(){
   const iframe = currentActive?.querySelector('iframe');
   if (iframe){ ytCmd(iframe,"unMute"); ytCmd(iframe,"playVideo"); }
 }
-const oneTimeGesture = ()=>{
+// ✅ PC에서도 첫 스크롤/키 입력/포인터 다운을 사용자 제스처로 인정
+const grantOnce = ()=>{
   grantSoundAndUnmuteCurrent();
-  window.removeEventListener('click', oneTimeGesture);
-  window.removeEventListener('touchstart', oneTimeGesture);
+  ['click','touchstart','pointerdown','wheel','keydown'].forEach(ev=>{
+    window.removeEventListener(ev, grantOnce, opts(ev));
+  });
 };
-window.addEventListener('click', oneTimeGesture, { once:true });
-window.addEventListener('touchstart', oneTimeGesture, { once:true, passive:true });
+const opts = (ev)=> (ev==='touchstart' ? { once:true, passive:true } : { once:true });
+['click','touchstart','pointerdown','wheel','keydown'].forEach(ev=>{
+  window.addEventListener(ev, grantOnce, opts(ev));
+});
 
 /* ----------------- 활성 영상 관리 ----------------- */
 const activeIO = new IntersectionObserver((entries)=>{
@@ -244,7 +247,7 @@ function makeCard(url, docId){
       <img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="thumbnail" loading="lazy"
            style="max-width:100%;max-height:100%;object-fit:contain;border:0;"/>
       <div class="playhint" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:6px 10px;background:rgba(0,0,0,.45);border-radius:6px;font-size:13px;color:#fff;">
-        위로 스와이프 • 탭하면 소리
+        위로 스와이프 • 탭/스크롤/키 입력 시 소리 허용
       </div>
     </div>`;
   card.addEventListener('click', ()=>{
@@ -297,8 +300,7 @@ async function loadMore(initial=false){
     if(selected === "ALL"){
       parts.push(orderBy("createdAt","desc"));
     }else if(Array.isArray(selected) && selected.length){
-      // array-contains-any 최대 10개 제한
-      const cats = selected.length > 10 ? null : selected;
+      const cats = selected.length > 10 ? null : selected; // array-contains-any 최대 10개
       if(cats){
         parts.push(where("categories","array-contains-any", cats));
         parts.push(orderBy("createdAt","desc"));
