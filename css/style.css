@@ -74,7 +74,7 @@ body{
 }
 /* 태블릿: 3열 */
 @media (min-width:900px){
-  .categories.radios{ grid-template-columns:repeat(3, minmax(0,1fr)); }
+  .categories.radios{ grid-template-columns:repeat(4, minmax(0,1fr)); }
 }
 /* 데스크톱: 4열 */
 @media (min-width:1200px){
