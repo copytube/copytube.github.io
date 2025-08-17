@@ -1,5 +1,6 @@
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
+import { CATEGORIES } from './categories.js';
 import {
   collection, getDocs, query, where, orderBy, limit, startAfter
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -27,9 +28,30 @@ const brandHome    = document.getElementById("brandHome");
 
 const categorySection = document.getElementById("categorySection");
 const videoContainer  = document.getElementById("videoContainer");
-const boxes           = Array.from(document.querySelectorAll('input.cat-box'));
-const allBox          = boxes.find(b=>b.value==="__ALL__");
-const catBoxes        = boxes.filter(b=>b!==allBox);
+const catWrap         = document.getElementById("catWrap");
+
+/* ---------- 카테고리 UI 동적 렌더링 ---------- */
+function renderCategoryUI() {
+  // '전체선택' + 나머지 카테고리
+  const all = `<label><input type="checkbox" class="cat-box" value="__ALL__"> 전체선택</label>`;
+  const rest = CATEGORIES.map(c => (
+    `<label><input type="checkbox" class="cat-box" value="${c.value}"> ${c.label}</label>`
+  )).join('');
+  catWrap.innerHTML = all + rest;
+
+  // 렌더 후 핸들러 연결
+  boxes = Array.from(catWrap.querySelectorAll('input.cat-box'));
+  allBox = boxes.find(b => b.value === "__ALL__");
+  catBoxes = boxes.filter(b => b !== allBox);
+
+  // 이벤트 바인딩
+  allBox.addEventListener('change', () => checkAll(allBox.checked));
+  catBoxes.forEach(b => b.addEventListener('change', syncSelection));
+
+  // 초기값: 전체선택 ON
+  checkAll(true);
+}
+let boxes, allBox, catBoxes;
 
 /* ----------------- 상태 ----------------- */
 const PAGE_SIZE = 12;
@@ -119,13 +141,6 @@ function checkAll(on){
   if (selected === null) showHint("카테고리를 선택하세요.");
   else loadMore(true);
 }
-// 초기 디폴트: 전체선택 ON
-checkAll(true);
-
-// 전체선택: change 이벤트로 단순화
-allBox.addEventListener('change', ()=>{
-  checkAll(allBox.checked);
-});
 
 // 개별 카테고리: change 시 동기화
 function syncSelection(){
@@ -144,7 +159,6 @@ function syncSelection(){
   if(selected === null) showHint("카테고리를 선택하세요.");
   else loadMore(true);
 }
-catBoxes.forEach(b=> b.addEventListener('change', syncSelection));
 
 /* ----------------- 상단바 자동 숨김 ----------------- */
 function enterWatchMode(on){
@@ -195,7 +209,7 @@ function grantSoundAndUnmuteCurrent(){
   const iframe = currentActive?.querySelector('iframe');
   if (iframe){ ytCmd(iframe,"unMute"); ytCmd(iframe,"playVideo"); }
 }
-// ✅ PC에서도 첫 스크롤/키 입력/포인터 다운을 사용자 제스처로 인정
+// PC에서도 첫 스크롤/키 입력/포인터 다운/클릭으로 허용
 const grantOnce = ()=>{
   grantSoundAndUnmuteCurrent();
   ['click','touchstart','pointerdown','wheel','keydown'].forEach(ev=>{
@@ -342,5 +356,6 @@ videoContainer.addEventListener('scroll', ()=>{
   if(nearBottom) loadMore(false);
 });
 
-// 초기 로드
+// 페이지 준비: 카테고리 UI 구성 후 데이터 로드
+renderCategoryUI();
 loadMore(true);
