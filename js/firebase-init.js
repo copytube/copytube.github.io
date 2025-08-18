@@ -2,15 +2,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebas
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-// Firebase 콘솔의 "웹 앱" SDK 설정값으로 교체
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
-  measurementId: "G-XXXXXXX"
+  apiKey: "AIzaSyBdZwzeAB91VnR0yqZK9qcW6LsOdCfHm8U",
+  authDomain: "copytube-daf30.firebaseapp.com",
+  projectId: "copytube-daf30",
+  storageBucket: "copytube-daf30.firebasestorage.app",
+  messagingSenderId: "117023042089",
+  appId: "1:117023042089:web:0546aa120f3ced3947ca38",
+  measurementId: "G-CNPT9SCSYH"
 };
 
 export const app = initializeApp(firebaseConfig);
