@@ -6,7 +6,7 @@ import {
   doc, getDoc
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-/* ---------- 뷰포트 높이 보정 ---------- */
+/* ---------- viewport height fix ---------- */
 function updateVh(){
   document.documentElement.style.setProperty('--app-vh', `${window.innerHeight}px`);
 }
@@ -15,27 +15,32 @@ window.addEventListener('resize', updateVh);
 window.addEventListener('orientationchange', updateVh);
 
 /* ---------- DOM ---------- */
-const topbar       = document.getElementById("topbar");
-const signupLink   = document.getElementById("signupLink");
-const signinLink   = document.getElementById("signinLink");
-const welcome      = document.getElementById("welcome");
-const menuBtn      = document.getElementById("menuBtn");
-const dropdown     = document.getElementById("dropdownMenu");
-const btnGoCategory= document.getElementById("btnGoCategory");
-const btnMyUploads = document.getElementById("btnMyUploads");
-const btnSignOut   = document.getElementById("btnSignOut");
-const btnGoUpload  = document.getElementById("btnGoUpload");
-const brandHome    = document.getElementById("brandHome");
-const videoContainer  = document.getElementById("videoContainer");
+const topbar         = document.getElementById("topbar");
+const signupLink     = document.getElementById("signupLink");
+const signinLink     = document.getElementById("signinLink");
+const welcome        = document.getElementById("welcome");
+const menuBtn        = document.getElementById("menuBtn");
+const dropdown       = document.getElementById("dropdownMenu");
+const btnGoCategory  = document.getElementById("btnGoCategory");
+const btnMyUploads   = document.getElementById("btnMyUploads");
+const btnSignOut     = document.getElementById("btnSignOut");
+const btnGoUpload    = document.getElementById("btnGoUpload");
+const brandHome      = document.getElementById("brandHome");
+const videoContainer = document.getElementById("videoContainer");
 
-/* ---------- 상단 드롭다운 ---------- */
+/* ---------- dropdown ---------- */
+let isMenuOpen = false;
+
 function openDropdown(){
+  isMenuOpen = true;
   dropdown.classList.remove("hidden");
   requestAnimationFrame(()=> dropdown.classList.add("show"));
   dropdown.setAttribute('aria-hidden','false');
   showTopbarTemp();
+  cancelHide();
 }
 function closeDropdown(){
+  isMenuOpen = false;
   dropdown.classList.remove("show");
   setTimeout(()=> dropdown.classList.add("hidden"), 180);
   dropdown.setAttribute('aria-hidden','true');
@@ -52,13 +57,17 @@ document.addEventListener('pointerdown', (e)=>{
 }, true);
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
 dropdown.addEventListener("click", (e)=> e.stopPropagation());
-btnGoCategory?.addEventListener("click", ()=>{ location.href = "./"; });
-btnMyUploads?.addEventListener("click", ()=>{ location.href = "my-uploads.html"; });
-btnSignOut?.addEventListener("click", async ()=>{ await fbSignOut(auth); location.href="./"; });
-btnGoUpload?.addEventListener("click", ()=>{ location.href = "upload.html"; });
-brandHome?.addEventListener("click", (e)=>{ e.preventDefault(); location.href="./"; });
 
-/* ---------- 로그인 상태 표시 ---------- */
+btnGoCategory?.addEventListener("click", ()=>{ location.href = "./"; closeDropdown(); });
+btnMyUploads ?.addEventListener("click", ()=>{ location.href = "my-uploads.html"; closeDropdown(); });
+btnGoUpload   ?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
+btnSignOut    ?.addEventListener("click", async ()=>{
+  await fbSignOut(auth);
+  location.href = "./";
+});
+brandHome     ?.addEventListener("click", (e)=>{ e.preventDefault(); location.href="./"; });
+
+/* ---------- auth state ---------- */
 onAuthStateChanged(auth, (user)=>{
   const loggedIn = !!user;
   signupLink.classList.toggle("hidden", loggedIn);
@@ -67,7 +76,7 @@ onAuthStateChanged(auth, (user)=>{
   welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
 });
 
-/* ---------- 상단바 자동 숨김 ---------- */
+/* ---------- autohide topbar ---------- */
 topbar.classList.add('autohide');
 let hideTimer = null;
 function showTopbarTemp(){
@@ -76,23 +85,24 @@ function showTopbarTemp(){
 }
 function scheduleHide(){
   cancelHide();
-  hideTimer = setTimeout(()=> topbar.classList.add('hide'), 1000); // 1초
+  if (!isMenuOpen) {
+    hideTimer = setTimeout(()=> topbar.classList.add('hide'), 1000); // 1s
+  }
 }
 function cancelHide(){
   if(hideTimer){ clearTimeout(hideTimer); hideTimer = null; }
 }
 
-// 모든 제스처(위/아래 스와이프 포함)에서 상단바 잠깐 노출
+// 모든 제스처에서 잠깐 상단바 노출
 videoContainer.addEventListener('scroll', showTopbarTemp, { passive:true });
 ['touchstart','touchmove','wheel','mousemove','keydown','pointerdown'].forEach(ev=>{
-  const target = window;
-  target.addEventListener(ev, showTopbarTemp, { passive:true });
+  window.addEventListener(ev, showTopbarTemp, { passive:true });
 });
 
-/* ---------- 선택 불러오기 ---------- */
+/* ---------- selection load ---------- */
 const LS_KEY = 'copytube_selected_categories';
+
 async function loadSelection(){
-  // 로그인 우선
   if(auth.currentUser){
     try{
       const s = await getDoc(doc(db,'users', auth.currentUser.uid));
@@ -102,9 +112,8 @@ async function loadSelection(){
         const arr = Array.isArray(d?.selectedCategories) ? d.selectedCategories : [];
         return { all:false, cats:arr };
       }
-    }catch{}
+    }catch{/* ignore */}
   }
-  // 비로그인 또는 실패 → localStorage
   try{
     const raw = localStorage.getItem(LS_KEY);
     if(raw){
@@ -113,15 +122,15 @@ async function loadSelection(){
       const arr = Array.isArray(st?.selected) ? st.selected : [];
       return { all:false, cats:arr };
     }
-  }catch{}
-  // 기본: 전체
+  }catch{/* ignore */}
   return { all:true, cats:[] };
 }
 
-/* ---------- 시청(무한 스크롤) ---------- */
+/* ---------- shorts feed (infinite) ---------- */
 const PAGE_SIZE = 12;
 let isLoading = false, hasMore = true, lastDoc = null;
 let loadedIds = new Set();
+
 let userSoundConsent = false;
 let currentActive    = null;
 
@@ -134,13 +143,13 @@ function grantSoundAndUnmuteCurrent(){
   const iframe = currentActive?.querySelector('iframe');
   if (iframe){ ytCmd(iframe,"unMute"); ytCmd(iframe,"playVideo"); }
 }
+const opts = (ev)=> (ev==='touchstart' ? { once:true, passive:true } : { once:true });
 const grantOnce = ()=>{
   grantSoundAndUnmuteCurrent();
   ['click','touchstart','pointerdown','wheel','keydown'].forEach(ev=>{
     window.removeEventListener(ev, grantOnce, opts(ev));
   });
 };
-const opts = (ev)=> (ev==='touchstart' ? { once:true, passive:true } : { once:true });
 ['click','touchstart','pointerdown','wheel','keydown'].forEach(ev=>{
   window.addEventListener(ev, grantOnce, opts(ev));
 });
@@ -171,8 +180,16 @@ const activeIO = new IntersectionObserver((entries)=>{
 function showHint(text){
   videoContainer.innerHTML = `<div class="video"><p class="hint">${text}</p></div>`;
 }
+
+function extractId(url){
+  const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/);
+  return m ? m[1] : ''; // 매치 실패 시 빈 문자열로 방어
+}
+
 function makeCard(url, docId){
   const id = extractId(url);
+  if (!id) return null; // 잘못된 url이면 카드 생성 안 함
+
   const card = document.createElement('div');
   card.className = 'video';
   card.dataset.vid = id;
@@ -186,6 +203,7 @@ function makeCard(url, docId){
         위/아래 스와이프 시 상단바가 표시됩니다 • 탭/스크롤/키 입력으로 소리 허용
       </div>
     </div>`;
+
   card.addEventListener('click', ()=>{
     ensureIframe(card);
     const ifr = card.querySelector('iframe');
@@ -197,6 +215,7 @@ function makeCard(url, docId){
   activeIO.observe(card);
   return card;
 }
+
 function ensureIframe(card){
   if(card.querySelector('iframe')) return;
   const id = card.dataset.vid;
@@ -210,10 +229,6 @@ function ensureIframe(card){
   const thumb = card.querySelector('.thumb');
   if(thumb) card.replaceChild(iframe, thumb);
 }
-function extractId(url){
-  const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/);
-  return m ? m[1] : url;
-}
 
 async function loadMore(initial=false, selection){
   if(isLoading || !hasMore) return;
@@ -226,7 +241,7 @@ async function loadMore(initial=false, selection){
     if(selection.all){
       parts.push(orderBy("createdAt","desc"));
     }else{
-      const cats = selection.cats.length > 10 ? null : selection.cats; // array-contains-any 한계(10)
+      const cats = selection.cats.length > 10 ? null : selection.cats; // array-contains-any 한계 10
       if(cats){
         parts.push(where("categories","array-contains-any", cats));
         parts.push(orderBy("createdAt","desc"));
@@ -238,7 +253,7 @@ async function loadMore(initial=false, selection){
     if(lastDoc) parts.push(startAfter(lastDoc));
     parts.push(limit(PAGE_SIZE));
 
-    const q = query(base, ...parts));
+    const q = query(base, ...parts);
     const snap = await getDocs(q);
 
     if(snap.docs.length === 0){
@@ -250,7 +265,8 @@ async function loadMore(initial=false, selection){
       if(loadedIds.has(d.id)) return;
       loadedIds.add(d.id);
       const data = d.data();
-      videoContainer.appendChild(makeCard(data.url, d.id));
+      const card = makeCard(data.url, d.id);
+      if (card) videoContainer.appendChild(card);
     });
 
     lastDoc = snap.docs[snap.docs.length-1];
@@ -269,11 +285,11 @@ videoContainer.addEventListener('scroll', ()=>{
   if(nearBottom) loadMore(false, SELECTION);
 });
 
-/* ---------- 시작 ---------- */
+/* ---------- boot ---------- */
 let SELECTION = { all:true, cats:[] };
 
 (async ()=>{
   SELECTION = await loadSelection();
-  showTopbarTemp(); // 진입 시 한 번 노출
+  showTopbarTemp();             // 진입 시 한 번 노출
   await loadMore(true, SELECTION);
 })();
