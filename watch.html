@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Copytube - 시청</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">
+      <a id="brandHome" href="#" aria-label="CopyTube 카테고리로">
+        <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
+      </a>
+    </div>
+    <div class="right" style="position:relative;">
+      <a id="signupLink" class="link" href="signup.html">Sign up</a>
+      <a id="signinLink" class="link" href="signin.html">Sign in</a>
+      <span id="welcome" class="welcome"></span>
+      <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
+      <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
+        <button id="btnGoCategory" class="menu-strong" type="button">카테고리 선택</button>
+        <button id="btnMyUploads" type="button">업로드영상</button>
+        <button id="btnSignOut" type="button">Sign out</button>
+        <button id="btnGoUpload" class="menu-strong" type="button">추천영상등록</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 시청 컨테이너 -->
+  <main id="videoContainer"></main>
+
+  <script type="module" src="js/firebase-init.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="js/watch.js"></script>
+</body>
+</html>
