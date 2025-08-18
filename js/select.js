@@ -1,11 +1,7 @@
 // js/select.js
 import { auth, db } from './firebase-init.js';
-import {
-  onAuthStateChanged, signOut as fbSignOut
-} from './auth.js';
-import {
-  doc, getDoc, setDoc, serverTimestamp
-} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
+import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 import { CATEGORIES } from './categories.js';
 
 /* ---------- DOM ---------- */
@@ -70,7 +66,6 @@ function renderCategoryUI() {
     allBox.checked = allOn;
   }));
 }
-
 renderCategoryUI();
 
 /* ---------- 로그인 상태 + 환영문구 ---------- */
@@ -80,7 +75,6 @@ onAuthStateChanged(auth, async (user)=>{
   signinLink.classList.toggle("hidden", loggedIn);
   menuBtn.classList.toggle("hidden", !loggedIn);
   welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
-
   await restoreSelection(); // 로그인 여부에 따라 복원
 });
 
@@ -93,18 +87,10 @@ async function restoreSelection(){
     try{
       const s = await getDoc(doc(db,'users', auth.currentUser.uid));
       const data = s.exists() ? s.data() : null;
-      if (data?.selectAll){
-        allBox.checked = true; catBoxes.forEach(b=> b.checked = true);
-        return;
-      }
+      if (data?.selectAll){ allBox.checked = true; catBoxes.forEach(b=> b.checked = true); return; }
       const arr = Array.isArray(data?.selectedCategories) ? data.selectedCategories : [];
-      if (arr.length){
-        applyArray(arr);
-        return;
-      }
-    }catch(e){
-      // 실패 시 localStorage로 폴백
-    }
+      if (arr.length){ applyArray(arr); return; }
+    }catch{}
   }
   // 2) 비로그인: localStorage
   try{
@@ -117,7 +103,7 @@ async function restoreSelection(){
     }
   }catch{}
 
-  // 3) 폴백: 저장된 게 전혀 없으면 전체선택 ON (요청사항)
+  // 3) 저장된 게 전혀 없으면 전체선택 ON
   allBox.checked = true; catBoxes.forEach(b=> b.checked = true);
 }
 
@@ -128,7 +114,7 @@ function applyArray(arr){
 }
 
 /* ---------- 버튼: 영상보기 ---------- */
-btnStart.addEventListener('click', async ()=>{
+btnStart?.addEventListener('click', async ()=>{
   const all = allBox.checked;
   const selected = catBoxes.filter(x=>x.checked).map(x=>x.value);
   if (!all && selected.length === 0){
@@ -140,17 +126,14 @@ btnStart.addEventListener('click', async ()=>{
     ? { selectAll:true, selectedCategories:[], updatedAt: serverTimestamp() }
     : { selectAll:false, selectedCategories:selected, updatedAt: serverTimestamp() };
 
-  // 로그인/비로그인 저장
   try{
     if(auth.currentUser){
       await setDoc(doc(db,'users', auth.currentUser.uid), payload, { merge:true });
     }else{
-      localStorage.setItem(LS_KEY, JSON.stringify({
-        selectAll: all, selected, ts: Date.now()
-      }));
+      localStorage.setItem(LS_KEY, JSON.stringify({ selectAll: all, selected, ts: Date.now() }));
     }
     msg.textContent = '완료! 영상 보기로 이동합니다…';
-    location.href = 'watch.html';
+    location.href = 'watch.html';   // ← 여기서 시청 페이지로 이동
   }catch(e){
     msg.textContent = `오류: ${e.message||e}`;
   }
