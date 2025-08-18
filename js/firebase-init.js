@@ -1,23 +1,18 @@
-// js/firebase-init.js
-// CDN 모듈 사용 (GitHub Pages에서 바로 동작)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-// Firebase 콘솔의 '웹앱'에서 복사한 설정을 그대로 붙여넣기
+// Firebase 콘솔의 "웹 앱" SDK 설정값으로 교체
 const firebaseConfig = {
-  apiKey: "AIzaSyBdZwzeAB91VnR0yqZK9qcW6LsOdCfHm8U",
-  authDomain: "copytube-daf30.firebaseapp.com",
-  projectId: "copytube-daf30",
-  storageBucket: "copytube-daf30.firebasestorage.app",
-  messagingSenderId: "117023042089",
-  appId: "1:117023042089:web:0546aa120f3ced3947ca38",
-  measurementId: "G-CNPT9SCSYH"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID",
+  measurementId: "G-XXXXXXX"
 };
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-
-// 연결 확인용 (원하면 주석 해제)
-// console.log('Firebase initialized:', app.options.projectId);
