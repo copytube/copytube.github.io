@@ -1,4 +1,4 @@
-// 축약 카테고리: 라벨만 변경/통합, 값은 슬러그로 관리
+// 축약 카테고리: 라벨 통합, 슬러그는 아래 값으로 고정
 export const CATEGORIES = [
   { value: 'review',           label: '영상리뷰' },
   { value: 'fun',              label: '유머' },
@@ -31,7 +31,7 @@ export const CATEGORIES = [
   { value: 'etc',              label: '미분류' },
 ];
 
-// 업로드 화면 등에서 체크박스 렌더링
+// 업로드 화면 등에서 체크박스 묶음 렌더링(선택 사용)
 export function renderCategoryCheckboxes(container, inputClass = 'cat-box') {
   container.innerHTML = CATEGORIES
     .map(c => `<label><input type="checkbox" class="${inputClass}" value="${c.value}"> ${c.label}</label>`)
