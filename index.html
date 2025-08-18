@@ -3,26 +3,22 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Copytube - Shorts</title>
+  <title>Copytube - 카테고리 선택</title>
   <link rel="stylesheet" href="css/style.css"/>
 </head>
 <body>
   <header id="topbar">
     <div class="brand">
-      <a id="brandHome" href="#" aria-label="CopyTube 홈으로">
+      <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
         <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
       </a>
     </div>
-
     <div class="right" style="position:relative;">
       <a id="signupLink" class="link" href="signup.html">Sign up</a>
       <a id="signinLink" class="link" href="signin.html">Sign in</a>
       <span id="welcome" class="welcome"></span>
       <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
-
-      <!-- 로그인 시 三 클릭하면 표시 -->
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
-        <button id="btnGoCategory" class="menu-strong" type="button">Category 선택</button>
         <button id="btnMyUploads" type="button">업로드영상</button>
         <button id="btnSignOut" type="button">Sign out</button>
         <button id="btnGoUpload" class="menu-strong" type="button">추천영상등록</button>
@@ -30,22 +26,28 @@
     </div>
   </header>
 
-  <!-- 첫 화면: 안내 + 카테고리(체크박스를 라디오처럼 사용) -->
-  <section id="categorySection" class="intro">
+  <!-- 선택 화면 -->
+  <main class="intro" id="categorySection">
     <div>
-      <p class="lead">쇼츠처럼 화면을 올려 영상 시청하세요.</p>
-      <p class="sublead">첫 시청 시 <strong>음소거를 해제</strong>해 주세요. (모바일은 첫 스와이프/탭, PC는 스크롤/키 입력/클릭 시 소리 허용)</p>
+      <p class="lead">시청할 카테고리를 선택하세요.</p>
+      <p class="sublead">선택은 로그인 계정에 저장되어 다음 방문 시 자동으로 불러옵니다.</p>
+
+      <!-- 영상보기 버튼을 '전체선택' 체크박스 위에 배치 -->
+      <div style="margin:12px 0 14px;">
+        <button id="btnStart"
+          style="padding:12px 16px;border:0;border-radius:8px;background:#4ea1ff;color:#fff;font-weight:700;cursor:pointer;">
+          ▶ 영상보기
+        </button>
+        <span id="msg" class="welcome" style="margin-left:8px;"></span>
+      </div>
+
       <h3>카테고리 선택</h3>
-
-      <div id="catWrap" class="categories radios"><!-- JS가 렌더링 --></div>
+      <div id="catWrap" class="categories radios"><!-- JS로 렌더링 --></div>
     </div>
-  </section>
-
-  <!-- 쇼츠 영역 -->
-  <main id="videoContainer"></main>
+  </main>
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/shorts.js"></script>
+  <script type="module" src="js/select.js"></script>
 </body>
 </html>
