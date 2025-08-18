@@ -33,9 +33,7 @@
       <div id="list" style="display:flex;flex-direction:column;gap:8px;"></div>
 
       <div style="margin-top:14px;display:flex;gap:8px;">
-        <button id="btnDelete" style="padding:10px 14px;border:0;border-radius:8px;background:#dc2626;color:#fff;cursor:pointer;">
-          선택 삭제
-        </button>
+        <button id="btnDelete" style="padding:10px 14px;border:0;border-radius:8px;background:#dc2626;color:#fff;cursor:pointer;">선택 삭제</button>
         <a href="./" class="link" style="align-self:center;">← 돌아가기</a>
       </div>
     </div>
@@ -60,7 +58,6 @@
       $('#welcome').textContent = user ? `안녕하세요, ${user.displayName||'회원'}님` : '';
 
       if(!user){ msg.textContent = '로그인 후 이용하세요.'; list.innerHTML=''; return; }
-
       msg.textContent = '불러오는 중...';
 
       const admin = await isAdmin(user.uid);
@@ -68,8 +65,8 @@
 
       try{
         const rows = await fetchRowsNoIndex(user.uid, admin); // 인덱스 없이도 동작
-        renderListImmediate(rows);           // 먼저 URL로 즉시 렌더
-        backfillTitles(rows).catch(()=>{});  // 제목은 배경에서 보강
+        renderListImmediate(rows);
+        backfillTitles(rows).catch(()=>{});
         msg.textContent = rows.length ? '' : '영상이 없습니다.';
       }catch(err){
         console.error(err);
@@ -85,17 +82,16 @@
       }catch{ return false; }
     }
 
-    // 인덱스 없이 가져와 클라이언트에서 정렬
     async function fetchRowsNoIndex(uid, adminMode){
       let snap;
       if (adminMode){
         snap = await getDocs(collection(db,'videos'));       // 전체
       }else{
-        const qMine = query(collection(db,'videos'), where('uid','==',uid)); // 내 것만
+        const qMine = query(collection(db,'videos'), where('uid','==',uid));
         snap = await getDocs(qMine);
       }
       const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-      rows.sort((a,b)=> toMs(b.createdAt) - toMs(a.createdAt)); // 최신순
+      rows.sort((a,b)=> toMs(b.createdAt) - toMs(a.createdAt));
       return rows;
     }
 
@@ -104,10 +100,19 @@
       catch { return 0; }
     }
 
-    // 1) 즉시 렌더(제목 없으면 URL로 먼저)
+    function formatWhen(ms){
+      try{
+        if(!ms) return '';
+        // 한국 표준 표기(24시간제)
+        return new Date(ms).toLocaleString('ko-KR', { hour12:false });
+      }catch{ return ''; }
+    }
+
     function renderListImmediate(rows){
       list.innerHTML = '';
       for (const v of rows){
+        const when = formatWhen(toMs(v.createdAt));
+
         const el = document.createElement('label');
         el.dataset.id = v.id;
         el.style.cssText = 'display:flex;gap:8px;align-items:flex-start;background:#1b1b1b;border:1px solid #333;border-radius:8px;padding:10px;';
@@ -116,7 +121,9 @@
           <div style="display:flex;flex-direction:column;gap:4px;overflow:hidden;">
             <div class="title" style="font-weight:700;">${escapeHTML(v.title || v.url)}</div>
             <div style="font-size:12px;color:#9aa0a6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-              ${escapeHTML(v.url)}${v.uid ? ' • 업로더: '+escapeHTML(v.uid) : ''}
+              ${escapeHTML(v.url)}
+              ${v.uid ? ' • 업로더: '+escapeHTML(v.uid) : ''}
+              ${when ? ' • 업로드: '+escapeHTML(when) : ''}
             </div>
           </div>
         `;
@@ -125,7 +132,6 @@
       }
     }
 
-    // 2) 제목 보강을 비동기로 수행(렌더 차단 X)
     async function backfillTitles(rows){
       const tasks = rows.map(async v=>{
         if (v.title && v.title.trim()) return;
