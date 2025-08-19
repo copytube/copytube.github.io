@@ -98,7 +98,7 @@ function renderGroups(){
     }).join('');
 
     const legend = (g.key==='personal')
-      ? `${g.label} <span class="subnote">(이 기기에만 저장)</span>`
+      ? `${g.label} <span class="subnote">(로컬저장소소)</span>`
       : g.label;
 
     return `
