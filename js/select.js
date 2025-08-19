@@ -41,7 +41,7 @@ document.addEventListener('pointerdown', (e)=>{
 }, true);
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
 dropdown.addEventListener("click", (e)=> e.stopPropagation());
-btnMyUploads?.addEventListener("click", ()=>{ location.href = "my-uploads.html"; closeDropdown(); });
+btnMyUploads?.addEventListener("click", ()=>{ location.href = "manage-uploads.html"; closeDropdown(); });
 btnSignOut?.addEventListener("click", async ()=>{ await fbSignOut(auth); closeDropdown(); location.reload(); });
 btnGoUpload?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
 
@@ -63,23 +63,18 @@ function renderGroups(){
   }).join('');
   catWrap.innerHTML = html;
 
-  // 이벤트: 부모 ↔ 자식 동기화
   const parentBoxes = Array.from(catWrap.querySelectorAll('input.parent'));
   const childBoxes  = Array.from(catWrap.querySelectorAll('input.child'));
 
-  // 부모 클릭 → 자식 전체 ON/OFF
   parentBoxes.forEach(p=>{
     p.addEventListener('change', ()=>{
       const key = p.dataset.group;
       const children = childBoxes.filter(c=> c.dataset.group === key);
       children.forEach(c=> c.checked = p.checked);
-      // 부모의 indeterminate 해제
       p.indeterminate = false;
       syncAllToggle();
     });
   });
-
-  // 자식 클릭 → 부모 상태 갱신(모두/일부/없음)
   childBoxes.forEach(c=>{
     c.addEventListener('change', ()=>{
       const key = c.dataset.group;
@@ -92,22 +87,17 @@ function renderGroups(){
       syncAllToggle();
     });
   });
-
-  // 전체 토글
   allToggle.addEventListener('change', ()=>{
     const on = allToggle.checked;
     parentBoxes.forEach(p=>{ p.checked = on; p.indeterminate = false; });
     childBoxes.forEach(c=> c.checked = on);
   });
-
-  return { parentBoxes, childBoxes };
 }
-
-const ui = renderGroups();
+renderGroups();
 
 /* ---------- 저장/복원 ---------- */
-const LS_KEY_V2      = 'copytube_selected_categories_v2';   // 공개 세부 선택(서버와 동기)
-const LS_PERSONAL_V1 = 'copytube_personal_flags_v1';        // 개인용 선택(로컬 전용)
+const LS_KEY_V2      = 'copytube_selected_categories_v2';
+const LS_PERSONAL_V1 = 'copytube_personal_flags_v1';
 
 function readSelectionFromUI(){
   const childBoxes = Array.from(catWrap.querySelectorAll('input.child'));
@@ -125,24 +115,17 @@ function readSelectionFromUI(){
 }
 
 function applySelectionToUI({ all, publicValues = [], personalValues = [] }){
-  // 전체 토글
   allToggle.checked = !!all;
-
   const parentBoxes = Array.from(catWrap.querySelectorAll('input.parent'));
   const childBoxes  = Array.from(catWrap.querySelectorAll('input.child'));
-
-  // 자식 체크
   const publicSet   = new Set(publicValues || []);
   const personalSet = new Set(personalValues || []);
-
   childBoxes.forEach(c=>{
     const v = c.value;
     if (all) c.checked = true;
     else if (isPersonalValue(v)) c.checked = personalSet.has(v);
     else c.checked = publicSet.has(v);
   });
-
-  // 부모 상태 동기화
   parentBoxes.forEach(p=>{
     const key = p.dataset.group;
     const sibs = childBoxes.filter(x=> x.dataset.group === key);
@@ -162,17 +145,10 @@ function syncAllToggle(){
 }
 
 async function restoreSelection(){
-  // 1) 개인용(로컬)
   let personalValues = [];
-  try{
-    const raw = localStorage.getItem(LS_PERSONAL_V1);
-    if (raw){ const j = JSON.parse(raw); if (Array.isArray(j?.selected)) personalValues = j.selected; }
-  }catch{}
-
-  // 2) 공개 선택(서버 우선)
+  try{ const raw = localStorage.getItem(LS_PERSONAL_V1); if (raw){ const j = JSON.parse(raw); if (Array.isArray(j?.selected)) personalValues = j.selected; } }catch{}
   let all = false;
   let publicValues = [];
-
   if (auth.currentUser){
     try{
       const s = await getDoc(doc(db,'users', auth.currentUser.uid));
@@ -182,23 +158,10 @@ async function restoreSelection(){
         publicValues = Array.isArray(d?.selectedCategories) ? d.selectedCategories : [];
       }
     }catch{}
+  }else{
+    try{ const raw = localStorage.getItem(LS_KEY_V2); if (raw){ const j = JSON.parse(raw); all=!!j?.selectAll; publicValues=Array.isArray(j?.selected)? j.selected:[]; } }catch{}
   }
-  if (!auth.currentUser){
-    try{
-      const raw = localStorage.getItem(LS_KEY_V2);
-      if (raw){
-        const j = JSON.parse(raw);
-        all = !!j?.selectAll;
-        publicValues = Array.isArray(j?.selected) ? j.selected : [];
-      }
-    }catch{}
-  }
-
-  // 3) 폴백: 아무 것도 없으면 전체 ON
-  if (!all && publicValues.length === 0 && personalValues.length === 0){
-    all = true;
-  }
-
+  if (!all && publicValues.length === 0 && personalValues.length === 0){ all = true; }
   applySelectionToUI({ all, publicValues, personalValues });
   syncAllToggle();
 }
@@ -209,36 +172,26 @@ onAuthStateChanged(auth, async (user)=>{
   signinLink.classList.toggle("hidden", loggedIn);
   menuBtn.classList.toggle("hidden", !loggedIn);
   welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
-
   await restoreSelection();
 });
 
 /* ---------- 저장 & 이동 ---------- */
 btnStart?.addEventListener('click', async ()=>{
   const sel = readSelectionFromUI();
-
   if (!sel.all && sel.selectedPublic.length === 0 && sel.selectedPersonal.length === 0){
     msg.textContent = '카테고리를 하나 이상 선택해 주세요.'; return;
   }
   msg.textContent = '저장 중…';
-
-  // 개인용 → 항상 로컬에만 저장
-  try{
-    localStorage.setItem(LS_PERSONAL_V1, JSON.stringify({ selected: sel.selectedPersonal, ts: Date.now() }));
-  }catch{}
-
-  // 공개 선택 → 로그인 시 서버, 비로그인은 로컬
+  try{ localStorage.setItem(LS_PERSONAL_V1, JSON.stringify({ selected: sel.selectedPersonal, ts: Date.now() })); }catch{}
   try{
     if (auth.currentUser){
       await setDoc(doc(db,'users', auth.currentUser.uid), {
         selectAll: !!sel.all,
-        selectedCategories: sel.selectedPublic,   // 공개 세부만 서버 저장
+        selectedCategories: sel.selectedPublic,
         updatedAt: serverTimestamp()
       }, { merge:true });
     }else{
-      localStorage.setItem(LS_KEY_V2, JSON.stringify({
-        selectAll: !!sel.all, selected: sel.selectedPublic, ts: Date.now()
-      }));
+      localStorage.setItem(LS_KEY_V2, JSON.stringify({ selectAll: !!sel.all, selected: sel.selectedPublic, ts: Date.now() }));
     }
     msg.textContent = '완료! 영상 보기로 이동합니다…';
     location.href = 'watch.html';
