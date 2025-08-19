@@ -2,7 +2,6 @@
    - 각 그룹에는 children 배열이 있으며, value 는 Firestore에 저장되는 실제 코드입니다.
    - personal 그룹은 로컬 저장 전용(서버 업로드 X).
 */
-
 export const CATEGORY_GROUPS = [
   /* 영상·리뷰 */
   {
@@ -36,7 +35,7 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
-  /* 생활정보 (요청하신 순서: 상식생활팁, 건강, 운동, 법률, 부동산, 육아, 가짜정보) */
+  /* 생활정보 */
   {
     key: 'lifeinfo',
     label: '생활정보',
@@ -70,7 +69,7 @@ export const CATEGORY_GROUPS = [
     key: 'infoit',
     label: '정보·IT',
     children: [
-      { value: 'new_product', label: '신제품' },     // ← 기존 "제품리뷰"를 "신제품"으로 변경
+      { value: 'new_product', label: '신제품' },
       { value: 'tech_future', label: '기술미래' },
       { value: 'computer',    label: '컴퓨터' },
       { value: 'coding',      label: '코딩' },
@@ -79,7 +78,7 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
-  /* 제품리뷰 (대분류 신설) */
+  /* 제품리뷰 (대분류) */
   {
     key: 'product_review',
     label: '제품리뷰',
@@ -153,23 +152,23 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
-  /* 개인자료 (로컬 저장 전용, 서버 업로드 금지) — '기타/미분류' 위에 배치 */
-  {
-    key: 'personal',
-    label: '개인자료',
-    personal: true, // ← 업로드 코드가 이 플래그를 참고합니다.
-    children: [
-      { value: 'personal1',  label: '개인자료1' },
-      { value: 'personal2',  label: '개인자료2' },
-    ],
-  },
-
   /* 기타 */
   {
     key: 'etc',
     label: '기타',
     children: [
       { value: 'etc', label: '미분류' },
+    ],
+  },
+
+  /* 개인자료 — ‘기타’ 아래로 이동, 로컬 저장 전용 */
+  {
+    key: 'personal',
+    label: '개인자료',
+    personal: true,
+    children: [
+      { value: 'personal1',  label: '자료1' },
+      { value: 'personal2',  label: '자료2' },
     ],
   },
 ];
