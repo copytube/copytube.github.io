@@ -18,14 +18,13 @@
       background:#4ea1ff; color:#fff; font-weight:700; cursor:pointer;
     }
     .msg { margin-top:10px; font-size:13px; color:#ccc; min-height:1.2em; white-space:pre-line; }
-    .categories.radios{
-      display:grid; grid-template-columns:repeat(2, minmax(0,1fr));
-      gap:10px; margin-top:6px;
-    }
-    @media (min-width:900px){
-      .categories.radios{ grid-template-columns:repeat(4, minmax(0,1fr)); }
-    }
-    .categories.radios label{
+
+    /* 그룹형 카테고리 UI (인덱스와 동일 느낌, 부모 체크박스 없음) */
+    .group{ border:1px solid var(--border); border-radius:12px; background:var(--bg-3); padding:12px; margin:10px 0; }
+    .group legend{ padding:0 6px; font-weight:800; font-size:15px; color:#eee; }
+    .child-grid{ margin-top:8px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
+    .child-grid label{
       background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px;
       padding:10px; font-size:14px; display:flex; gap:8px; align-items:center;
     }
@@ -51,10 +50,10 @@
     <label>YouTube 공유 URL
       <input id="url" type="text" placeholder="https://youtu.be/... 또는 https://www.youtube.com/watch?v=..." autocomplete="off" />
     </label>
-    <div class="note">※ URL 입력칸을 탭/클릭하면 클립보드 내용을 자동으로 붙여넣습니다. (권한 필요)</div>
+    <div class="note">※ URL 입력칸을 탭/클릭하면 클립보드 내용을 자동으로 붙여넣습니다. (브라우저 권한 필요)</div>
 
     <p style="margin:14px 0 6px;">카테고리(최대 3개)</p>
-    <div id="cats" class="categories radios" style="text-align:left;"></div>
+    <div id="cats"><!-- 그룹형 카테고리 렌더링 --></div>
 
     <button id="submitBtn" class="btn-primary">등록</button>
     <div id="msg" class="msg"></div>
@@ -67,14 +66,14 @@
     import { auth, db } from './js/firebase-init.js';
     import { onAuthStateChanged } from './js/auth.js';
     import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
-    import { flattenPublicCategories } from './js/categories.js';
+    import { CATEGORY_GROUPS } from './js/categories.js';
 
     const $ = (s)=>document.querySelector(s);
     const urlInput = $('#url');
     const catsBox  = $('#cats');
     const msg      = $('#msg');
 
-    /* ---------- 로그인 상태 표시 ---------- */
+    /* ---------- 로그인 표시 ---------- */
     onAuthStateChanged(auth, (user)=>{
       $('#signupLink').classList.toggle('hidden', !!user);
       $('#signinLink').classList.toggle('hidden', !!user);
@@ -82,19 +81,41 @@
       if(!user){ msg.textContent = '로그인 후 등록 가능합니다.'; }
     });
 
-    /* ---------- 카테고리 체크박스 렌더(공개 카테고리만) ---------- */
-    function renderCats(){
-      const items = flattenPublicCategories(); // [{value,label}]
-      catsBox.innerHTML = items.map(c =>
-        `<label><input type="checkbox" class="cat" value="${c.value}"> ${c.label}</label>`
-      ).join('');
-    }
-    renderCats();
+    /* ---------- 그룹형 카테고리 렌더(개인용 제외) ---------- */
+    function renderGroups(){
+      const groups = CATEGORY_GROUPS.filter(g => !g.personal);
+      const html = groups.map(g=>{
+        const kids = g.children.map(c=>(
+          `<label><input type="checkbox" class="cat" value="${c.value}"> ${c.label}</label>`
+        )).join('');
+        return `
+          <fieldset class="group" data-key="${g.key}">
+            <legend>${g.label}</legend>
+            <div class="child-grid">${kids}</div>
+          </fieldset>
+        `;
+      }).join('');
+      catsBox.innerHTML = html;
 
-    /* ---------- URL 추출 도우미 ---------- */
+      // 최대 3개 제한: 변화 시 체크 수 검사
+      const boxes = Array.from(catsBox.querySelectorAll('input.cat'));
+      boxes.forEach(b=>{
+        b.addEventListener('change', ()=>{
+          const selected = boxes.filter(x=> x.checked);
+          if (selected.length > 3){
+            b.checked = false;
+            msg.textContent = '카테고리는 최대 3개까지 선택 가능합니다.';
+          }else{
+            msg.textContent = '';
+          }
+        });
+      });
+    }
+    renderGroups();
+
+    /* ---------- URL 도우미 ---------- */
     function findFirstYoutubeUrl(text){
       if (!text) return '';
-      // youtube.com/watch, youtu.be, /shorts/, /embed/ 모두 허용
       const re = /(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?[^ \n]*v=[^ \n&]+|youtube\.com\/shorts\/[^ \n?&/]+|youtube\.com\/embed\/[^ \n?&/]+|youtu\.be\/[^ \n?&/]+))/i;
       const m = text.match(re);
       return m ? m[1] : '';
@@ -104,22 +125,18 @@
       return m ? m[1] : '';
     }
 
-    /* ---------- 자동 붙여넣기(클립보드) ---------- */
+    /* ---------- URL 자동 붙여넣기 ---------- */
     let didAutoPaste = false;
     let pasteNoticeShown = false;
 
     async function tryAutoPaste(){
       if (didAutoPaste) return;
-      // 값이 이미 있으면 자동 붙여넣기 생략
       if (urlInput.value.trim()) { didAutoPaste = true; return; }
-
       try{
-        // 권한 사전 체크(지원 브라우저만)
         try{
           const perm = await navigator.permissions?.query({ name: 'clipboard-read' });
           if (perm && perm.state === 'denied') throw new Error('clipboard_denied');
-        }catch{ /* 일부 브라우저는 permissions 비지원 */ }
-
+        }catch{}
         if (!('clipboard' in navigator)) throw new Error('clipboard_unavailable');
 
         const text = await navigator.clipboard.readText();
@@ -132,7 +149,6 @@
           }
         }
       }catch(e){
-        // 권한 거부/미지원 시 안내만 (흐름 차단 X)
         if (!pasteNoticeShown){
           msg.textContent = '자동 붙여넣기를 사용할 수 없습니다. 브라우저 권한을 허용하시거나 직접 붙여넣기 해주세요.';
           pasteNoticeShown = true;
@@ -141,13 +157,11 @@
         didAutoPaste = true;
       }
     }
-
-    // 사용자 제스처 타이밍에 시도
     urlInput.addEventListener('focus', tryAutoPaste);
     urlInput.addEventListener('pointerdown', tryAutoPaste);
-    urlInput.addEventListener('keydown', (e)=>{ if(!didAutoPaste) tryAutoPaste(); });
+    urlInput.addEventListener('keydown', ()=>{ if(!didAutoPaste) tryAutoPaste(); });
 
-    /* ---------- 등록 버튼 ---------- */
+    /* ---------- 등록 ---------- */
     document.getElementById('submitBtn').addEventListener('click', async ()=>{
       msg.textContent = '등록 중...';
       const user = auth.currentUser;
@@ -161,7 +175,6 @@
       if(selected.length > 3){ msg.textContent = '카테고리는 최대 3개까지 선택 가능합니다.'; return; }
       const cats = selected.length ? selected : ['etc'];
 
-      // oEmbed로 제목 가져오기(실패해도 진행)
       async function fetchYTTitle(u){
         try{
           const r = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(u)}&format=json`);
@@ -179,7 +192,7 @@
         msg.textContent = '등록 완료!';
         urlInput.value = '';
         document.querySelectorAll('.cat:checked').forEach(c=> c.checked=false);
-        didAutoPaste = false; // 다음 등록 때도 자동 붙여넣기 시도
+        didAutoPaste = false; // 다음 입력 때도 자동 붙여넣기 시도
       }catch(e){
         msg.textContent = `오류: ${e.message||e}`;
       }
