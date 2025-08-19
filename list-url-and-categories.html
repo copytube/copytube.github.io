@@ -8,7 +8,7 @@
   <style>
     main { padding-top:96px; }
     .wrap { max-width:980px; margin:0 auto; padding:0 16px; }
-    .toolbar { display:flex; gap:10px; align-items:center; margin:8px 0 14px; }
+    .toolbar { display:flex; gap:10px; align-items:center; margin:8px 0 14px; flex-wrap:wrap; }
     .count { color:#9aa0a6; font-size:14px; }
     table { width:100%; border-collapse:collapse; background:#0b0b0b; border:1px solid #333; border-radius:10px; overflow:hidden; }
     th, td { padding:10px 12px; border-bottom:1px solid #222; vertical-align:top; }
@@ -17,10 +17,11 @@
     a.url { color:#4ea1ff; word-break:break-all; text-decoration:none; }
     .cats { color:#ddd; }
     .chip { display:inline-block; background:#1b1b1b; border:1px solid #2a2a2a; border-radius:999px; padding:3px 9px; margin:2px 6px 2px 0; font-size:12px; }
-    .hint { font-size:12px; color:#9aa0a6; margin-top:6px; }
+    .hint { font-size:12px; color:#9aa0a6; margin-top:6px; white-space:pre-line; }
     .actions{ display:flex; gap:8px; }
     .btn{ padding:8px 12px; border:1px solid #333; background:#1b1b1b; color:#fff; border-radius:8px; cursor:pointer; }
     .btn:hover{ background:#222; }
+    .err{ color:#f87171; }
   </style>
 </head>
 <body>
@@ -67,9 +68,8 @@
         </tbody>
       </table>
 
-      <p class="hint">
-        * 모르는 슬러그는 <code>[slug]</code>로 표시됩니다. (예전 값일 수 있음)<br/>
-        * 이 페이지는 읽기 전용입니다.
+      <p id="footnote" class="hint">
+        * 모르는 슬러그는 <code>[slug]</code>로 표시됩니다. (예전 값일 수 있음)
       </p>
     </div>
   </main>
@@ -79,13 +79,9 @@
   <script type="module" src="js/categories.js"></script>
   <script type="module">
     import { auth, db } from './js/firebase-init.js';
-    import {
-      onAuthStateChanged, signOut as fbSignOut
-    } from './js/auth.js';
-    import {
-      collection, getDocs, orderBy, query
-    } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+    import { onAuthStateChanged, signOut as fbSignOut } from './js/auth.js';
     import { CATEGORY_GROUPS } from './js/categories.js';
+    import { collection, getDocs, orderBy, query } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
     /* ------- 상단 드롭다운 공통 ------- */
     const signupLink   = document.getElementById("signupLink");
@@ -117,73 +113,91 @@
       welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
     });
 
-    /* ------- 카테고리 라벨 맵 준비 ------- */
+    /* ------- 카테고리 라벨 맵 ------- */
     const labelMap = new Map();
-    for (const g of CATEGORY_GROUPS){
-      for (const c of g.children){
-        labelMap.set(c.value, c.label);
-      }
-    }
-    // 예전 슬러그에 대한 간단한 별칭(가능한 한 라벨로 보여주기)
+    for (const g of CATEGORY_GROUPS){ for (const c of g.children){ labelMap.set(c.value, c.label); } }
     const alias = {
       review:'그외', fun:'유머', variety_celeb:'예능·연예', animal:'동물',
       edu:'일반', common_life:'상식·생활팁', medical:'일반',
       cook_food:'요리/맛집', it:'정보·IT', product:'제품리뷰',
       nature_survival:'서바이벌', agri:'농어광공업', common:'상식', life:'생활팁'
     };
-
     function labelFor(slug){
       if (labelMap.has(slug)) return labelMap.get(slug);
       if (alias[slug]) return alias[slug] + ' [구]';
       return `[${slug}]`;
     }
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
-    /* ------- 렌더 ------- */
-    const tbody = document.getElementById('tbody');
+    /* ------- 안전한 로딩(타임아웃 + 폴백) ------- */
+    const tbody  = document.getElementById('tbody');
     const status = document.getElementById('status');
+    const foot   = document.getElementById('footnote');
     const btnReload = document.getElementById('btnReload');
+
+    function withTimeout(promise, ms=12000){
+      return Promise.race([
+        promise,
+        new Promise((_, reject)=> setTimeout(()=> reject(new Error('timeout')), ms))
+      ]);
+    }
+
+    function toMs(createdAt){
+      try{ return createdAt?.toMillis ? createdAt.toMillis() : (typeof createdAt==='number'? createdAt : 0); }
+      catch{ return 0; }
+    }
+
+    async function fetchAllVideos(){
+      // 1) 시도: createdAt desc 정렬
+      try{
+        const q1 = query(collection(db,'videos'), orderBy('createdAt','desc'));
+        const snap = await withTimeout(getDocs(q1), 12000);
+        return snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+      }catch(e1){
+        console.warn('orderBy createdAt 실패, 폴백 시도:', e1);
+        foot.innerHTML = `* 정렬 최적화 쿼리가 실패하여 폴백으로 불러왔습니다. 사유: <span class="err">${escapeHtml(e1.message||String(e1))}</span>`;
+        // 2) 폴백: 정렬 없이 전체 → 클라이언트에서 createdAt desc 정렬
+        const snap2 = await withTimeout(getDocs(collection(db,'videos')), 12000);
+        const rows = snap2.docs.map(d=> ({ id:d.id, ...d.data() }));
+        rows.sort((a,b)=> toMs(b.createdAt) - toMs(a.createdAt));
+        return rows;
+      }
+    }
 
     async function load(){
       status.textContent = '불러오는 중…';
       tbody.innerHTML = `<tr><td colspan="3" class="hint">읽는 중…</td></tr>`;
       try{
-        // createdAt 내림차순 (단일 필드 정렬은 인덱스 불필요)
-        const q = query(collection(db,'videos'), orderBy('createdAt','desc'));
-        const snap = await getDocs(q);
+        const rows = await fetchAllVideos();
 
-        if (snap.empty){
+        if (!rows.length){
           tbody.innerHTML = `<tr><td colspan="3" class="hint">영상이 없습니다.</td></tr>`;
           status.textContent = '0개';
           return;
         }
 
-        const rows = [];
+        const out = [];
         let i = 0;
-        snap.forEach(d=>{
-          const data = d.data();
-          const url  = data?.url || '';
-          const cats = Array.isArray(data?.categories) ? data.categories : [];
-          const labels = cats.map(labelFor);
+        for (const v of rows){
           i++;
-          rows.push(`
+          const url  = v?.url || '';
+          const cats = Array.isArray(v?.categories) ? v.categories : [];
+          const labels = cats.map(labelFor);
+          out.push(`
             <tr>
               <td>${i}</td>
               <td><a class="url" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a></td>
               <td class="cats">${labels.length ? labels.map(x=>`<span class="chip">${escapeHtml(x)}</span>`).join('') : '<span class="hint">없음</span>'}</td>
             </tr>
           `);
-        });
-        tbody.innerHTML = rows.join('');
-        status.textContent = `${i}개`;
+        }
+        tbody.innerHTML = out.join('');
+        status.textContent = `${rows.length}개`;
       }catch(e){
         console.error(e);
-        tbody.innerHTML = `<tr><td colspan="3" class="hint">불러오기 실패: ${escapeHtml(e.message||String(e))}</td></tr>`;
         status.textContent = '오류';
+        tbody.innerHTML = `<tr><td colspan="3" class="hint err">불러오기 실패: ${escapeHtml(e.message||String(e))}\n광고차단/방화벽/네트워크 상태를 확인해 주세요.</td></tr>`;
       }
-    }
-
-    function escapeHtml(s){
-      return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
     }
 
     btnReload.addEventListener('click', load);
