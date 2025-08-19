@@ -6,22 +6,39 @@
   <title>Copytube - 카테고리 선택</title>
   <link rel="stylesheet" href="css/style.css"/>
   <style>
-    /* 선택화면을 조금 타이트하게 */
-    .intro{ padding-top:96px; }
-    .lead{ margin-bottom:6px; }
-    .sublead{ margin-bottom:12px; }
+    /* 선택 화면을 컴팩트하게 */
+    .intro{ min-height:100vh; display:flex; align-items:center; justify-content:center; text-align:center;
+            padding:96px 24px 24px; background:var(--bg-2); border-bottom:1px solid var(--border);}
+    .lead{ font-size:20px; color:#e6e6e6; margin:0 0 6px; }
+    .sublead{ font-size:14px; color:#9aa0a6; margin:0 0 12px; }
 
+    .toolbar { display:flex; gap:10px; align-items:center; justify-content:center; margin:8px 0 10px; flex-wrap:wrap; }
+    .label-strong{ font-weight:800; font-size:18px; }
+
+    .btn-primary{
+      padding:10px 16px; border:0; border-radius:10px; background:#4ea1ff;
+      color:#fff; font-weight:800; cursor:pointer;
+    }
+
+    .btn-pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:10px 14px; border-radius:12px; border:1px solid #2a2a2a; background:#111; color:#ddd;
+      cursor:pointer; font-weight:700;
+    }
+    .btn-pill[aria-pressed="true"]{ background:#1b1b1b; border-color:#3a3a3a; }
+
+    /* 그룹형 카테고리 – 타이트 레이아웃 */
     .group{
       border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
       padding:8px 8px 10px; margin:6px 0;
+      text-align:left; max-width:900px; margin-left:auto; margin-right:auto;
     }
     .group legend{
       padding:0 4px; font-weight:800; font-size:15px; color:#eee;
       margin-bottom:2px; line-height:1.05; display:inline-flex; gap:6px; align-items:center;
     }
-    .group .subnote{
-      font-size:12px; color:#9aa0a6; margin-left:6px;
-    }
+    .group .subnote{ font-size:12px; color:#9aa0a6; margin-left:6px; }
+
     .child-grid{
       margin-top:2px; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px;
     }
@@ -29,12 +46,7 @@
     .child-grid label{
       background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px;
       padding:6px 8px; font-size:14px; line-height:1.2;
-      display:flex; gap:6px; align-items:center;
-    }
-
-    .actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
-    .btn-primary{
-      padding:12px 16px; border:0; border-radius:10px; background:#4ea1ff; color:#fff; font-weight:800; cursor:pointer;
+      display:flex; gap:6px; align-items:center; justify-content:flex-start;
     }
   </style>
 </head>
@@ -61,21 +73,28 @@
   </header>
 
   <section class="intro">
-    <div>
+    <div style="width:100%;">
       <p class="lead">영상보기를 눌러 선택된 카테고리의 영상을 시청하세요.</p>
-      <p class="sublead">첫 시청 시 화면 상단 <strong>음소거를 해제</strong>해 주세요.</p>
+      <p class="sublead">첫 시청 시 화면 상단 <strong>음소거를 해제</strong>해 주세요. (모바일: 첫 스와이프/탭, PC: 스크롤/키 입력/클릭)</p>
 
-      <div id="cats"><!-- 카테고리 그룹 렌더링 --></div>
-
-      <div class="actions">
-        <button id="btnWatch" class="btn-primary">영상보기</button>
+      <div class="toolbar">
+        <span class="label-strong">카테고리 선택</span>
+        <button id="btnWatch" class="btn-primary">▶ 영상보기</button>
       </div>
+
+      <div style="margin-bottom:8px;">
+        <button id="btnToggleAll" class="btn-pill" aria-pressed="false" type="button">
+          <span aria-hidden="true">☑</span> 전체보기
+        </button>
+      </div>
+
+      <div id="cats"><!-- JS로 그룹 렌더링 --></div>
     </div>
   </section>
 
+  <!-- 모듈 스크립트: categories.js는 HTML에서 직접 로드하지 않습니다 -->
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/categories.js"></script>
-  <script type="module" src="js/index.js"></script>
+  <script type="module" src="js/index.js?v=20250818"></script>
 </body>
 </html>
