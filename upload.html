@@ -8,7 +8,9 @@
   <style>
     main { max-width:640px; margin:96px auto 40px; padding:0 16px; }
     label { display:block; margin-top:14px; font-size:14px; }
+    .row { display:flex; gap:8px; align-items:center; }
     input[type="text"]{
+      flex:1 1 auto;
       width:100%; padding:10px; margin-top:6px; box-sizing:border-box;
       border:1px solid #333; border-radius:8px; background:#000; color:#fff;
     }
@@ -17,9 +19,14 @@
       margin-top:18px; width:100%; padding:12px; border:0; border-radius:8px;
       background:#4ea1ff; color:#fff; font-weight:700; cursor:pointer;
     }
+    .btn-secondary{
+      margin-top:6px; padding:10px 12px; border:1px solid #2a2a2a;
+      background:#1b1b1b; color:#fff; border-radius:8px; cursor:pointer; white-space:nowrap;
+    }
+    .btn-secondary:hover{ background:#222; }
     .msg { margin-top:10px; font-size:13px; color:#ccc; min-height:1.2em; white-space:pre-line; }
 
-    /* 그룹형 카테고리 UI (인덱스와 동일 느낌, 부모 체크박스 없음) */
+    /* 그룹형 카테고리 UI (부모엔 체크박스 없음) */
     .group{ border:1px solid var(--border); border-radius:12px; background:var(--bg-3); padding:12px; margin:10px 0; }
     .group legend{ padding:0 6px; font-weight:800; font-size:15px; color:#eee; }
     .child-grid{ margin-top:8px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
@@ -28,6 +35,11 @@
       background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px;
       padding:10px; font-size:14px; display:flex; gap:8px; align-items:center;
     }
+
+    details.help { margin-top:12px; }
+    details.help summary { cursor:pointer; color:#9aa0a6; }
+    details.help .help-body { font-size:12px; color:#9aa0a6; margin-top:6px; line-height:1.5; }
+    details.help code { background:#0b0b0b; padding:1px 4px; border-radius:4px; }
   </style>
 </head>
 <body>
@@ -47,16 +59,29 @@
   <main>
     <h2>추천영상 등록</h2>
 
-    <label>YouTube 공유 URL
+    <label>YouTube 공유 URL</label>
+    <div class="row">
       <input id="url" type="text" placeholder="https://youtu.be/... 또는 https://www.youtube.com/watch?v=..." autocomplete="off" />
-    </label>
-    <div class="note">※ URL 입력칸을 탭/클릭하면 클립보드 내용을 자동으로 붙여넣습니다. (브라우저 권한 필요)</div>
+      <button id="btnPaste" type="button" class="btn-secondary">클립보드 붙여넣기</button>
+    </div>
+    <div class="note">※ URL 입력칸을 탭/클릭하거나, 위 버튼을 누르면 클립보드 내용을 붙여넣습니다. (브라우저/OS에서 허용 필요)</div>
 
     <p style="margin:14px 0 6px;">카테고리(최대 3개)</p>
     <div id="cats"><!-- 그룹형 카테고리 렌더링 --></div>
 
     <button id="submitBtn" class="btn-primary">등록</button>
     <div id="msg" class="msg"></div>
+
+    <details class="help">
+      <summary>붙여넣기 권한 문제 해결 도움말</summary>
+      <div class="help-body">
+        • <b>HTTPS</b> 환경에서만 동작합니다. (GitHub Pages OK)<br/>
+        • 버튼을 클릭해야 브라우저가 <i>붙여넣기 허용</i> 팝업을 띄울 수 있습니다.<br/>
+        • <b>iPhone/iPad (iOS 16+)</b>: 처음 붙여넣기 때 <i>“이 앱에서 붙여넣기 허용”</i> 팝업이 뜨면 <b>허용</b>을 선택하세요.<br/>
+        • <b>안드로이드/데스크탑 Chrome</b>: 주소창 왼쪽 <b>자물쇠 아이콘 → 사이트 설정 → 클립보드</b>에서 허용.<br/>
+        • 위 방법이 어려우면, <b>길게 누르기 → 붙여넣기</b> 또는 <code>Ctrl/⌘+V</code>를 사용하시면 됩니다.
+      </div>
+    </details>
   </main>
 
   <script type="module" src="js/firebase-init.js"></script>
@@ -70,6 +95,7 @@
 
     const $ = (s)=>document.querySelector(s);
     const urlInput = $('#url');
+    const pasteBtn = $('#btnPaste');
     const catsBox  = $('#cats');
     const msg      = $('#msg');
 
@@ -97,7 +123,7 @@
       }).join('');
       catsBox.innerHTML = html;
 
-      // 최대 3개 제한: 변화 시 체크 수 검사
+      // 최대 3개 제한
       const boxes = Array.from(catsBox.querySelectorAll('input.cat'));
       boxes.forEach(b=>{
         b.addEventListener('change', ()=>{
@@ -125,41 +151,59 @@
       return m ? m[1] : '';
     }
 
-    /* ---------- URL 자동 붙여넣기 ---------- */
+    /* ---------- 자동/수동 붙여넣기 ---------- */
     let didAutoPaste = false;
-    let pasteNoticeShown = false;
 
-    async function tryAutoPaste(){
-      if (didAutoPaste) return;
-      if (urlInput.value.trim()) { didAutoPaste = true; return; }
+    async function pasteFromClipboard({ forcePrompt=false } = {}){
+      // 값이 이미 있으면 사용자에게 확인(덮어쓰기 방지)
+      if (urlInput.value.trim()){
+        const ok = confirm('입력칸 내용을 클립보드로 교체할까요?');
+        if (!ok) return;
+      }
       try{
+        // 일부 브라우저는 permissions API 미지원 (무시해도 됨)
         try{
           const perm = await navigator.permissions?.query({ name: 'clipboard-read' });
+          // forcePrompt는 실제 권한창을 띄우려는 의도로, 그냥 버튼 클릭 자체가 사용자 제스처이므로 충분함
           if (perm && perm.state === 'denied') throw new Error('clipboard_denied');
         }catch{}
+
         if (!('clipboard' in navigator)) throw new Error('clipboard_unavailable');
 
-        const text = await navigator.clipboard.readText();
-        const candidate = findFirstYoutubeUrl(text?.trim() || '');
-        if (text){
-          urlInput.value = candidate || text.trim();
-          if (!pasteNoticeShown){
-            msg.textContent = '클립보드에서 자동 붙여넣기 했습니다.';
-            pasteNoticeShown = true;
-          }
-        }
+        const text = await navigator.clipboard.readText();  // ← 버튼 클릭 제스처에서 호출 → 브라우저가 허용/거부 팝업 표시
+        if (!text){ msg.textContent = '클립보드가 비어있습니다.'; return; }
+
+        const candidate = findFirstYoutubeUrl(text.trim());
+        urlInput.value = candidate || text.trim();
+        msg.textContent = '붙여넣기 완료';
       }catch(e){
-        if (!pasteNoticeShown){
-          msg.textContent = '자동 붙여넣기를 사용할 수 없습니다. 브라우저 권한을 허용하시거나 직접 붙여넣기 해주세요.';
-          pasteNoticeShown = true;
+        msg.textContent = '브라우저/OS가 붙여넣기를 차단했습니다. 위의 도움말을 참고해 허용해 주세요.';
+      }
+    }
+
+    // 자동 붙여넣기는 "빈칸"일 때만 1회 시도
+    async function tryAutoPasteOnce(){
+      if (didAutoPaste) return;
+      if (urlInput.value.trim()){ didAutoPaste = true; return; }
+      try{
+        if (!('clipboard' in navigator)) throw new Error('no_api');
+        const text = await navigator.clipboard.readText();
+        if (text){
+          const candidate = findFirstYoutubeUrl(text.trim());
+          urlInput.value = candidate || text.trim();
+          msg.textContent = '클립보드에서 자동 붙여넣기 했습니다.';
         }
+      }catch{
+        // 자동 붙여넣기 실패는 조용히 무시 (버튼 사용 유도)
       }finally{
         didAutoPaste = true;
       }
     }
-    urlInput.addEventListener('focus', tryAutoPaste);
-    urlInput.addEventListener('pointerdown', tryAutoPaste);
-    urlInput.addEventListener('keydown', ()=>{ if(!didAutoPaste) tryAutoPaste(); });
+
+    urlInput.addEventListener('focus', tryAutoPasteOnce);
+    urlInput.addEventListener('pointerdown', tryAutoPasteOnce);
+    urlInput.addEventListener('keydown', ()=>{ if(!didAutoPaste) tryAutoPasteOnce(); });
+    pasteBtn.addEventListener('click', ()=> pasteFromClipboard({ forcePrompt:true }));
 
     /* ---------- 등록 ---------- */
     document.getElementById('submitBtn').addEventListener('click', async ()=>{
@@ -192,7 +236,7 @@
         msg.textContent = '등록 완료!';
         urlInput.value = '';
         document.querySelectorAll('.cat:checked').forEach(c=> c.checked=false);
-        didAutoPaste = false; // 다음 입력 때도 자동 붙여넣기 시도
+        didAutoPaste = false; // 다음 입력 때도 자동 시도
       }catch(e){
         msg.textContent = `오류: ${e.message||e}`;
       }
