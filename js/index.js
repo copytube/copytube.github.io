@@ -63,7 +63,11 @@ brandHome?.addEventListener("click", (e)=>{
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
-/* ----------------- 개인자료 라벨 로드 ----------------- */
+/* ----------------- 개인자료 위치 설정 읽기 ----------------- */
+function getPersonalPosition(){
+  const v = localStorage.getItem('personalPosition');
+  return v === 'top' ? 'top' : 'bottom'; // 기본 하단
+}
 function getPersonalLabels(){
   try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }
   catch{ return {}; }
@@ -72,15 +76,26 @@ function getPersonalLabels(){
 /* ----------------- 카테고리 렌더 ----------------- */
 function renderGroups(){
   const personalLabels = getPersonalLabels();
+  const pos = getPersonalPosition();
 
-  const html = CATEGORY_GROUPS.map(g=>{
+  // 그룹 배열 복사 후 personal을 맨 위로 이동할지 결정
+  const groups = CATEGORY_GROUPS.slice();
+  if (pos === 'top'){
+    const idx = groups.findIndex(g => g.key === 'personal');
+    if (idx > -1){
+      const [pg] = groups.splice(idx, 1);
+      groups.unshift(pg);
+    }
+  }
+
+  const html = groups.map(g=>{
     const kids = g.children.map(c=>{
       const isPersonal = (g.key==='personal');
       const labelText = isPersonal && personalLabels[c.value] ? personalLabels[c.value] : c.label;
       return `<label><input type="checkbox" class="cat" value="${c.value}"> ${labelText}</label>`;
     }).join('');
 
-    // 개인자료 그룹에는 (이 기기에만 저장) 표시를 legend 옆에 붙임
+    // 개인자료 그룹은 (이 기기에만 저장) 안내만 붙임
     const legend = (g.key==='personal')
       ? `${g.label} <span class="subnote">(이 기기에만 저장)</span>`
       : g.label;
@@ -100,12 +115,9 @@ renderGroups();
 /* ----------------- 저장 & 이동 ----------------- */
 btnWatch.addEventListener('click', ()=>{
   const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
-
-  // 개인자료(personal1/2)는 시청 페이지에서는 의미가 없으므로 저장에서 제외
+  // 개인자료(personal1/2)는 시청 페이지에는 의미가 없으므로 제외하여 저장
   const filtered = selected.filter(v => v !== 'personal1' && v !== 'personal2');
-
   const valueToSave = (filtered.length === 0) ? "ALL" : filtered;
   localStorage.setItem('selectedCats', JSON.stringify(valueToSave));
-  // 시청 페이지로 이동
   location.href = 'watch.html';
 });
