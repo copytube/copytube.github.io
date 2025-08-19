@@ -7,12 +7,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 /* ---------- viewport height fix ---------- */
-function updateVh(){
-  document.documentElement.style.setProperty('--app-vh', `${window.innerHeight}px`);
-}
-updateVh();
-window.addEventListener('resize', updateVh);
-window.addEventListener('orientationchange', updateVh);
+function updateVh(){ document.documentElement.style.setProperty('--app-vh', `${window.innerHeight}px`); }
+updateVh(); window.addEventListener('resize', updateVh); window.addEventListener('orientationchange', updateVh);
 
 /* ---------- DOM ---------- */
 const topbar         = document.getElementById("topbar");
@@ -30,44 +26,19 @@ const videoContainer = document.getElementById("videoContainer");
 
 /* ---------- dropdown ---------- */
 let isMenuOpen = false;
-
-function openDropdown(){
-  isMenuOpen = true;
-  dropdown.classList.remove("hidden");
-  requestAnimationFrame(()=> dropdown.classList.add("show"));
-  dropdown.setAttribute('aria-hidden','false');
-  showTopbarTemp();
-  cancelHide();
-}
-function closeDropdown(){
-  isMenuOpen = false;
-  dropdown.classList.remove("show");
-  setTimeout(()=> dropdown.classList.add("hidden"), 180);
-  dropdown.setAttribute('aria-hidden','true');
-  scheduleHide();
-}
-menuBtn?.addEventListener("click", (e)=>{
-  e.stopPropagation();
-  dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown();
-});
-document.addEventListener('pointerdown', (e)=>{
-  if (dropdown.classList.contains('hidden')) return;
-  const inside = e.target.closest('#dropdownMenu, #menuBtn');
-  if (!inside) closeDropdown();
-}, true);
+function openDropdown(){ isMenuOpen = true; dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); dropdown.setAttribute('aria-hidden','false'); showTopbarTemp(); cancelHide(); }
+function closeDropdown(){ isMenuOpen = false; dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"), 180); dropdown.setAttribute('aria-hidden','true'); scheduleHide(); }
+menuBtn?.addEventListener("click", (e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown(); });
+document.addEventListener('pointerdown', (e)=>{ if (dropdown.classList.contains('hidden')) return; const inside = e.target.closest('#dropdownMenu, #menuBtn'); if (!inside) closeDropdown(); }, true);
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
 dropdown.addEventListener("click", (e)=> e.stopPropagation());
-
 btnGoCategory?.addEventListener("click", ()=>{ location.href = "./"; closeDropdown(); });
 btnMyUploads ?.addEventListener("click", ()=>{ location.href = "my-uploads.html"; closeDropdown(); });
 btnGoUpload   ?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
-btnSignOut    ?.addEventListener("click", async ()=>{
-  await fbSignOut(auth);
-  location.href = "./";
-});
+btnSignOut    ?.addEventListener("click", async ()=>{ await fbSignOut(auth); location.href = "./"; });
 brandHome     ?.addEventListener("click", (e)=>{ e.preventDefault(); location.href="./"; });
 
-/* ---------- auth state ---------- */
+/* ---------- auth ---------- */
 onAuthStateChanged(auth, (user)=>{
   const loggedIn = !!user;
   signupLink.classList.toggle("hidden", loggedIn);
@@ -79,30 +50,18 @@ onAuthStateChanged(auth, (user)=>{
 /* ---------- autohide topbar ---------- */
 topbar.classList.add('autohide');
 let hideTimer = null;
-function showTopbarTemp(){
-  topbar.classList.remove('hide');
-  scheduleHide();
-}
-function scheduleHide(){
-  cancelHide();
-  if (!isMenuOpen) {
-    hideTimer = setTimeout(()=> topbar.classList.add('hide'), 1000); // 1s
-  }
-}
-function cancelHide(){
-  if(hideTimer){ clearTimeout(hideTimer); hideTimer = null; }
-}
-
-// 모든 제스처에서 잠깐 상단바 노출
+function showTopbarTemp(){ topbar.classList.remove('hide'); scheduleHide(); }
+function scheduleHide(){ cancelHide(); if (!isMenuOpen) hideTimer = setTimeout(()=> topbar.classList.add('hide'), 1000); }
+function cancelHide(){ if(hideTimer){ clearTimeout(hideTimer); hideTimer = null; } }
 videoContainer.addEventListener('scroll', showTopbarTemp, { passive:true });
-['touchstart','touchmove','wheel','mousemove','keydown','pointerdown'].forEach(ev=>{
-  window.addEventListener(ev, showTopbarTemp, { passive:true });
-});
+['touchstart','touchmove','wheel','mousemove','keydown','pointerdown'].forEach(ev=>{ window.addEventListener(ev, showTopbarTemp, { passive:true }); });
 
-/* ---------- selection load ---------- */
-const LS_KEY = 'copytube_selected_categories';
+/* ---------- selection load (v2 우선, 레거시 폴백) ---------- */
+const LS_KEYS = ['copytube_selected_categories_v2', 'copytube_selected_categories']; // v2 → v1 폴백
+function isPersonalValue(v){ return v === 'personal_1' || v === 'personal_2'; }
 
 async function loadSelection(){
+  // 서버 우선
   if(auth.currentUser){
     try{
       const s = await getDoc(doc(db,'users', auth.currentUser.uid));
@@ -110,19 +69,23 @@ async function loadSelection(){
         const d = s.data();
         if (d?.selectAll) return { all:true, cats:[] };
         const arr = Array.isArray(d?.selectedCategories) ? d.selectedCategories : [];
-        return { all:false, cats:arr };
+        // 개인용이 혹시 섞여 있으면 제거
+        return { all:false, cats: arr.filter(v=> !isPersonalValue(v)) };
       }
-    }catch{/* ignore */}
+    }catch{}
   }
-  try{
-    const raw = localStorage.getItem(LS_KEY);
-    if(raw){
-      const st = JSON.parse(raw);
-      if (st?.selectAll) return { all:true, cats:[] };
-      const arr = Array.isArray(st?.selected) ? st.selected : [];
-      return { all:false, cats:arr };
-    }
-  }catch{/* ignore */}
+  // 로컬 폴백
+  for (const key of LS_KEYS){
+    try{
+      const raw = localStorage.getItem(key);
+      if(raw){
+        const st = JSON.parse(raw);
+        if (st?.selectAll) return { all:true, cats:[] };
+        const arr = Array.isArray(st?.selected) ? st.selected : [];
+        return { all:false, cats: arr.filter(v=> !isPersonalValue(v)) };
+      }
+    }catch{}
+  }
   return { all:true, cats:[] };
 }
 
@@ -130,35 +93,19 @@ async function loadSelection(){
 const PAGE_SIZE = 12;
 let isLoading = false, hasMore = true, lastDoc = null;
 let loadedIds = new Set();
-
 let userSoundConsent = false;
 let currentActive    = null;
 
-function ytCmd(iframe, func, args = []) {
-  if (!iframe || !iframe.contentWindow) return;
-  iframe.contentWindow.postMessage(JSON.stringify({ event:"command", func, args }), "*");
-}
-function grantSoundAndUnmuteCurrent(){
-  userSoundConsent = true;
-  const iframe = currentActive?.querySelector('iframe');
-  if (iframe){ ytCmd(iframe,"unMute"); ytCmd(iframe,"playVideo"); }
-}
+function ytCmd(iframe, func, args = []) { if (!iframe || !iframe.contentWindow) return; iframe.contentWindow.postMessage(JSON.stringify({ event:"command", func, args }), "*"); }
+function grantSoundAndUnmuteCurrent(){ userSoundConsent = true; const iframe = currentActive?.querySelector('iframe'); if (iframe){ ytCmd(iframe,"unMute"); ytCmd(iframe,"playVideo"); } }
 const opts = (ev)=> (ev==='touchstart' ? { once:true, passive:true } : { once:true });
-const grantOnce = ()=>{
-  grantSoundAndUnmuteCurrent();
-  ['click','touchstart','pointerdown','wheel','keydown'].forEach(ev=>{
-    window.removeEventListener(ev, grantOnce, opts(ev));
-  });
-};
-['click','touchstart','pointerdown','wheel','keydown'].forEach(ev=>{
-  window.addEventListener(ev, grantOnce, opts(ev));
-});
+const grantOnce = ()=>{ grantSoundAndUnmuteCurrent(); ['click','touchstart','pointerdown','wheel','keydown'].forEach(ev=>{ window.removeEventListener(ev, grantOnce, opts(ev)); }); };
+['click','touchstart','pointerdown','wheel','keydown'].forEach(ev=>{ window.addEventListener(ev, grantOnce, opts(ev)); });
 
 const activeIO = new IntersectionObserver((entries)=>{
   entries.forEach(entry=>{
     const card = entry.target;
     const iframe = card.querySelector('iframe');
-
     if(entry.isIntersecting && entry.intersectionRatio > 0.6){
       if(currentActive && currentActive !== card){
         const prev = currentActive.querySelector('iframe');
@@ -167,34 +114,23 @@ const activeIO = new IntersectionObserver((entries)=>{
       currentActive = card;
       ensureIframe(card);
       const ifr = card.querySelector('iframe');
-      if (ifr){
-        ytCmd(ifr,"playVideo");
-        userSoundConsent ? ytCmd(ifr,"unMute") : ytCmd(ifr,"mute");
-      }
+      if (ifr){ ytCmd(ifr,"playVideo"); userSoundConsent ? ytCmd(ifr,"unMute") : ytCmd(ifr,"mute"); }
     } else {
       if (iframe){ ytCmd(iframe,"mute"); ytCmd(iframe,"pauseVideo"); }
     }
   });
 }, { root: videoContainer, threshold:[0,0.6,1] });
 
-function showHint(text){
-  videoContainer.innerHTML = `<div class="video"><p class="hint">${text}</p></div>`;
-}
-
-function extractId(url){
-  const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/);
-  return m ? m[1] : ''; // 매치 실패 시 빈 문자열로 방어
-}
+function showHint(text){ videoContainer.innerHTML = `<div class="video"><p class="hint">${text}</p></div>`; }
+function extractId(url){ const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/); return m ? m[1] : ''; }
 
 function makeCard(url, docId){
   const id = extractId(url);
-  if (!id) return null; // 잘못된 url이면 카드 생성 안 함
-
+  if (!id) return null;
   const card = document.createElement('div');
   card.className = 'video';
   card.dataset.vid = id;
   card.dataset.docId = docId;
-
   card.innerHTML = `
     <div class="thumb" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#000;position:relative;">
       <img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="thumbnail" loading="lazy"
@@ -203,7 +139,6 @@ function makeCard(url, docId){
         위/아래 스와이프 시 상단바가 표시됩니다 • 탭/스크롤/키 입력으로 소리 허용
       </div>
     </div>`;
-
   card.addEventListener('click', ()=>{
     ensureIframe(card);
     const ifr = card.querySelector('iframe');
@@ -211,7 +146,6 @@ function makeCard(url, docId){
     if (ifr){ ytCmd(ifr,"playVideo"); ytCmd(ifr,"unMute"); }
     currentActive = card;
   });
-
   activeIO.observe(card);
   return card;
 }
@@ -232,16 +166,14 @@ function ensureIframe(card){
 
 async function loadMore(initial=false, selection){
   if(isLoading || !hasMore) return;
-
   isLoading = true;
   try{
     const base = collection(db, "videos");
     const parts = [];
-
     if(selection.all){
       parts.push(orderBy("createdAt","desc"));
     }else{
-      const cats = selection.cats.length > 10 ? null : selection.cats; // array-contains-any 한계 10
+      const cats = selection.cats.length > 10 ? null : selection.cats;
       if(cats){
         parts.push(where("categories","array-contains-any", cats));
         parts.push(orderBy("createdAt","desc"));
@@ -249,7 +181,6 @@ async function loadMore(initial=false, selection){
         parts.push(orderBy("createdAt","desc"));
       }
     }
-
     if(lastDoc) parts.push(startAfter(lastDoc));
     parts.push(limit(PAGE_SIZE));
 
@@ -287,9 +218,8 @@ videoContainer.addEventListener('scroll', ()=>{
 
 /* ---------- boot ---------- */
 let SELECTION = { all:true, cats:[] };
-
 (async ()=>{
   SELECTION = await loadSelection();
-  showTopbarTemp();             // 진입 시 한 번 노출
+  showTopbarTemp();
   await loadMore(true, SELECTION);
 })();
