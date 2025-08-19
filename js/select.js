@@ -2,7 +2,7 @@
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
-import { CATEGORIES } from './categories.js';
+import { CATEGORY_GROUPS, isPersonalValue } from './categories.js';
 
 /* ---------- DOM ---------- */
 const signupLink   = document.getElementById("signupLink");
@@ -13,9 +13,11 @@ const dropdown     = document.getElementById("dropdownMenu");
 const btnMyUploads = document.getElementById("btnMyUploads");
 const btnSignOut   = document.getElementById("btnSignOut");
 const btnGoUpload  = document.getElementById("btnGoUpload");
+
 const catWrap      = document.getElementById("catWrap");
 const btnStart     = document.getElementById("btnStart");
 const msg          = document.getElementById("msg");
+const allToggle    = document.getElementById("allToggle");
 
 /* ---------- 상단 드롭다운 ---------- */
 function openDropdown(){
@@ -43,97 +45,203 @@ btnMyUploads?.addEventListener("click", ()=>{ location.href = "my-uploads.html";
 btnSignOut?.addEventListener("click", async ()=>{ await fbSignOut(auth); closeDropdown(); location.reload(); });
 btnGoUpload?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
 
-/* ---------- 카테고리 UI ---------- */
-let boxes = [], allBox, catBoxes;
+/* ---------- 그룹 UI 렌더 ---------- */
+function renderGroups(){
+  const html = CATEGORY_GROUPS.map(g=>{
+    const kids = g.children.map(c=>(
+      `<label><input type="checkbox" class="child" data-group="${g.key}" value="${c.value}"> ${c.label}</label>`
+    )).join('');
+    return `
+      <fieldset class="group" data-key="${g.key}">
+        <legend>
+          <label class="parent"><input type="checkbox" class="parent" data-group="${g.key}"> ${g.label}</label>
+        </legend>
+        <div class="child-grid">${kids}</div>
+        ${g.personal ? `<div class="note-local">이 그룹은 이 기기에만 저장/표시됩니다.</div>` : ``}
+      </fieldset>
+    `;
+  }).join('');
+  catWrap.innerHTML = html;
 
-function renderCategoryUI() {
-  const all = `<label><input type="checkbox" class="cat-box" value="__ALL__"> 전체선택</label>`;
-  const rest = CATEGORIES.map(c => (
-    `<label><input type="checkbox" class="cat-box" value="${c.value}"> ${c.label}</label>`
-  )).join('');
-  catWrap.innerHTML = all + rest;
+  // 이벤트: 부모 ↔ 자식 동기화
+  const parentBoxes = Array.from(catWrap.querySelectorAll('input.parent'));
+  const childBoxes  = Array.from(catWrap.querySelectorAll('input.child'));
 
-  boxes = Array.from(catWrap.querySelectorAll('input.cat-box'));
-  allBox = boxes.find(b => b.value === "__ALL__");
-  catBoxes = boxes.filter(b => b !== allBox);
-
-  allBox.addEventListener('change', ()=> {
-    const on = allBox.checked;
-    catBoxes.forEach(b=> b.checked = on);
+  // 부모 클릭 → 자식 전체 ON/OFF
+  parentBoxes.forEach(p=>{
+    p.addEventListener('change', ()=>{
+      const key = p.dataset.group;
+      const children = childBoxes.filter(c=> c.dataset.group === key);
+      children.forEach(c=> c.checked = p.checked);
+      // 부모의 indeterminate 해제
+      p.indeterminate = false;
+      syncAllToggle();
+    });
   });
-  catBoxes.forEach(b => b.addEventListener('change', ()=>{
-    const allOn = catBoxes.every(x=>x.checked);
-    allBox.checked = allOn;
-  }));
-}
-renderCategoryUI();
 
-/* ---------- 로그인 상태 + 환영문구 ---------- */
+  // 자식 클릭 → 부모 상태 갱신(모두/일부/없음)
+  childBoxes.forEach(c=>{
+    c.addEventListener('change', ()=>{
+      const key = c.dataset.group;
+      const parent = parentBoxes.find(p=> p.dataset.group === key);
+      const sibs = childBoxes.filter(x=> x.dataset.group === key);
+      const any = sibs.some(x=>x.checked);
+      const all = sibs.every(x=>x.checked);
+      parent.checked = all;
+      parent.indeterminate = any && !all;
+      syncAllToggle();
+    });
+  });
+
+  // 전체 토글
+  allToggle.addEventListener('change', ()=>{
+    const on = allToggle.checked;
+    parentBoxes.forEach(p=>{ p.checked = on; p.indeterminate = false; });
+    childBoxes.forEach(c=> c.checked = on);
+  });
+
+  return { parentBoxes, childBoxes };
+}
+
+const ui = renderGroups();
+
+/* ---------- 저장/복원 ---------- */
+const LS_KEY_V2      = 'copytube_selected_categories_v2';   // 공개 세부 선택(서버와 동기)
+const LS_PERSONAL_V1 = 'copytube_personal_flags_v1';        // 개인용 선택(로컬 전용)
+
+function readSelectionFromUI(){
+  const childBoxes = Array.from(catWrap.querySelectorAll('input.child'));
+  const selectedAll = !!allToggle.checked;
+
+  const selectedPublic = [];
+  const selectedPersonal = [];
+  for (const b of childBoxes){
+    if (!b.checked) continue;
+    const v = b.value;
+    if (isPersonalValue(v)) selectedPersonal.push(v);
+    else selectedPublic.push(v);
+  }
+  return { all: selectedAll, selectedPublic, selectedPersonal };
+}
+
+function applySelectionToUI({ all, publicValues = [], personalValues = [] }){
+  // 전체 토글
+  allToggle.checked = !!all;
+
+  const parentBoxes = Array.from(catWrap.querySelectorAll('input.parent'));
+  const childBoxes  = Array.from(catWrap.querySelectorAll('input.child'));
+
+  // 자식 체크
+  const publicSet   = new Set(publicValues || []);
+  const personalSet = new Set(personalValues || []);
+
+  childBoxes.forEach(c=>{
+    const v = c.value;
+    if (all) c.checked = true;
+    else if (isPersonalValue(v)) c.checked = personalSet.has(v);
+    else c.checked = publicSet.has(v);
+  });
+
+  // 부모 상태 동기화
+  parentBoxes.forEach(p=>{
+    const key = p.dataset.group;
+    const sibs = childBoxes.filter(x=> x.dataset.group === key);
+    const any = sibs.some(x=>x.checked);
+    const allKids = sibs.every(x=>x.checked);
+    p.checked = allKids;
+    p.indeterminate = any && !allKids;
+  });
+}
+
+function syncAllToggle(){
+  const childBoxes = Array.from(catWrap.querySelectorAll('input.child'));
+  const every = childBoxes.every(c=> c.checked);
+  const some  = childBoxes.some(c=> c.checked);
+  allToggle.indeterminate = some && !every;
+  allToggle.checked = every;
+}
+
+async function restoreSelection(){
+  // 1) 개인용(로컬)
+  let personalValues = [];
+  try{
+    const raw = localStorage.getItem(LS_PERSONAL_V1);
+    if (raw){ const j = JSON.parse(raw); if (Array.isArray(j?.selected)) personalValues = j.selected; }
+  }catch{}
+
+  // 2) 공개 선택(서버 우선)
+  let all = false;
+  let publicValues = [];
+
+  if (auth.currentUser){
+    try{
+      const s = await getDoc(doc(db,'users', auth.currentUser.uid));
+      if (s.exists()){
+        const d = s.data();
+        all = !!d?.selectAll;
+        publicValues = Array.isArray(d?.selectedCategories) ? d.selectedCategories : [];
+      }
+    }catch{}
+  }
+  if (!auth.currentUser){
+    try{
+      const raw = localStorage.getItem(LS_KEY_V2);
+      if (raw){
+        const j = JSON.parse(raw);
+        all = !!j?.selectAll;
+        publicValues = Array.isArray(j?.selected) ? j.selected : [];
+      }
+    }catch{}
+  }
+
+  // 3) 폴백: 아무 것도 없으면 전체 ON
+  if (!all && publicValues.length === 0 && personalValues.length === 0){
+    all = true;
+  }
+
+  applySelectionToUI({ all, publicValues, personalValues });
+  syncAllToggle();
+}
+
 onAuthStateChanged(auth, async (user)=>{
   const loggedIn = !!user;
   signupLink.classList.toggle("hidden", loggedIn);
   signinLink.classList.toggle("hidden", loggedIn);
   menuBtn.classList.toggle("hidden", !loggedIn);
   welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
-  await restoreSelection(); // 로그인 여부에 따라 복원
+
+  await restoreSelection();
 });
 
-/* ---------- 저장/복원 ---------- */
-const LS_KEY = 'copytube_selected_categories';
-
-async function restoreSelection(){
-  // 1) 로그인: Firestore /users/{uid}
-  if (auth.currentUser){
-    try{
-      const s = await getDoc(doc(db,'users', auth.currentUser.uid));
-      const data = s.exists() ? s.data() : null;
-      if (data?.selectAll){ allBox.checked = true; catBoxes.forEach(b=> b.checked = true); return; }
-      const arr = Array.isArray(data?.selectedCategories) ? data.selectedCategories : [];
-      if (arr.length){ applyArray(arr); return; }
-    }catch{}
-  }
-  // 2) 비로그인: localStorage
-  try{
-    const raw = localStorage.getItem(LS_KEY);
-    if(raw){
-      const st = JSON.parse(raw);
-      if (st?.selectAll){ allBox.checked = true; catBoxes.forEach(b=> b.checked = true); return; }
-      const arr = Array.isArray(st?.selected) ? st.selected : [];
-      if (arr.length){ applyArray(arr); return; }
-    }
-  }catch{}
-
-  // 3) 저장된 게 전혀 없으면 전체선택 ON
-  allBox.checked = true; catBoxes.forEach(b=> b.checked = true);
-}
-
-function applyArray(arr){
-  allBox.checked = false;
-  const set = new Set(arr);
-  catBoxes.forEach(b=> b.checked = set.has(b.value));
-}
-
-/* ---------- 버튼: 영상보기 ---------- */
+/* ---------- 저장 & 이동 ---------- */
 btnStart?.addEventListener('click', async ()=>{
-  const all = allBox.checked;
-  const selected = catBoxes.filter(x=>x.checked).map(x=>x.value);
-  if (!all && selected.length === 0){
+  const sel = readSelectionFromUI();
+
+  if (!sel.all && sel.selectedPublic.length === 0 && sel.selectedPersonal.length === 0){
     msg.textContent = '카테고리를 하나 이상 선택해 주세요.'; return;
   }
   msg.textContent = '저장 중…';
 
-  const payload = all
-    ? { selectAll:true, selectedCategories:[], updatedAt: serverTimestamp() }
-    : { selectAll:false, selectedCategories:selected, updatedAt: serverTimestamp() };
-
+  // 개인용 → 항상 로컬에만 저장
   try{
-    if(auth.currentUser){
-      await setDoc(doc(db,'users', auth.currentUser.uid), payload, { merge:true });
+    localStorage.setItem(LS_PERSONAL_V1, JSON.stringify({ selected: sel.selectedPersonal, ts: Date.now() }));
+  }catch{}
+
+  // 공개 선택 → 로그인 시 서버, 비로그인은 로컬
+  try{
+    if (auth.currentUser){
+      await setDoc(doc(db,'users', auth.currentUser.uid), {
+        selectAll: !!sel.all,
+        selectedCategories: sel.selectedPublic,   // 공개 세부만 서버 저장
+        updatedAt: serverTimestamp()
+      }, { merge:true });
     }else{
-      localStorage.setItem(LS_KEY, JSON.stringify({ selectAll: all, selected, ts: Date.now() }));
+      localStorage.setItem(LS_KEY_V2, JSON.stringify({
+        selectAll: !!sel.all, selected: sel.selectedPublic, ts: Date.now()
+      }));
     }
     msg.textContent = '완료! 영상 보기로 이동합니다…';
-    location.href = 'watch.html';   // ← 여기서 시청 페이지로 이동
+    location.href = 'watch.html';
   }catch(e){
     msg.textContent = `오류: ${e.message||e}`;
   }
