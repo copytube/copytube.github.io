@@ -3,378 +3,280 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>등록한영상관리 - Copytube</title>
+  <title>등록한 영상 관리 - CopyTube</title>
   <link rel="stylesheet" href="css/style.css"/>
   <style>
-    main { padding-top:96px; }
-    .wrap { max-width:1100px; margin:0 auto; padding:0 16px; }
-    .toolbar { display:flex; gap:10px; align-items:center; margin:8px 0 14px; flex-wrap:wrap; }
-    .count { color:#9aa0a6; font-size:14px; }
-    table { width:100%; border-collapse:collapse; background:#0b0b0b; border:1px solid #333; border-radius:10px; overflow:hidden; }
-    th, td { padding:10px 12px; border-bottom:1px solid #222; vertical-align:top; }
-    th { background:#111; color:#ddd; text-align:left; font-weight:700; }
-    tr:hover td { background:#0f0f0f; }
-    a.url { color:#4ea1ff; word-break:break-all; text-decoration:none; }
-    .title { color:#cfcfcf; font-size:12px; margin-top:4px; white-space:pre-wrap; }
-    .vlist { display:flex; flex-direction:column; gap:6px; }
-    .clabel{ background:#1b1b1b; border:1px solid #2a2a2a; border-radius:8px; padding:6px 10px; display:block; width:fit-content; }
-    .hint { font-size:12px; color:#9aa0a6; margin-top:6px; white-space:pre-line; }
-    .actions{ display:flex; gap:8px; }
-    .btn{ padding:8px 12px; border:1px solid #333; background:#1b1b1b; color:#fff; border-radius:8px; cursor:pointer; }
-    .btn:hover{ background:#222; }
-    .btn-small{ padding:8px 10px; font-size:13px; border-radius:8px; }
-    .err{ color:#f87171; }
-    .ok{ color:#34d399; }
-    .selects{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
-    .selects select{ min-width:140px; background:#0f0f0f; color:#fff; border:1px solid #2a2a2a; border-radius:6px; padding:6px; }
-    .rowmsg{ font-size:12px; margin-top:6px; color:#9aa0a6; }
-    .pager { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
-    .pager .pbtn{
-      min-width:34px; text-align:center; padding:6px 10px; border:1px solid #333; background:#1b1b1b;
-      color:#fff; border-radius:8px; cursor:pointer;
+    main { max-width:1100px; margin:96px auto 40px; padding:0 16px; text-align:left; }
+    .badge { font-size:12px; color:#9ef01a; font-weight:800; margin-left:8px; }
+    .toolbar { display:flex; gap:8px; align-items:center; margin:8px 0 12px; flex-wrap:wrap; }
+    .list { display:flex; flex-direction:column; gap:10px; }
+    .card {
+      display:grid; gap:10px; grid-template-columns: 1.2fr 1fr 1fr auto;
+      background:#1b1b1b; border:1px solid #333; border-radius:10px; padding:10px;
     }
-    .pager .pbtn[disabled]{ opacity:.5; cursor:default; }
-    .pager .current{ background:#2a2a2a; font-weight:700; }
-    .adminBadge{ font-size:12px; color:#9ef01a; font-weight:700; margin-left:8px; }
+    @media (max-width:900px){
+      .card { grid-template-columns: 1fr; }
+    }
+    .title { font-weight:800; margin-bottom:4px; }
+    .sub { font-size:12px; color:#9aa0a6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .chips { display:flex; flex-direction:column; gap:4px; }
+    .chip { display:inline-block; font-size:12px; background:#0f0f0f; border:1px solid #2a2a2a; border-radius:6px; padding:4px 6px; width:max-content; }
+    .controls { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    select {
+      background:#0f0f0f; color:#fff; border:1px solid #2a2a2a; border-radius:6px; padding:6px 8px;
+      min-width:150px;
+    }
+    button.btn { padding:8px 10px; border:0; border-radius:8px; cursor:pointer; font-weight:700; }
+    .btn-primary{ background:#4ea1ff; color:#fff; }
+    .btn-danger{ background:#dc2626; color:#fff; }
+    .pager { display:flex; gap:6px; align-items:center; justify-content:center; margin-top:14px; }
+    .pager button { padding:8px 10px; border-radius:8px; border:1px solid #333; background:#0f0f0f; color:#fff; cursor:pointer; }
+    .empty { color:#9aa0a6; margin:16px 0; }
   </style>
 </head>
 <body>
-  <header id="topbar">
-    <div class="brand">
-      <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
-        <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
-      </a>
-    </div>
-    <div class="right" style="position:relative;">
-      <a id="signupLink" class="link" href="signup.html">Sign up</a>
-      <a id="signinLink" class="link" href="signin.html">Sign in</a>
-      <span id="welcome" class="welcome"></span>
-      <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
-      <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
-        <button id="btnGoCategory" class="menu-strong" type="button">카테고리 선택</button>
-        <button id="btnMyUploads" type="button">등록한영상관리</button>
-        <button id="btnSignOut" type="button">Sign out</button>
-        <button id="btnGoUpload" class="menu-strong" type="button">추천영상등록</button>
-      </div>
-    </div>
-  </header>
+<header id="topbar">
+  <div class="brand">
+    <a href="./"><img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/></a>
+  </div>
+  <div class="right">
+    <a id="signupLink" class="link" href="signup.html">Sign up</a>
+    <a id="signinLink" class="link" href="signin.html">Sign in</a>
+    <span id="welcome" class="welcome"></span>
+  </div>
+</header>
 
-  <main>
-    <div class="wrap">
-      <h2>등록한영상관리 <span id="adminBadge" class="adminBadge" hidden>(관리자 모드: 전체 표시)</span></h2>
-      <div class="toolbar">
-        <div id="status" class="count">로그인 확인 중…</div>
-        <div class="actions">
-          <button id="btnReload" class="btn">새로고침</button>
+<main>
+  <h2 style="display:flex;align-items:center;gap:8px;">
+    등록한 영상 관리
+    <small id="adminBadge" class="badge" style="display:none;">관리자: 전체 표시</small>
+  </h2>
+  <div id="msg" class="welcome" style="margin:6px 0 10px;"></div>
+  <div class="toolbar">
+    <span id="countInfo" class="welcome"></span>
+  </div>
+  <div id="list" class="list"></div>
+  <div id="pager" class="pager" style="display:none;">
+    <button id="prevBtn">이전</button>
+    <span id="pageLabel" class="welcome"></span>
+    <button id="nextBtn">다음</button>
+  </div>
+</main>
+
+<script type="module" src="js/firebase-init.js"></script>
+<script type="module">
+  import { auth, db } from './js/firebase-init.js';
+  import { onAuthStateChanged } from './js/auth.js';
+  import {
+    collection, query, where, getDocs, orderBy, limit, startAfter,
+    doc, getDoc, updateDoc, deleteDoc
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  import { CATEGORY_GROUPS } from './js/categories.js?v=20250818';
+
+  const $ = s => document.querySelector(s);
+  const list = $('#list'), msg = $('#msg'), badge = $('#adminBadge');
+  const pager = $('#pager'), pageLabel = $('#pageLabel');
+  const PAGE_SIZE = 30;
+
+  // 카테고리 옵션 (개인자료 제외)
+  const FLAT = CATEGORY_GROUPS
+    .filter(g => g.key !== 'personal')
+    .flatMap(g => g.children.map(c => ({ value:c.value, label:c.label })));
+  const LABEL = new Map(FLAT.map(o => [o.value, o.label]));
+
+  // 상태
+  let isAdmin = false;
+  let mode = 'user'; // 'user' | 'admin'
+  let uid = null;
+
+  // 페이지네이션 상태 (admin: 서버 커서, user: 클라이언트 분할)
+  let adminCursors = [];  // [{page:1, cursor:DocumentSnapshot|null}, ...]
+  let adminPage = 1;
+  let userAll = [];       // 클라이언트 전체 목록
+  let userPage = 1;
+
+  onAuthStateChanged(auth, async (user)=>{
+    $('#signupLink').classList.toggle('hidden', !!user);
+    $('#signinLink').classList.toggle('hidden', !!user);
+    $('#welcome').textContent = user ? `안녕하세요, ${user.displayName||'회원'}님` : '';
+
+    if(!user){ msg.textContent = '로그인 후 이용하세요.'; return; }
+    uid = user.uid;
+
+    // 관리자 여부
+    try{
+      const a = await getDoc(doc(db,'admins', uid));
+      isAdmin = a.exists();
+    }catch{ isAdmin = false; }
+
+    mode = isAdmin ? 'admin' : 'user';
+    badge.style.display = isAdmin ? '' : 'none';
+
+    if(mode==='admin'){
+      adminCursors = [{page:1, cursor:null}];
+      adminPage = 1;
+      await loadAdminPage(1);
+    }else{
+      await loadUserAll();
+      userPage = 1;
+      renderUserPage(1);
+    }
+  });
+
+  /* =========== ADMIN: 서버 페이지네이션(작성일 내림차순) =========== */
+  async function loadAdminPage(page){
+    msg.textContent = '불러오는 중...';
+
+    // 필요한 커서가 없으면 직전 페이지부터 순회해서 채움
+    while(adminCursors.length < page){
+      const last = adminCursors[adminCursors.length-1].cursor;
+      const q = last
+        ? query(collection(db,'videos'), orderBy('createdAt','desc'), startAfter(last), limit(PAGE_SIZE))
+        : query(collection(db,'videos'), orderBy('createdAt','desc'), limit(PAGE_SIZE));
+      const snap = await getDocs(q);
+      if(snap.empty && adminCursors.length===1){
+        list.innerHTML = ''; pager.style.display='none';
+        msg.textContent = '영상이 없습니다.'; return;
+      }
+      const lastDoc = snap.docs[snap.docs.length-1] || null;
+      adminCursors.push({page:adminCursors.length+1, cursor:lastDoc});
+      if(adminCursors.length === page){
+        renderRows(snap.docs.map(d=>({ id:d.id, ...d.data() })));
+        pageLabel.textContent = `페이지 ${page}`;
+        pager.style.display = snap.size===PAGE_SIZE || page>1 ? '' : 'none';
+        msg.textContent = '';
+        return;
+      }
+      if(snap.size < PAGE_SIZE) break; // 더 이상 다음 페이지 없음
+    }
+
+    // 이미 구해둔 커서가 있는 페이지 다시 읽기
+    const cursor = adminCursors[page-1].cursor;
+    const q = cursor
+      ? query(collection(db,'videos'), orderBy('createdAt','desc'), startAfter(cursor), limit(PAGE_SIZE))
+      : query(collection(db,'videos'), orderBy('createdAt','desc'), limit(PAGE_SIZE));
+    const snap = await getDocs(q);
+    renderRows(snap.docs.map(d=>({ id:d.id, ...d.data() })));
+    pageLabel.textContent = `페이지 ${page}`;
+    pager.style.display = snap.size===PAGE_SIZE || page>1 ? '' : 'none';
+    msg.textContent = '';
+  }
+
+  $('#prevBtn').addEventListener('click', async ()=>{
+    if(mode!=='admin') { if(userPage>1){ renderUserPage(--userPage); } return; }
+    if(adminPage>1){ adminPage--; await loadAdminPage(adminPage); }
+  });
+  $('#nextBtn').addEventListener('click', async ()=>{
+    if(mode!=='admin') { if(userPage < Math.ceil(userAll.length/PAGE_SIZE)){ renderUserPage(++userPage); } return; }
+    adminPage++; await loadAdminPage(adminPage);
+  });
+
+  /* =========== USER: 인덱스 없이 전부 가져와서 클라 분할 =========== */
+  async function loadUserAll(){
+    msg.textContent = '불러오는 중...';
+    const qMine = query(collection(db,'videos'), where('uid','==', uid));
+    const snap = await getDocs(qMine);
+    userAll = snap.docs.map(d=>({ id:d.id, ...d.data() }))
+      .sort((a,b)=> toMs(b.createdAt) - toMs(a.createdAt));
+    $('#countInfo').textContent = `내 영상 ${userAll.length}개`;
+    msg.textContent = userAll.length ? '' : '영상이 없습니다.';
+    pager.style.display = userAll.length > PAGE_SIZE ? '' : 'none';
+  }
+  function toMs(t){
+    try { return t?.toMillis ? t.toMillis() : (typeof t==='number' ? t : 0); }
+    catch { return 0; }
+  }
+  function renderUserPage(p){
+    const start = (p-1)*PAGE_SIZE;
+    const rows = userAll.slice(start, start+PAGE_SIZE);
+    renderRows(rows);
+    pageLabel.textContent = `페이지 ${p} / ${Math.max(1, Math.ceil(userAll.length/PAGE_SIZE))}`;
+  }
+
+  /* =========== 공통: 렌더 & 액션 =========== */
+  function renderRows(rows){
+    list.innerHTML = '';
+    for(const v of rows){
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.dataset.id = v.id;
+
+      const cats = Array.isArray(v.categories) ? v.categories : [];
+      const chips = cats.map(c=>`<span class="chip">${LABEL.get(c) || c}</span>`).join('') || `<span class="sub">카테고리 없음</span>`;
+
+      el.innerHTML = `
+        <div>
+          <div class="title">${escapeHTML(v.title || v.url)}</div>
+          <div class="sub">${escapeHTML(v.url)}${v.uid ? ' • 업로더: '+escapeHTML(v.uid) : ''}</div>
         </div>
-      </div>
+        <div><div class="chips">${chips}</div></div>
+        <div class="controls">
+          ${renderSelects(cats)}
+          <button class="btn btn-primary btnApply">변경</button>
+        </div>
+        <div class="controls" style="justify-content:flex-end;">
+          <button class="btn btn-danger btnDelete">삭제</button>
+        </div>
+      `;
 
-      <table id="tbl">
-        <thead>
-          <tr>
-            <th style="width:56px;">#</th>
-            <th>URL / 제목</th>
-            <th style="width:28%;">현재 카테고리</th>
-            <th style="width:36%;">카테고리 변경 / 삭제</th>
-          </tr>
-        </thead>
-        <tbody id="tbody">
-          <tr><td colspan="4" class="hint">대기 중…</td></tr>
-        </tbody>
-      </table>
-
-      <div id="pager" class="pager" aria-label="페이지 이동"></div>
-
-      <p id="footnote" class="hint">
-        * 본인이 올리지 않은 영상은 **권한**에 따라 수정/삭제가 거부될 수 있습니다.<br/>
-        * 카테고리는 행마다 최대 3개까지 지정 가능합니다.
-      </p>
-    </div>
-  </main>
-
-  <script type="module" src="js/firebase-init.js"></script>
-  <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/categories.js"></script>
-  <script type="module">
-    import { auth, db } from './js/firebase-init.js';
-    import { onAuthStateChanged, signOut as fbSignOut } from './js/auth.js';
-    import { CATEGORY_GROUPS, flattenPublicCategories } from './js/categories.js';
-    import {
-      collection, getDocs, orderBy, query, where,
-      updateDoc, deleteDoc, doc, getDoc
-    } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
-
-    /* ------- 상단 드롭다운 ------- */
-    const signupLink   = document.getElementById("signupLink");
-    const signinLink   = document.getElementById("signinLink");
-    const welcome      = document.getElementById("welcome");
-    const menuBtn      = document.getElementById("menuBtn");
-    const dropdown     = document.getElementById("dropdownMenu");
-    const btnGoCategory= document.getElementById("btnGoCategory");
-    const btnMyUploads = document.getElementById("btnMyUploads");
-    const btnSignOut   = document.getElementById("btnSignOut");
-    const btnGoUpload  = document.getElementById("btnGoUpload");
-    const adminBadge   = document.getElementById("adminBadge");
-
-    function openDropdown(){ dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); dropdown.setAttribute('aria-hidden','false'); }
-    function closeDropdown(){ dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"), 180); dropdown.setAttribute('aria-hidden','true'); }
-    menuBtn?.addEventListener("click",(e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden")?openDropdown():closeDropdown(); });
-    document.addEventListener('pointerdown',(e)=>{ if (dropdown.classList.contains('hidden')) return; const inside=e.target.closest('#dropdownMenu,#menuBtn'); if(!inside) closeDropdown(); }, true);
-    document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDropdown(); });
-    dropdown.addEventListener("click",(e)=> e.stopPropagation());
-    btnGoCategory?.addEventListener("click",()=>{ location.href="./"; closeDropdown(); });
-    btnMyUploads ?.addEventListener("click",()=>{ location.href="manage-uploads.html"; closeDropdown(); });
-    btnGoUpload   ?.addEventListener("click",()=>{ location.href="upload.html"; closeDropdown(); });
-    btnSignOut    ?.addEventListener("click", async ()=>{ await fbSignOut(auth); location.reload(); });
-
-    onAuthStateChanged(auth, async (user)=>{
-      const loggedIn = !!user;
-      signupLink.classList.toggle("hidden", loggedIn);
-      signinLink.classList.toggle("hidden", loggedIn);
-      menuBtn.classList.toggle("hidden", !loggedIn);
-      welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
-      if (!loggedIn){
-        document.getElementById('status').textContent = '로그인 후 이용하세요.';
-        document.getElementById('tbody').innerHTML = `<tr><td colspan="4" class="hint">로그인 필요</td></tr>`;
-        return;
-      }
-      IS_ADMIN = await isAdmin(user.uid);
-      adminBadge.hidden = !IS_ADMIN;
-      load();
-    });
-
-    async function isAdmin(uid){
-      try{
-        const s = await getDoc(doc(db,'admins', uid));
-        return s.exists();
-      }catch{ return false; }
+      el.querySelector('.btnApply').addEventListener('click', ()=> applyCats(v.id, el));
+      el.querySelector('.btnDelete').addEventListener('click', ()=> del(v.id));
+      list.appendChild(el);
     }
+  }
 
-    /* ------- 카테고리 라벨/옵션 ------- */
-    const labelMap = new Map();
-    for (const g of CATEGORY_GROUPS){ for (const c of g.children){ labelMap.set(c.value, c.label); } }
-    const PUBLIC_CATS = flattenPublicCategories(); // [{value,label}...]
-    const ALLOWED = new Set(PUBLIC_CATS.map(c=>c.value));
-    function labelFor(slug){ return labelMap.get(slug) || `[${slug}]`; }
-    function buildOptions(){
-      const groups = CATEGORY_GROUPS.filter(g=> !g.personal);
-      let html = `<option value="">선택안함</option>`;
-      for (const g of groups){
-        html += `<optgroup label="${escapeHtml(g.label)}">` +
-                g.children.map(c=>`<option value="${c.value}">${escapeHtml(c.label)}</option>`).join('') +
-                `</optgroup>`;
-      }
-      return html;
+  function renderSelects(current){
+    const opts = ['<option value="">선택안함</option>']
+      .concat(FLAT.map(o=>`<option value="${o.value}">${o.label}</option>`)).join('');
+    // 기본은 '선택안함' 3개. (현재 카테고리는 왼쪽 칩으로만 보여줌)
+    return `
+      <select class="sel1">${opts}</select>
+      <select class="sel2">${opts}</select>
+      <select class="sel3">${opts}</select>
+    `;
+  }
+
+  function escapeHTML(s){
+    return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[m]));
+  }
+
+  async function applyCats(id, card){
+    const s1 = card.querySelector('.sel1').value.trim();
+    const s2 = card.querySelector('.sel2').value.trim();
+    const s3 = card.querySelector('.sel3').value.trim();
+    const picked = [s1,s2,s3].filter(Boolean);
+
+    // 중복 제거
+    const cats = [...new Set(picked)];
+    if(cats.length===0){ alert('카테고리를 선택해 주세요.'); return; }
+    if(cats.length>3){ alert('최대 3개까지 선택 가능합니다.'); return; }
+
+    try{
+      await updateDoc(doc(db,'videos', id), { categories: cats });
+      msg.textContent = '카테고리가 변경되었습니다.';
+      // 화면 갱신: 칩만 바꿈
+      const chips = cats.map(c=>`<span class="chip">${LABEL.get(c)||c}</span>`).join('');
+      card.querySelector('.chips').innerHTML = chips;
+      // 선택박스 초기화
+      card.querySelectorAll('select').forEach(s=> s.value='');
+    }catch(e){
+      console.error(e);
+      alert('변경 실패: '+(e.message||e));
     }
-    const SELECT_OPTIONS_HTML = buildOptions();
+  }
 
-    /* ------- 로드/페이징 ------- */
-    const tbody  = document.getElementById('tbody');
-    const status = document.getElementById('status');
-    const pager  = document.getElementById('pager');
-
-    const PAGE_SIZE = 30;
-    let ALL_ROWS = [];
-    let currentPage = 1;
-    let IS_ADMIN = false;
-
-    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
-    function toMs(createdAt){
-      try{ return createdAt?.toMillis ? createdAt.toMillis() : (typeof createdAt==='number'? createdAt : 0); }
-      catch{ return 0; }
+  async function del(id){
+    if(!confirm('정말 삭제하시겠습니까?')) return;
+    try{
+      await deleteDoc(doc(db,'videos', id));
+      const gone = list.querySelector(`.card[data-id="${id}"]`);
+      if(gone) gone.remove();
+      msg.textContent = '삭제되었습니다.';
+    }catch(e){
+      console.error(e);
+      alert('삭제 실패: '+(e.message||e));
     }
-    function withTimeout(promise, ms=12000){
-      return Promise.race([ promise, new Promise((_,rej)=> setTimeout(()=> rej(new Error('timeout')), ms)) ]);
-    }
-
-    async function fetchMineOrAll(){
-      if (!auth.currentUser) return [];
-      const uid = auth.currentUser.uid;
-      try{
-        if (IS_ADMIN){
-          // 관리자: 전체 로드 (정렬 실패 시 폴백)
-          try{
-            const q1 = query(collection(db,'videos'), orderBy('createdAt','desc'));
-            const snap = await withTimeout(getDocs(q1), 12000);
-            return snap.docs.map(d=> ({ id:d.id, ...d.data() }));
-          }catch(e){
-            console.warn('orderBy 실패, 폴백(all):', e);
-            const snap2 = await withTimeout(getDocs(collection(db,'videos')), 12000);
-            const rows = snap2.docs.map(d=> ({ id:d.id, ...d.data() }));
-            rows.sort((a,b)=> toMs(b.createdAt) - toMs(a.createdAt));
-            return rows;
-          }
-        }else{
-          // 일반 사용자: 내 것만(where uid == …), 정렬은 클라
-          const qMine = query(collection(db,'videos'), where('uid','==', uid));
-          const snap = await withTimeout(getDocs(qMine), 12000);
-          const rows = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
-          rows.sort((a,b)=> toMs(b.createdAt) - toMs(a.createdAt));
-          return rows;
-        }
-      }catch(e){
-        console.error(e);
-        throw e;
-      }
-    }
-
-    function renderPager(){
-      const total = ALL_ROWS.length;
-      const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-      pager.innerHTML = '';
-      const makeBtn = (label, page, disabled=false, isCurrent=false)=>{
-        const b = document.createElement('button');
-        b.className = 'pbtn' + (isCurrent ? ' current' : '');
-        b.textContent = label;
-        if (disabled) b.setAttribute('disabled','true');
-        b.dataset.page = String(page);
-        return b;
-      };
-      if (pages <= 12){
-        for (let p=1;p<=pages;p++){ pager.appendChild(makeBtn(String(p), p, false, p===currentPage)); }
-      }else{
-        const add = (el)=> pager.appendChild(el);
-        add(makeBtn('1',1,false, currentPage===1));
-        if (currentPage > 4){ const dot=document.createElement('span'); dot.className='pbtn'; dot.textContent='…'; dot.setAttribute('disabled','true'); add(dot); }
-        const start = Math.max(2, currentPage-2);
-        const end   = Math.min(pages-1, currentPage+2);
-        for (let p=start; p<=end; p++){ add(makeBtn(String(p), p, false, p===currentPage)); }
-        if (currentPage < pages-3){ const dot=document.createElement('span'); dot.className='pbtn'; dot.textContent='…'; dot.setAttribute('disabled','true'); add(dot); }
-        add(makeBtn(String(pages), pages, false, currentPage===pages));
-      }
-    }
-
-    function renderPage(){
-      const total = ALL_ROWS.length;
-      const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-      if (currentPage > pages) currentPage = pages;
-
-      const start = (currentPage-1) * PAGE_SIZE;
-      const end   = Math.min(total, start + PAGE_SIZE);
-      const slice = ALL_ROWS.slice(start, end);
-
-      status.textContent = `${IS_ADMIN ? '관리자' : '내 영상'} • ${total}개 • ${currentPage}/${pages} 페이지`;
-      if (!slice.length){
-        tbody.innerHTML = `<tr><td colspan="4" class="hint">표시할 데이터가 없습니다.</td></tr>`;
-        renderPager();
-        return;
-      }
-
-      const rows = [];
-      for (let i=0; i<slice.length; i++){
-        const v = slice[i];
-        const idx = start + i + 1;
-        const url  = v?.url || '';
-        const title= (v?.title || '').trim();
-        const cats = Array.isArray(v?.categories) ? v.categories : [];
-        const labels = cats.map(labelFor);
-        const id = v.id;
-
-        rows.push(`
-          <tr id="row_${id}">
-            <td>${idx}</td>
-            <td>
-              <a class="url" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>
-              <div class="title">${escapeHtml(title || '(제목 없음)')}</div>
-            </td>
-            <td id="cats_${id}">
-              <div class="vlist">
-                ${labels.length ? labels.map(x=>`<div class="clabel">${escapeHtml(x)}</div>`).join('') : '<span class="hint">없음</span>'}
-              </div>
-            </td>
-            <td>
-              <div class="selects">
-                <select class="catSel">${SELECT_OPTIONS_HTML}</select>
-                <select class="catSel">${SELECT_OPTIONS_HTML}</select>
-                <select class="catSel">${SELECT_OPTIONS_HTML}</select>
-                <button class="btn btn-small convertBtn" data-id="${id}">카테고리변환</button>
-                <button class="btn btn-small delBtn" data-id="${id}">삭제</button>
-              </div>
-              <div class="rowmsg" id="msg_${id}"></div>
-            </td>
-          </tr>
-        `);
-      }
-      tbody.innerHTML = rows.join('');
-      attachRowHandlers();
-      renderPager();
-    }
-
-    function attachRowHandlers(){
-      // 변환
-      tbody.querySelectorAll('.convertBtn').forEach(btn=>{
-        btn.addEventListener('click', async ()=>{
-          const id = btn.dataset.id;
-          const row = document.getElementById(`row_${id}`);
-          const sels = Array.from(row.querySelectorAll('select.catSel'));
-          const msg  = document.getElementById(`msg_${id}`);
-          const catsCell = document.getElementById(`cats_${id}`);
-
-          const raw = sels.map(s=> s.value).filter(Boolean);
-          const dedup = [...new Set(raw)];
-          if (dedup.length === 0){ msg.textContent = '최소 1개의 카테고리를 선택하세요.'; msg.className='rowmsg err'; return; }
-          if (dedup.length > 3){ msg.textContent = '카테고리는 최대 3개까지 가능합니다.'; msg.className='rowmsg err'; return; }
-          for (const v of dedup){ if (!ALLOWED.has(v)){ msg.textContent = `허용되지 않는 값: ${v}`; msg.className='rowmsg err'; return; } }
-
-          msg.textContent = '저장 중…'; msg.className='rowmsg';
-          btn.disabled = true;
-          try{
-            await updateDoc(doc(db,'videos', id), { categories: dedup });
-            const idx = ALL_ROWS.findIndex(x=> x.id === id);
-            if (idx >= 0){ ALL_ROWS[idx].categories = dedup; }
-            const chips = dedup.map(v=> `<div class="clabel">${escapeHtml(labelFor(v))}</div>`).join('');
-            catsCell.innerHTML = `<div class="vlist">${chips || '<span class="hint">없음</span>'}</div>`;
-            msg.textContent = '저장됨'; msg.className='rowmsg ok';
-          }catch(e){
-            msg.textContent = `오류: ${e.message || String(e)}`; msg.className='rowmsg err';
-          }finally{
-            btn.disabled = false;
-          }
-        });
-      });
-
-      // 삭제
-      tbody.querySelectorAll('.delBtn').forEach(btn=>{
-        btn.addEventListener('click', async ()=>{
-          const id = btn.dataset.id;
-          const msg  = document.getElementById(`msg_${id}`);
-          if (!confirm('이 영상을 삭제하시겠습니까? (Y/N)')) return;
-          msg.textContent = '삭제 중…'; msg.className='rowmsg';
-          btn.disabled = true;
-          try{
-            await deleteDoc(doc(db,'videos', id));
-            // 모델에서 제거 후 페이지 다시 그림
-            ALL_ROWS = ALL_ROWS.filter(x=> x.id !== id);
-            renderPage();
-          }catch(e){
-            msg.textContent = `삭제 실패: ${e.message || String(e)}`; msg.className='rowmsg err';
-          }finally{
-            btn.disabled = false;
-          }
-        });
-      });
-    }
-
-    async function load(){
-      status.textContent = '불러오는 중…';
-      tbody.innerHTML = `<tr><td colspan="4" class="hint">읽는 중…</td></tr>`;
-      try{
-        ALL_ROWS = await fetchMineOrAll();
-        currentPage = 1;
-        renderPage();
-      }catch(e){
-        status.textContent = '오류';
-        tbody.innerHTML = `<tr><td colspan="4" class="hint err">불러오기 실패: ${escapeHtml(e.message||String(e))}\n광고차단/방화벽/네트워크 상태를 확인해 주세요.</td></tr>`;
-      }
-    }
-
-    pager.addEventListener('click', (e)=>{
-      const b = e.target.closest('.pbtn'); if (!b || b.hasAttribute('disabled')) return;
-      const p = parseInt(b.dataset.page, 10);
-      if (!isNaN(p)){ currentPage = p; renderPage(); }
-    });
-
-    document.getElementById('btnReload').addEventListener('click', load);
-  </script>
+  }
+</script>
 </body>
 </html>
