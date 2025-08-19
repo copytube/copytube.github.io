@@ -33,7 +33,7 @@ document.addEventListener('pointerdown', (e)=>{ if (dropdown.classList.contains(
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
 dropdown.addEventListener("click", (e)=> e.stopPropagation());
 btnGoCategory?.addEventListener("click", ()=>{ location.href = "./"; closeDropdown(); });
-btnMyUploads ?.addEventListener("click", ()=>{ location.href = "my-uploads.html"; closeDropdown(); });
+btnMyUploads ?.addEventListener("click", ()=>{ location.href = "manage-uploads.html"; closeDropdown(); });
 btnGoUpload   ?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
 btnSignOut    ?.addEventListener("click", async ()=>{ await fbSignOut(auth); location.href = "./"; });
 brandHome     ?.addEventListener("click", (e)=>{ e.preventDefault(); location.href="./"; });
@@ -47,7 +47,7 @@ onAuthStateChanged(auth, (user)=>{
   welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
 });
 
-/* ---------- autohide topbar ---------- */
+/* ---------- autohide topbar (1초) ---------- */
 topbar.classList.add('autohide');
 let hideTimer = null;
 function showTopbarTemp(){ topbar.classList.remove('hide'); scheduleHide(); }
@@ -56,12 +56,10 @@ function cancelHide(){ if(hideTimer){ clearTimeout(hideTimer); hideTimer = null;
 videoContainer.addEventListener('scroll', showTopbarTemp, { passive:true });
 ['touchstart','touchmove','wheel','mousemove','keydown','pointerdown'].forEach(ev=>{ window.addEventListener(ev, showTopbarTemp, { passive:true }); });
 
-/* ---------- selection load (v2 우선, 레거시 폴백) ---------- */
-const LS_KEYS = ['copytube_selected_categories_v2', 'copytube_selected_categories']; // v2 → v1 폴백
+/* ---------- selection load (same as before) ---------- */
+const LS_KEYS = ['copytube_selected_categories_v2', 'copytube_selected_categories'];
 function isPersonalValue(v){ return v === 'personal_1' || v === 'personal_2'; }
-
 async function loadSelection(){
-  // 서버 우선
   if(auth.currentUser){
     try{
       const s = await getDoc(doc(db,'users', auth.currentUser.uid));
@@ -69,12 +67,10 @@ async function loadSelection(){
         const d = s.data();
         if (d?.selectAll) return { all:true, cats:[] };
         const arr = Array.isArray(d?.selectedCategories) ? d.selectedCategories : [];
-        // 개인용이 혹시 섞여 있으면 제거
         return { all:false, cats: arr.filter(v=> !isPersonalValue(v)) };
       }
     }catch{}
   }
-  // 로컬 폴백
   for (const key of LS_KEYS){
     try{
       const raw = localStorage.getItem(key);
@@ -89,7 +85,7 @@ async function loadSelection(){
   return { all:true, cats:[] };
 }
 
-/* ---------- shorts feed (infinite) ---------- */
+/* ---------- shorts feed (same as before) ---------- */
 const PAGE_SIZE = 12;
 let isLoading = false, hasMore = true, lastDoc = null;
 let loadedIds = new Set();
@@ -182,7 +178,7 @@ async function loadMore(initial=false, selection){
       }
     }
     if(lastDoc) parts.push(startAfter(lastDoc));
-    parts.push(limit(PAGE_SIZE));
+    parts.push(limit(12));
 
     const q = query(base, ...parts);
     const snap = await getDocs(q);
@@ -201,7 +197,7 @@ async function loadMore(initial=false, selection){
     });
 
     lastDoc = snap.docs[snap.docs.length-1];
-    if(snap.docs.length < PAGE_SIZE) hasMore = false;
+    if(snap.docs.length < 12) hasMore = false;
 
   }catch(e){
     console.error(e);
@@ -210,13 +206,11 @@ async function loadMore(initial=false, selection){
     isLoading = false;
   }
 }
-
 videoContainer.addEventListener('scroll', ()=>{
   const nearBottom = videoContainer.scrollTop + videoContainer.clientHeight >= videoContainer.scrollHeight - 200;
   if(nearBottom) loadMore(false, SELECTION);
 });
 
-/* ---------- boot ---------- */
 let SELECTION = { all:true, cats:[] };
 (async ()=>{
   SELECTION = await loadSelection();
