@@ -6,6 +6,7 @@
   <title>추천영상등록 - Copytube</title>
   <link rel="stylesheet" href="css/style.css"/>
   <style>
+    /* ----- 페이지 레이아웃 ----- */
     main { max-width:640px; margin:96px auto 40px; padding:0 16px; }
     label { display:block; margin-top:10px; font-size:14px; }
     textarea{
@@ -13,21 +14,18 @@
       border:1px solid #333; border-radius:8px; background:#000; color:#fff;
       resize:vertical; overflow-y:hidden; line-height:1.35;
     }
-
     .btn-primary{
       margin-top:10px; width:100%; padding:11px; border:0; border-radius:8px;
       background:#4ea1ff; color:#fff; font-weight:700; cursor:pointer;
     }
-
     /* 오른쪽 “클립보드 붙여넣기” 버튼 – 칼럼 안에서만 100% */
     .btn-secondary{
       padding:12px 14px; border:1px solid #166534;
       background:#22c55e; color:#fff; border-radius:10px; cursor:pointer; font-weight:800;
       line-height:1.12; box-sizing:border-box;
-      width:100%; max-width:100%;   /* 오버플로우 방지 */
+      width:100%; max-width:100%;
     }
     .btn-secondary:hover{ background:#16a34a; }
-
     .msg { margin-top:10px; font-size:13px; color:#ccc; min-height:1.2em; white-space:pre-line; }
 
     /* URL 아래: 좌측 라디오(세로, 컴팩트) + 우측 붙여넣기 버튼 */
@@ -43,61 +41,69 @@
       display:inline-flex; align-items:center; gap:8px;
       padding:6px 10px; border:1px solid #2a2a2a; background:#141414; border-radius:9px; cursor:pointer;
       width:100%; justify-content:center; font-weight:700; color:#ddd;
-      line-height:1.05; white-space:nowrap; /* 두 줄로 깨지지 않게 */
+      line-height:1.05; white-space:nowrap;  /* 한 줄 유지 */
+    }
+    @media (max-width:380px){
+      .actions{ grid-template-columns: 150px 1fr; gap:6px; }
+      .btn-secondary{ max-width:100%; }
     }
 
-    /* 카테고리 UI — 인덱스와 동일한 밀도 */
-    .group{
-      border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
-      padding:6px; margin:5px 0;
+    /* ==========================================================
+       업로드 페이지 전용 밀도 스코프 (.is-upload)
+       → 인덱스/다른 페이지에는 영향 없음
+       ========================================================== */
+    .is-upload .group{
+      border:1px solid var(--border);
+      border-radius:12px;
+      background:var(--bg-3);
+      padding:6px;      /* 그룹 안쪽 여백 */
+      margin:6px 0;     /* 그룹 사이 간격 */
     }
-    .group legend{
+    .is-upload .group legend{
       padding:0 3px; font-weight:800; font-size:15px; color:#eee;
-      margin-bottom:0; line-height:1; display:inline-flex; gap:6px; align-items:center;
+      line-height:1; display:inline-flex; gap:6px; align-items:center;
     }
-    .group .subnote{ font-size:12px; color:#9aa0a6; margin-left:6px; }
+    .is-upload .group .subnote{ font-size:12px; color:#9aa0a6; margin-left:6px; }
 
-    /* 인덱스 기준: gap=3px, padding=5px 7px, line-height=1.18 */
-    .child-grid{
-      margin-top:2px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:3px;
+    /* 인덱스와 동일한(또는 더 컴팩트한) 타일 밀도 */
+    .is-upload .child-grid{
+      margin-top:2px;
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0,1fr));
+      gap:3px;          /* 타일 사이 간격 */
     }
-    @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
-    .child-grid label{
+    @media (min-width:900px){
+      .is-upload .child-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); }
+    }
+    .is-upload .child-grid label{
       background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px;
-      padding:5px 7px; font-size:14px; line-height:1.18;
+      padding:5px 7px;    /* 타일 내부 여백 */
+      font-size:14px; line-height:1.18;
       display:flex; gap:6px; align-items:center; justify-content:flex-start;
     }
 
-    /* 개인자료 컨트롤/이름변경 */
-    .legend-ctrls{
+    /* 개인자료 부가 컨트롤도 스코프 */
+    .is-upload .legend-ctrls{
       display:inline-flex; gap:6px; align-items:center; font-size:12px; color:#9aa0a6;
       border:1px solid #2a2a2a; background:#141414; border-radius:8px; padding:4px 6px;
     }
-    .legend-ctrls .mini-pill{ display:inline-flex; gap:4px; align-items:center; }
-    .rename-btn{
+    .is-upload .legend-ctrls .mini-pill{ display:inline-flex; gap:4px; align-items:center; }
+    .is-upload .rename-btn{
       margin-left:6px; font-size:12px; line-height:1; padding:5px 8px;
       border:1px solid #2a2a2a; background:#131313; color:#aaa; border-radius:6px; cursor:pointer;
       white-space:nowrap; min-width:64px; /* "이름변경" 한 줄 유지 */
     }
-    .rename-btn:hover{ color:#fff; background:#1b1b1b; }
-
-    .personal-note{
-      font-size:12px; color:#9aa0a6; margin:4px 2px 0;
-    }
+    .is-upload .rename-btn:hover{ color:#fff; background:#1b1b1b; }
+    .is-upload .personal-note{ font-size:12px; color:#9aa0a6; margin:4px 2px 0; }
 
     details.help{ margin-top:8px; }
     details.help summary{ cursor:pointer; color:#9aa0a6; }
     details.help .help-body{ font-size:12px; color:#9aa0a6; margin-top:6px; line-height:1.55; }
     details.help code{ background:#0b0b0b; padding:1px 4px; border-radius:4px; }
-
-    /* 아주 좁은 화면에서도 밀리지 않도록 */
-    @media (max-width:380px){
-      .actions{ grid-template-columns: 150px 1fr; gap:6px; }
-      .btn-secondary{ max-width:100%; }
-    }
   </style>
 </head>
-<body>
+
+<body class="is-upload">
   <header id="topbar">
     <div class="brand">
       <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
@@ -171,6 +177,7 @@ https://www.youtube.com/watch?v=bbb...
       if(!user){ msg.textContent = '로그인 후 등록 가능합니다.'; }
     });
 
+    /* 텍스트 영역 자동 높이 */
     function autoGrow(el){
       const lh = parseFloat(getComputedStyle(el).lineHeight) || 18;
       const min = lh * 3 + 20;
@@ -182,6 +189,7 @@ https://www.youtube.com/watch?v=bbb...
     window.addEventListener('resize', ()=>autoGrow(urlBox));
     autoGrow(urlBox);
 
+    /* 개인자료 이름/위치 저장 */
     function getPersonalLabels(){
       try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }
       catch{ return {}; }
@@ -197,6 +205,7 @@ https://www.youtube.com/watch?v=bbb...
       localStorage.setItem('personalPosition', (v==='top'?'top':'bottom'));
     }
 
+    /* 카테고리 렌더링 */
     function renderGroups(){
       const personalLabels = getPersonalLabels();
       const pos = getPersonalPosition();
@@ -278,6 +287,7 @@ https://www.youtube.com/watch?v=bbb...
     }
     renderGroups();
 
+    /* URL 파싱 */
     function findFirstYoutubeUrl(text){
       if (!text) return '';
       const re = /(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?[^ \n]*v=[^ \n&]+|youtube\.com\/shorts\/[^ \n?&/]+|youtube\.com\/embed\/[^ \n?&/]+|youtu\.be\/[^ \n?&/]+))/i;
@@ -289,6 +299,7 @@ https://www.youtube.com/watch?v=bbb...
       return m ? m[1] : '';
     }
 
+    /* 클립보드 붙여넣기 */
     pasteBtn.addEventListener('click', async ()=>{
       if (!('clipboard' in navigator)){ msg.textContent='클립보드 API 미지원 브라우저입니다.'; return; }
       try{
@@ -306,6 +317,7 @@ https://www.youtube.com/watch?v=bbb...
       }
     });
 
+    /* 등록 */
     async function handleSubmit(){
       msg.textContent = '검사 중...';
       const user = auth.currentUser;
