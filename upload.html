@@ -8,51 +8,44 @@
   <style>
     main { max-width:640px; margin:96px auto 40px; padding:0 16px; }
     label { display:block; margin-top:12px; font-size:14px; }
-    .row { display:flex; gap:8px; align-items:center; }
-    input[type="text"]{
-      flex:1 1 auto;
+    textarea{
       width:100%; padding:10px; margin-top:6px; box-sizing:border-box;
       border:1px solid #333; border-radius:8px; background:#000; color:#fff;
+      resize:vertical; min-height:96px; overflow-y:hidden; /* 오토리사이즈용 */
     }
     .btn-primary{
       margin-top:16px; width:100%; padding:12px; border:0; border-radius:8px;
       background:#4ea1ff; color:#fff; font-weight:700; cursor:pointer;
     }
     .btn-secondary{
-      margin-top:6px; padding:9px 11px; border:1px solid #2a2a2a;
+      padding:9px 11px; border:1px solid #2a2a2a;
       background:#1b1b1b; color:#fff; border-radius:8px; cursor:pointer; white-space:nowrap; line-height:1.2;
     }
     .btn-secondary:hover{ background:#222; }
     .msg { margin-top:10px; font-size:13px; color:#ccc; min-height:1.2em; white-space:pre-line; }
 
-    /* === 인덱스와 동일하게 더 타이트 === */
-    .group{
-      border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
-      padding:8px 8px 9px;
-      margin:6px 0;
-    }
-    .group legend{
-      padding:0 4px; font-weight:800; font-size:15px; color:#eee;
-      margin-bottom:2px; line-height:1.05; display:inline-block;
-    }
-    .child-grid{
-      margin-top:2px;
-      display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
-      gap:4px;
-    }
-    @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
-    .child-grid label{
-      background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px;
-      padding:6px 8px; font-size:14px; line-height:1.2;
-      display:flex; gap:6px; align-items:center;
+    /* URL 아래: 정렬 라디오 + 붙여넣기 버튼 한 줄 */
+    .actions{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px; flex-wrap:wrap; }
+    .order{ display:flex; gap:8px; align-items:center; color:#9aa0a6; font-size:13px; }
+    .order .pill{
+      display:inline-flex; align-items:center; gap:6px;
+      padding:6px 10px; border:1px solid #2a2a2a; background:#141414; border-radius:8px; cursor:pointer;
     }
 
-    details.help { margin-top:8px; }
-    details.help summary { cursor:pointer; color:#9aa0a6; }
-    details.help .help-body { font-size:12px; color:#9aa0a6; margin-top:6px; line-height:1.5; }
-    details.help code { background:#0b0b0b; padding:1px 4px; border-radius:4px; }
+    /* 카테고리 UI — 타이트 */
+    .group{ border:1px solid var(--border); border-radius:12px; background:var(--bg-3); padding:8px 8px 9px; margin:6px 0; }
+    .group legend{ padding:0 4px; font-weight:800; font-size:15px; color:#eee; margin-bottom:2px; line-height:1.05; display:inline-block; }
+    .child-grid{ margin-top:2px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; }
+    @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
+    .child-grid label{ background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px; padding:6px 8px; font-size:14px; line-height:1.2; display:flex; gap:6px; align-items:center; }
+
+    details.help{ margin-top:8px; }
+    details.help summary{ cursor:pointer; color:#9aa0a6; }
+    details.help .help-body{ font-size:12px; color:#9aa0a6; margin-top:6px; line-height:1.5; }
+    details.help code{ background:#0b0b0b; padding:1px 4px; border-radius:4px; }
+
     @media (max-width:480px){
-      .row{ flex-direction:column; align-items:stretch; gap:6px; }
+      .actions{ flex-direction:column; align-items:stretch; gap:6px; }
       #btnPaste{ width:100%; }
     }
   </style>
@@ -74,21 +67,30 @@
   <main>
     <h2>추천영상 등록</h2>
 
-    <label>YouTube 공유 URL</label>
-    <div class="row">
-      <input id="url" type="text" placeholder="https://youtu.be/... 또는 https://www.youtube.com/watch?v=..." autocomplete="off" />
+    <label>YouTube 공유 URL들 (한 줄에 하나씩)</label>
+    <textarea id="urlBox" placeholder="https://youtu.be/aaa...\nhttps://www.youtube.com/watch?v=bbb...\n..."></textarea>
+
+    <!-- URL 아래: 정렬 라디오(왼쪽) + 붙여넣기 버튼(오른쪽) -->
+    <div class="actions">
+      <div class="order" role="radiogroup" aria-label="등록 순서">
+        <span>등록 순서:</span>
+        <label class="pill"><input type="radio" name="orderDir" value="bottom" checked> 아래부터 등록</label>
+        <label class="pill"><input type="radio" name="orderDir" value="top"> 위부터 등록</label>
+      </div>
       <button id="btnPaste" type="button" class="btn-secondary">클립보드 붙여넣기</button>
     </div>
 
-    <!-- URL 아래 도움말 -->
-    <details class="help" open>
+    <!-- 도움말(기본 접힘) -->
+    <details class="help">
       <summary>붙여넣기 도움말</summary>
       <div class="help-body">
-        • <b>URL 입력칸을 탭/클릭</b>하거나, <b>오른쪽의 “클립보드 붙여넣기” 버튼</b>을 누르면 클립보드 내용을 붙여넣습니다. (브라우저/OS에서 허용 필요)<br/>
+        • <b>여러 개 업로드:</b> 메모장에서 <b>한 줄에 1개의 URL</b>씩 복사해 텍스트박스에 붙여넣고, <b>카테고리 선택 후 “등록”</b>을 누르면 한 번에 모두 등록됩니다.<br/>
+        • 위의 <b>“아래부터/위부터 등록”</b> 옵션으로 등록 순서를 결정합니다. (피드가 최신순이라 시리즈는 보통 <b>아래부터 등록</b>이 편합니다.)<br/><br/>
+        • <b>URL 입력칸</b>에 직접 붙여넣거나, <b>오른쪽 “클립보드 붙여넣기”</b> 버튼을 사용하세요. (브라우저/OS 허용 필요)<br/>
         • <b>HTTPS</b> 환경에서만 동작합니다. (GitHub Pages OK)<br/>
-        • <b>iPhone/iPad (iOS 16+)</b>: 처음 붙여넣기 때 <i>“이 앱에서 붙여넣기 허용”</i> 팝업이 뜨면 <b>허용</b>을 선택하세요.<br/>
+        • <b>iPhone/iPad (iOS 16+)</b>: 처음 붙여넣기 때 <i>“이 앱에서 붙여넣기 허용”</i> 팝업에서 <b>허용</b>을 선택하세요.<br/>
         • <b>안드로이드/데스크탑 Chrome</b>: <b>설정 → 사이트 설정 → 클립보드</b>에서 <code>https://copytube.github.io</code>를 <b>허용</b>으로 변경하세요.<br/>
-        • 위 방법이 어려우면, <b>길게 누르기 → 붙여넣기</b> 또는 <code>Ctrl/⌘+V</code>를 사용하시면 됩니다.
+        • 어려우면, <b>길게 누르기 → 붙여넣기</b> 또는 <code>Ctrl/⌘+V</code>를 사용하면 됩니다.
       </div>
     </details>
 
@@ -109,11 +111,12 @@
     import { CATEGORY_GROUPS } from './js/categories.js';
 
     const $ = (s)=>document.querySelector(s);
-    const urlInput = $('#url');
+    const urlBox   = $('#urlBox');
     const pasteBtn = $('#btnPaste');
     const catsBox  = $('#cats');
     const msg      = $('#msg');
 
+    /* 로그인 표시 */
     onAuthStateChanged(auth, (user)=>{
       $('#signupLink').classList.toggle('hidden', !!user);
       $('#signinLink').classList.toggle('hidden', !!user);
@@ -121,6 +124,7 @@
       if(!user){ msg.textContent = '로그인 후 등록 가능합니다.'; }
     });
 
+    /* 그룹형 카테고리 렌더(개인용 제외) */
     function renderGroups(){
       const groups = CATEGORY_GROUPS.filter(g => !g.personal);
       const html = groups.map(g=>{
@@ -136,6 +140,7 @@
       }).join('');
       catsBox.innerHTML = html;
 
+      // 최대 3개 제한
       const boxes = Array.from(catsBox.querySelectorAll('input.cat'));
       boxes.forEach(b=>{
         b.addEventListener('change', ()=>{
@@ -151,6 +156,19 @@
     }
     renderGroups();
 
+    /* URL 오토-리사이즈 */
+    function autoGrow(el){
+      const min = 96;             // px
+      const max = Math.floor(window.innerHeight * 0.6); // 60vh 캡
+      el.style.height = 'auto';
+      el.style.height = Math.min(Math.max(el.scrollHeight, min), max) + 'px';
+    }
+    ['input','change','paste'].forEach(ev=> urlBox.addEventListener(ev, ()=>autoGrow(urlBox)));
+    window.addEventListener('resize', ()=>autoGrow(urlBox));
+    // 초기 1회
+    autoGrow(urlBox);
+
+    /* URL 파싱 */
     function findFirstYoutubeUrl(text){
       if (!text) return '';
       const re = /(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?[^ \n]*v=[^ \n&]+|youtube\.com\/shorts\/[^ \n?&/]+|youtube\.com\/embed\/[^ \n?&/]+|youtu\.be\/[^ \n?&/]+))/i;
@@ -162,79 +180,91 @@
       return m ? m[1] : '';
     }
 
-    let didAutoPaste = false;
-
-    async function pasteFromClipboard(){
-      if (urlInput.value.trim()){
-        const ok = confirm('입력칸 내용을 클립보드로 교체할까요?');
-        if (!ok) return;
-      }
+    /* 붙여넣기 버튼 */
+    pasteBtn.addEventListener('click', async ()=>{
+      if (!('clipboard' in navigator)){ msg.textContent='클립보드 API 미지원 브라우저입니다.'; return; }
       try{
-        if (!('clipboard' in navigator)) throw new Error('clipboard_unavailable');
         const text = await navigator.clipboard.readText();
         if (!text){ msg.textContent = '클립보드가 비어있습니다.'; return; }
-        const candidate = findFirstYoutubeUrl(text.trim());
-        urlInput.value = candidate || text.trim();
+        // 덮어쓰기는 확인
+        if (urlBox.value.trim()){
+          const ok = confirm('입력 내용을 클립보드로 교체할까요?');
+          if(!ok) return;
+        }
+        urlBox.value = text;
+        autoGrow(urlBox);
         msg.textContent = '붙여넣기 완료';
       }catch{
-        msg.textContent = '브라우저/OS가 붙여넣기를 차단했습니다. 위의 “붙여넣기 도움말”을 참고해 허용해 주세요.';
+        msg.textContent = '브라우저/OS가 붙여넣기를 차단했습니다. “붙여넣기 도움말”을 참고해 허용해 주세요.';
       }
-    }
+    });
 
-    async function tryAutoPasteOnce(){
-      if (didAutoPaste) return;
-      if (urlInput.value.trim()){ didAutoPaste = true; return; }
-      try{
-        if (!('clipboard' in navigator)) throw new Error('no_api');
-        const text = await navigator.clipboard.readText();
-        if (text){
-          const candidate = findFirstYoutubeUrl(text.trim());
-          urlInput.value = candidate || text.trim();
-          msg.textContent = '클립보드에서 자동 붙여넣기 했습니다.';
-        }
-      }catch{ /* 자동 실패는 조용히 무시 */ }
-      finally{ didAutoPaste = true; }
-    }
-
-    urlInput.addEventListener('focus', tryAutoPasteOnce);
-    urlInput.addEventListener('pointerdown', tryAutoPasteOnce);
-    urlInput.addEventListener('keydown', ()=>{ if(!didAutoPaste) tryAutoPasteOnce(); });
-    pasteBtn.addEventListener('click', pasteFromClipboard);
-
+    /* 등록 */
     document.getElementById('submitBtn').addEventListener('click', async ()=>{
-      msg.textContent = '등록 중...';
+      msg.textContent = '검사 중...';
       const user = auth.currentUser;
-      if(!user){ msg.textContent = '로그인 후 이용하세요.'; return; }
+      if(!user){ msg.textContent = '로그인 후 등록 가능합니다.'; return; }
 
-      const raw = urlInput.value.trim();
-      const url = findFirstYoutubeUrl(raw) || raw;
-      if(!extractId(url)){ msg.textContent = '유효한 YouTube URL을 입력하세요.'; return; }
-
+      // 카테고리
       const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
       if(selected.length > 3){ msg.textContent = '카테고리는 최대 3개까지 선택 가능합니다.'; return; }
       const cats = selected.length ? selected : ['etc'];
 
+      // URL들 파싱
+      const rawLines = urlBox.value.split(/\r?\n/);
+      const lines = rawLines.map(s=>s.trim()).filter(Boolean);
+      if (lines.length === 0){ msg.textContent = 'URL을 한 줄에 하나씩 입력해 주세요.'; return; }
+
+      // 등록 순서
+      const order = (document.querySelector('input[name="orderDir"]:checked')?.value || 'bottom');
+      const ordered = order === 'bottom' ? lines.slice().reverse() : lines.slice();
+
+      // 유효성 검사 + 정제
+      const urls = [];
+      for(let i=0;i<ordered.length;i++){
+        const raw = ordered[i];
+        const url = findFirstYoutubeUrl(raw) || raw;
+        if(!extractId(url)){
+          // 사용자가 보는 줄번호는 원본 줄 기준으로 보여줌
+          const failingOriginalIndex = rawLines.findIndex(x => x.trim() === raw) + 1;
+          msg.textContent = `유효하지 않은 URL이 있습니다. (줄: ${failingOriginalIndex || (i+1)})`;
+          return;
+        }
+        urls.push(url);
+      }
+
+      if (!confirm(`총 ${urls.length}개의 영상을 선택된 카테고리로 등록합니다. 진행할까요?`)){
+        msg.textContent = '취소됨';
+        return;
+      }
+
+      // 업로드 진행
+      msg.textContent = `등록 중... (0/${urls.length})`;
+      let okCount = 0, failCount = 0;
+
       async function fetchYTTitle(u){
         try{
           const r = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(u)}&format=json`);
-          if(!r.ok) throw new Error('oEmbed 실패');
+          if(!r.ok) return '';
           const j = await r.json();
           return j.title || '';
         }catch{ return ''; }
       }
-      const title = (await fetchYTTitle(url)) || url;
 
-      try{
-        await addDoc(collection(db,'videos'), {
-          url, title, categories: cats, uid: user.uid, createdAt: serverTimestamp()
-        });
-        msg.textContent = '등록 완료!';
-        urlInput.value = '';
-        document.querySelectorAll('.cat:checked').forEach(c=> c.checked=false);
-        didAutoPaste = false;
-      }catch(e){
-        msg.textContent = `오류: ${e.message||e}`;
+      for (let i=0;i<urls.length;i++){
+        const url = urls[i];
+        try{
+          const title = (await fetchYTTitle(url)) || url;
+          await addDoc(collection(db,'videos'), {
+            url, title, categories: cats, uid: user.uid, createdAt: serverTimestamp()
+          });
+          okCount++;
+        }catch{ failCount++; }
+        msg.textContent = `등록 중... (${okCount+failCount}/${urls.length})`;
       }
+
+      msg.textContent = `완료: 성공 ${okCount}건, 실패 ${failCount}건`;
+      if (okCount){ urlBox.value = ''; autoGrow(urlBox); document.querySelectorAll('.cat:checked').forEach(c=> c.checked=false); }
     });
   </script>
 </body>
