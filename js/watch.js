@@ -97,7 +97,7 @@ btnGoCategory?.addEventListener("click", ()=>{
 });
 btnMyUploads?.addEventListener("click", ()=>{
   // 운영 중인 관리 페이지로 연결
-  location.href = "list-url-and-categories.html";
+  location.href = "manage-uploads.html";
   closeDropdown();
 });
 btnSignOut?.addEventListener("click", async ()=>{
