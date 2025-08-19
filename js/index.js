@@ -50,7 +50,7 @@ document.addEventListener('pointerdown', (e)=>{
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
 dropdown.addEventListener("click", (e)=> e.stopPropagation());
 btnMyUploads?.addEventListener("click", ()=>{
-  location.href = "list-url-and-categories.html";
+  location.href = "manage-uploads.html";
   closeDropdown();
 });
 btnSignOut?.addEventListener("click", async ()=>{
