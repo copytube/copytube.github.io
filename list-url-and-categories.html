@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>URL & 카테고리 목록 - Copytube</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    main { padding-top:96px; }
+    .wrap { max-width:980px; margin:0 auto; padding:0 16px; }
+    .toolbar { display:flex; gap:10px; align-items:center; margin:8px 0 14px; }
+    .count { color:#9aa0a6; font-size:14px; }
+    table { width:100%; border-collapse:collapse; background:#0b0b0b; border:1px solid #333; border-radius:10px; overflow:hidden; }
+    th, td { padding:10px 12px; border-bottom:1px solid #222; vertical-align:top; }
+    th { background:#111; color:#ddd; text-align:left; font-weight:700; }
+    tr:hover td { background:#0f0f0f; }
+    a.url { color:#4ea1ff; word-break:break-all; text-decoration:none; }
+    .cats { color:#ddd; }
+    .chip { display:inline-block; background:#1b1b1b; border:1px solid #2a2a2a; border-radius:999px; padding:3px 9px; margin:2px 6px 2px 0; font-size:12px; }
+    .hint { font-size:12px; color:#9aa0a6; margin-top:6px; }
+    .actions{ display:flex; gap:8px; }
+    .btn{ padding:8px 12px; border:1px solid #333; background:#1b1b1b; color:#fff; border-radius:8px; cursor:pointer; }
+    .btn:hover{ background:#222; }
+  </style>
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">
+      <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
+        <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
+      </a>
+    </div>
+    <div class="right" style="position:relative;">
+      <a id="signupLink" class="link" href="signup.html">Sign up</a>
+      <a id="signinLink" class="link" href="signin.html">Sign in</a>
+      <span id="welcome" class="welcome"></span>
+      <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
+      <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
+        <button id="btnGoCategory" class="menu-strong" type="button">카테고리 선택</button>
+        <button id="btnMyUploads" type="button">업로드영상</button>
+        <button id="btnSignOut" type="button">Sign out</button>
+        <button id="btnGoUpload" class="menu-strong" type="button">추천영상등록</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap">
+      <h2>현재 등록된 URL & 카테고리</h2>
+      <div class="toolbar">
+        <div id="status" class="count">불러오는 중…</div>
+        <div class="actions">
+          <button id="btnReload" class="btn">새로고침</button>
+        </div>
+      </div>
+
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th style="width:56px;">#</th>
+            <th>URL</th>
+            <th style="width:45%;">카테고리(라벨)</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="3" class="hint">읽는 중…</td></tr>
+        </tbody>
+      </table>
+
+      <p class="hint">
+        * 모르는 슬러그는 <code>[slug]</code>로 표시됩니다. (예전 값일 수 있음)<br/>
+        * 이 페이지는 읽기 전용입니다.
+      </p>
+    </div>
+  </main>
+
+  <script type="module" src="js/firebase-init.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="js/categories.js"></script>
+  <script type="module">
+    import { auth, db } from './js/firebase-init.js';
+    import {
+      onAuthStateChanged, signOut as fbSignOut
+    } from './js/auth.js';
+    import {
+      collection, getDocs, orderBy, query
+    } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+    import { CATEGORY_GROUPS } from './js/categories.js';
+
+    /* ------- 상단 드롭다운 공통 ------- */
+    const signupLink   = document.getElementById("signupLink");
+    const signinLink   = document.getElementById("signinLink");
+    const welcome      = document.getElementById("welcome");
+    const menuBtn      = document.getElementById("menuBtn");
+    const dropdown     = document.getElementById("dropdownMenu");
+    const btnGoCategory= document.getElementById("btnGoCategory");
+    const btnMyUploads = document.getElementById("btnMyUploads");
+    const btnSignOut   = document.getElementById("btnSignOut");
+    const btnGoUpload  = document.getElementById("btnGoUpload");
+
+    function openDropdown(){ dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); dropdown.setAttribute('aria-hidden','false'); }
+    function closeDropdown(){ dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"), 180); dropdown.setAttribute('aria-hidden','true'); }
+    menuBtn?.addEventListener("click",(e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden")?openDropdown():closeDropdown(); });
+    document.addEventListener('pointerdown',(e)=>{ if (dropdown.classList.contains('hidden')) return; const inside=e.target.closest('#dropdownMenu,#menuBtn'); if(!inside) closeDropdown(); }, true);
+    document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDropdown(); });
+    dropdown.addEventListener("click",(e)=> e.stopPropagation());
+    btnGoCategory?.addEventListener("click",()=>{ location.href="./"; closeDropdown(); });
+    btnMyUploads ?.addEventListener("click",()=>{ location.href="my-uploads.html"; closeDropdown(); });
+    btnGoUpload   ?.addEventListener("click",()=>{ location.href="upload.html"; closeDropdown(); });
+    btnSignOut    ?.addEventListener("click", async ()=>{ await fbSignOut(auth); location.reload(); });
+
+    onAuthStateChanged(auth, (user)=>{
+      const loggedIn = !!user;
+      signupLink.classList.toggle("hidden", loggedIn);
+      signinLink.classList.toggle("hidden", loggedIn);
+      menuBtn.classList.toggle("hidden", !loggedIn);
+      welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
+    });
+
+    /* ------- 카테고리 라벨 맵 준비 ------- */
+    const labelMap = new Map();
+    for (const g of CATEGORY_GROUPS){
+      for (const c of g.children){
+        labelMap.set(c.value, c.label);
+      }
+    }
+    // 예전 슬러그에 대한 간단한 별칭(가능한 한 라벨로 보여주기)
+    const alias = {
+      review:'그외', fun:'유머', variety_celeb:'예능·연예', animal:'동물',
+      edu:'일반', common_life:'상식·생활팁', medical:'일반',
+      cook_food:'요리/맛집', it:'정보·IT', product:'제품리뷰',
+      nature_survival:'서바이벌', agri:'농어광공업', common:'상식', life:'생활팁'
+    };
+
+    function labelFor(slug){
+      if (labelMap.has(slug)) return labelMap.get(slug);
+      if (alias[slug]) return alias[slug] + ' [구]';
+      return `[${slug}]`;
+    }
+
+    /* ------- 렌더 ------- */
+    const tbody = document.getElementById('tbody');
+    const status = document.getElementById('status');
+    const btnReload = document.getElementById('btnReload');
+
+    async function load(){
+      status.textContent = '불러오는 중…';
+      tbody.innerHTML = `<tr><td colspan="3" class="hint">읽는 중…</td></tr>`;
+      try{
+        // createdAt 내림차순 (단일 필드 정렬은 인덱스 불필요)
+        const q = query(collection(db,'videos'), orderBy('createdAt','desc'));
+        const snap = await getDocs(q);
+
+        if (snap.empty){
+          tbody.innerHTML = `<tr><td colspan="3" class="hint">영상이 없습니다.</td></tr>`;
+          status.textContent = '0개';
+          return;
+        }
+
+        const rows = [];
+        let i = 0;
+        snap.forEach(d=>{
+          const data = d.data();
+          const url  = data?.url || '';
+          const cats = Array.isArray(data?.categories) ? data.categories : [];
+          const labels = cats.map(labelFor);
+          i++;
+          rows.push(`
+            <tr>
+              <td>${i}</td>
+              <td><a class="url" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a></td>
+              <td class="cats">${labels.length ? labels.map(x=>`<span class="chip">${escapeHtml(x)}</span>`).join('') : '<span class="hint">없음</span>'}</td>
+            </tr>
+          `);
+        });
+        tbody.innerHTML = rows.join('');
+        status.textContent = `${i}개`;
+      }catch(e){
+        console.error(e);
+        tbody.innerHTML = `<tr><td colspan="3" class="hint">불러오기 실패: ${escapeHtml(e.message||String(e))}</td></tr>`;
+        status.textContent = '오류';
+      }
+    }
+
+    function escapeHtml(s){
+      return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+    }
+
+    btnReload.addEventListener('click', load);
+    load();
+  </script>
+</body>
+</html>
