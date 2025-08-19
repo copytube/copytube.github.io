@@ -7,60 +7,56 @@
   <link rel="stylesheet" href="css/style.css"/>
   <style>
     main { max-width:640px; margin:96px auto 40px; padding:0 16px; }
-    label { display:block; margin-top:12px; font-size:14px; }
+    label { display:block; margin-top:10px; font-size:14px; }
     textarea{
       width:100%; padding:10px; margin-top:6px; box-sizing:border-box;
       border:1px solid #333; border-radius:8px; background:#000; color:#fff;
       resize:vertical; overflow-y:hidden; line-height:1.35;
     }
+
+    /* 버튼들 */
     .btn-primary{
-      margin-top:16px; width:100%; padding:12px; border:0; border-radius:8px;
+      margin-top:12px; width:100%; padding:12px; border:0; border-radius:8px;
       background:#4ea1ff; color:#fff; font-weight:700; cursor:pointer;
     }
-    /* 초록 붙여넣기 버튼 */
     .btn-secondary{
-      padding:12px 14px; border:1px solid #166534;
-      background:#22c55e; color:#fff; border-radius:10px; cursor:pointer; white-space:nowrap; line-height:1.2;
-      font-weight:800;
+      padding:14px 16px; border:1px solid #166534;
+      background:#22c55e; color:#fff; border-radius:10px; cursor:pointer; font-weight:800;
+      line-height:1.15;
+      width:clamp(200px, 44vw, 360px);   /* 너무 크지 않게 제한 */
+      justify-self:start;
     }
     .btn-secondary:hover{ background:#16a34a; }
     .msg { margin-top:10px; font-size:13px; color:#ccc; min-height:1.2em; white-space:pre-line; }
 
-    /* URL 아래: 좌측 라디오(세로) + 우측 초록 버튼(두 줄 높이) */
+    /* URL 아래: 좌측 라디오(세로) + 우측 붙여넣기 버튼 (모바일/PC 모두 동일 레이아웃) */
     .actions{
-      display:grid; grid-template-columns:auto 1fr; gap:8px; margin-top:8px; align-items:stretch;
+      display:grid; grid-template-columns: 180px 1fr; gap:10px; margin-top:8px; align-items:center;
     }
     .order{
-      display:flex; flex-direction:column; gap:6px; align-items:flex-start;
-      color:#9aa0a6; font-size:13px; padding:4px 0;
+      display:flex; flex-direction:column; gap:8px; align-items:stretch;
+      color:#9aa0a6; font-size:13px; padding:2px 0;
     }
     .order .pill{
-      display:inline-flex; align-items:center; gap:6px;
-      padding:6px 10px; border:1px solid #2a2a2a; background:#141414; border-radius:8px; cursor:pointer;
-    }
-    #btnPaste{
-      align-self:stretch;
-      min-height:78px; /* 두 라디오 높이에 맞춤 */
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 12px; border:1px solid #2a2a2a; background:#141414; border-radius:10px; cursor:pointer;
+      width:100%; justify-content:center; font-weight:700; color:#ddd;   /* 두 박스 동일폭 */
     }
 
-    /* 카테고리 UI — 더 타이트 */
+    /* 카테고리 UI — 더 타이트(인덱스보다 한 단계 더 촘촘) */
     .group{
       border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
-      padding:6px 6px 7px; margin:4px 0;
+      padding:6px 6px 8px; margin:5px 0;
     }
     .group legend{
       padding:0 4px; font-weight:800; font-size:15px; color:#eee;
-      margin-bottom:1px; line-height:1.02; display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap;
+      margin-bottom:1px; line-height:1.02; display:inline-flex; gap:6px; align-items:center;
     }
-    .legend-ctrls{
-      display:inline-flex; gap:6px; align-items:center; font-size:12px; color:#9aa0a6;
-      border:1px solid #2a2a2a; background:#141414; border-radius:8px; padding:4px 6px;
-    }
-    .legend-ctrls .mini-pill{ display:inline-flex; gap:4px; align-items:center; }
-    .subnote{ font-size:12px; color:#9aa0a6; }
+    .group .subnote{ font-size:12px; color:#9aa0a6; margin-left:6px; }
 
+    /* 큰제목↔세부 사이 간격 더 축소 */
     .child-grid{
-      margin-top:1px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:3px;
+      margin-top:2px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:3px;
     }
     @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
     .child-grid label{
@@ -69,7 +65,12 @@
       display:flex; gap:6px; align-items:center; justify-content:flex-start;
     }
 
-    /* 개인자료 이름변경 버튼 */
+    /* 개인자료 컨트롤/이름변경 */
+    .legend-ctrls{
+      display:inline-flex; gap:6px; align-items:center; font-size:12px; color:#9aa0a6;
+      border:1px solid #2a2a2a; background:#141414; border-radius:8px; padding:4px 6px;
+    }
+    .legend-ctrls .mini-pill{ display:inline-flex; gap:4px; align-items:center; }
     .rename-btn{
       margin-left:6px; font-size:12px; line-height:1; padding:4px 6px;
       border:1px solid #2a2a2a; background:#131313; color:#aaa; border-radius:6px; cursor:pointer;
@@ -78,10 +79,14 @@
 
     details.help{ margin-top:8px; }
     details.help summary{ cursor:pointer; color:#9aa0a6; }
-    details.help .help-body{ font-size:12px; color:#9aa0a6; margin-top:6px; line-height:1.5; }
+    details.help .help-body{ font-size:12px; color:#9aa0a6; margin-top:6px; line-height:1.55; }
     details.help code{ background:#0b0b0b; padding:1px 4px; border-radius:4px; }
 
-    .note{ margin-top:8px; color:#9aa0a6; font-size:12px; }
+    /* 더 좁은 화면에서도 좌우 2열 유지 (좌:라디오 세로, 우:버튼) */
+    @media (max-width:420px){
+      .actions{ grid-template-columns: 160px 1fr; }
+      .btn-secondary{ width:clamp(180px, 52vw, 320px); }
+    }
   </style>
 </head>
 <body>
@@ -112,19 +117,24 @@
       <button id="btnPaste" type="button" class="btn-secondary">클립보드 붙여넣기</button>
     </div>
 
+    <!-- 요청: 도움말 위에도 등록 버튼 하나 추가 -->
+    <button id="submitBtnTop" class="btn-primary">등록</button>
+
     <details class="help">
       <summary>붙여넣기 도움말</summary>
       <div class="help-body">
+        • <b>URL 입력칸</b>에 직접 붙여넣거나, <b>오른쪽 “클립보드 붙여넣기”</b> 버튼을 사용하세요. (브라우저/OS 허용 필요)<br/>
         • <b>URL 다중 등록:</b> 메모장에서 <b>한 줄에 1개의 URL</b>씩 복사해 텍스트박스에 붙여넣고, <b>카테고리 선택 후 “등록”</b>을 누르면 한 번에 모두 등록됩니다.<br/>
         • 위의 <b>“아래부터/위부터 등록”</b> 옵션으로 등록 순서를 결정합니다. (피드가 최신순이라 시리즈는 보통 <b>아래부터 등록</b>해야 차례대로 볼 수 있습니다.)<br/><br/>
-        • <b>URL 입력칸</b>에 직접 붙여넣거나, <b>오른쪽 “클립보드 붙여넣기”</b> 버튼을 사용하세요. (브라우저/OS 허용 필요)
+        • <b>HTTPS</b> 환경에서만 동작합니다. (GitHub Pages OK)<br/>
+        • <b>iPhone/iPad (iOS 16+)</b>: 처음 붙여넣기 때 <i>“이 앱에서 붙여넣기 허용”</i> 팝업에서 <b>허용</b>을 선택하세요.<br/>
+        • <b>안드로이드/데스크탑 Chrome</b>: <b>설정 → 사이트 설정 → 클립보드</b>에서 <code>https://copytube.github.io</code>를 <b>허용</b>으로 변경하세요.<br/><br/>
+        • <b>개인자료1/2</b>는 로컬저장소에 저장되며 <b>공유되지 않습니다</b>. <b>이름 변경</b> 가능하며, <b>카테고리 위치</b>도 “상단/하단”으로 변경할 수 있습니다.
       </div>
     </details>
 
     <p style="margin:10px 0 4px;">카테고리(최대 3개)</p>
     <div id="cats"><!-- 그룹형 카테고리 렌더링 --></div>
-
-    <div class="note">※ <b>개인자료1/2</b>는 로컬저장소에 저장되며 <b>공유되지 않습니다.</b></div>
 
     <button id="submitBtn" class="btn-primary">등록</button>
     <div id="msg" class="msg"></div>
@@ -132,7 +142,7 @@
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/categories.js"></script>
+
   <script type="module">
     import { auth, db } from './js/firebase-init.js';
     import { onAuthStateChanged } from './js/auth.js';
@@ -198,7 +208,6 @@
           }
         }).join('');
 
-        // 개인자료 legend에 상단/하단 위치 선택 라디오 삽입 + (이 기기에만 저장) 표기
         const legend = (g.key==='personal')
           ? `${g.label}
              <span class="legend-ctrls" title="인덱스 화면에서 개인자료 그룹 위치">
@@ -217,14 +226,10 @@
 
       catsBox.innerHTML = html;
 
-      // 개인자료 위치 라디오 동작
       catsBox.querySelectorAll('input[name="personalPos"]').forEach(r=>{
-        r.addEventListener('change', ()=>{
-          setPersonalPosition(r.value);
-        });
+        r.addEventListener('change', ()=> setPersonalPosition(r.value));
       });
 
-      // 선택 제한 로직
       const boxes = Array.from(catsBox.querySelectorAll('input.cat'));
       boxes.forEach(b=>{
         b.addEventListener('change', ()=>{
@@ -232,25 +237,19 @@
           const personalSelected = selected.filter(v=> v==='personal1' || v==='personal2');
 
           if (personalSelected.length > 1){
-            b.checked = false;
-            msg.textContent = '개인자료는 하나만 선택할 수 있습니다.';
-            return;
+            b.checked = false; msg.textContent = '개인자료는 하나만 선택할 수 있습니다.'; return;
           }
           if (personalSelected.length === 1 && selected.length > 1){
-            b.checked = false;
-            msg.textContent = '개인자료는 서버에 업로드되지 않으므로, 다른 카테고리와 함께 선택할 수 없습니다.';
-            return;
+            b.checked = false; msg.textContent = '개인자료는 서버에 업로드되지 않으므로 다른 카테고리와 함께 선택할 수 없습니다.'; return;
           }
           if (!personalSelected.length && selected.length > 3){
-            b.checked = false;
-            msg.textContent = '카테고리는 최대 3개까지 선택 가능합니다.';
+            b.checked = false; msg.textContent = '카테고리는 최대 3개까지 선택 가능합니다.';
           }else{
             msg.textContent = '';
           }
         });
       });
 
-      // 개인자료 이름변경
       catsBox.querySelectorAll('.rename-btn').forEach(btn=>{
         btn.addEventListener('click', ()=>{
           const map = getPersonalLabels();
@@ -268,7 +267,6 @@
     }
     renderGroups();
 
-    /* URL/유효성 */
     function findFirstYoutubeUrl(text){
       if (!text) return '';
       const re = /(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?[^ \n]*v=[^ \n&]+|youtube\.com\/shorts\/[^ \n?&/]+|youtube\.com\/embed\/[^ \n?&/]+|youtu\.be\/[^ \n?&/]+))/i;
@@ -280,7 +278,6 @@
       return m ? m[1] : '';
     }
 
-    /* 붙여넣기 버튼 */
     pasteBtn.addEventListener('click', async ()=>{
       if (!('clipboard' in navigator)){ msg.textContent='클립보드 API 미지원 브라우저입니다.'; return; }
       try{
@@ -298,8 +295,7 @@
       }
     });
 
-    /* 등록 */
-    document.getElementById('submitBtn').addEventListener('click', async ()=>{
+    async function handleSubmit(){
       msg.textContent = '검사 중...';
       const user = auth.currentUser;
       if(!user){ msg.textContent = '로그인 후 등록 가능합니다.'; return; }
@@ -322,7 +318,7 @@
       const ordered = order === 'bottom' ? lines.slice().reverse() : lines.slice();
 
       const urls = [];
-      for(let i=0;i<ordered.length;i++){
+      for (let i=0;i<ordered.length;i++){
         const raw = ordered[i];
         const url = findFirstYoutubeUrl(raw) || raw;
         if(!extractId(url)){
@@ -333,9 +329,8 @@
         urls.push(url);
       }
 
-      // 개인자료 → 로컬 저장
       if (isPersonal){
-        const slot = selected[0]; // 'personal1' | 'personal2'
+        const slot = selected[0]; // personal1 | personal2
         const key = `copytube_${slot}`;
         let arr = [];
         try{ arr = JSON.parse(localStorage.getItem(key)||'[]'); }catch{ arr = []; }
@@ -347,7 +342,6 @@
         return;
       }
 
-      // 서버 업로드
       if (!confirm(`총 ${urls.length}개의 영상을 선택된 카테고리로 등록합니다. 진행할까요?`)){
         msg.textContent = '취소됨';
         return;
@@ -382,7 +376,11 @@
         urlBox.value=''; autoGrow(urlBox);
         document.querySelectorAll('.cat:checked').forEach(c=> c.checked=false);
       }
-    });
+    }
+
+    // 상단/하단 두 버튼 모두 연결
+    document.getElementById('submitBtnTop').addEventListener('click', handleSubmit);
+    document.getElementById('submitBtn').addEventListener('click', handleSubmit);
   </script>
 </body>
 </html>
