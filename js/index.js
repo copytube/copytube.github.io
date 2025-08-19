@@ -1,6 +1,7 @@
+// 캐시 무시를 위해 동일 버전 파라미터 사용
+import { CATEGORY_GROUPS } from './categories.js?v=20250818';
 import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
-import { CATEGORY_GROUPS } from './categories.js';
 
 /* ----------------- DOM ----------------- */
 const signupLink   = document.getElementById("signupLink");
@@ -12,8 +13,10 @@ const btnSignOut   = document.getElementById("btnSignOut");
 const btnGoUpload  = document.getElementById("btnGoUpload");
 const btnMyUploads = document.getElementById("btnMyUploads");
 const brandHome    = document.getElementById("brandHome");
+
 const catsBox      = document.getElementById("cats");
 const btnWatch     = document.getElementById("btnWatch");
+const btnToggleAll = document.getElementById("btnToggleAll");
 
 /* ----------------- 드롭다운 ----------------- */
 let isMenuOpen = false;
@@ -63,14 +66,14 @@ brandHome?.addEventListener("click", (e)=>{
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
-/* ----------------- 개인자료 위치 설정 읽기 ----------------- */
-function getPersonalPosition(){
-  const v = localStorage.getItem('personalPosition');
-  return v === 'top' ? 'top' : 'bottom'; // 기본 하단
-}
+/* ----------------- 개인자료 표시 관련 ----------------- */
 function getPersonalLabels(){
   try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }
   catch{ return {}; }
+}
+function getPersonalPosition(){
+  const v = localStorage.getItem('personalPosition');
+  return v === 'top' ? 'top' : 'bottom'; // 기본 하단
 }
 
 /* ----------------- 카테고리 렌더 ----------------- */
@@ -78,7 +81,6 @@ function renderGroups(){
   const personalLabels = getPersonalLabels();
   const pos = getPersonalPosition();
 
-  // 그룹 배열 복사 후 personal을 맨 위로 이동할지 결정
   const groups = CATEGORY_GROUPS.slice();
   if (pos === 'top'){
     const idx = groups.findIndex(g => g.key === 'personal');
@@ -95,7 +97,6 @@ function renderGroups(){
       return `<label><input type="checkbox" class="cat" value="${c.value}"> ${labelText}</label>`;
     }).join('');
 
-    // 개인자료 그룹은 (이 기기에만 저장) 안내만 붙임
     const legend = (g.key==='personal')
       ? `${g.label} <span class="subnote">(이 기기에만 저장)</span>`
       : g.label;
@@ -112,12 +113,32 @@ function renderGroups(){
 }
 renderGroups();
 
+/* ----------------- 전체보기 토글 ----------------- */
+let allSelected = false;
+function selectAll(on){
+  const boxes = Array.from(catsBox.querySelectorAll('.cat'));
+  boxes.forEach(b=>{
+    // 개인자료(personal1/2)는 전체보기에서 제외
+    if (b.value === 'personal1' || b.value === 'personal2') return;
+    b.checked = !!on;
+  });
+  allSelected = !!on;
+  btnToggleAll.setAttribute('aria-pressed', on ? 'true':'false');
+}
+btnToggleAll.addEventListener('click', ()=>{
+  selectAll(!allSelected);
+});
+
 /* ----------------- 저장 & 이동 ----------------- */
 btnWatch.addEventListener('click', ()=>{
   const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
-  // 개인자료(personal1/2)는 시청 페이지에는 의미가 없으므로 제외하여 저장
+
+  // 개인자료(personal1/2)는 시청 페이지에는 의미 없음 → 제외
   const filtered = selected.filter(v => v !== 'personal1' && v !== 'personal2');
-  const valueToSave = (filtered.length === 0) ? "ALL" : filtered;
+
+  // 아무것도 선택 안 했거나 전체보기 토글 켠 상태라면 ALL 저장
+  const valueToSave = (filtered.length === 0 || allSelected) ? "ALL" : filtered;
+
   localStorage.setItem('selectedCats', JSON.stringify(valueToSave));
   location.href = 'watch.html';
 });
