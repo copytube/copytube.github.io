@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="css/style.css"/>
   <style>
     main { padding-top:96px; }
-    .wrap { max-width:980px; margin:0 auto; padding:0 16px; }
+    .wrap { max-width:1100px; margin:0 auto; padding:0 16px; }
     .toolbar { display:flex; gap:10px; align-items:center; margin:8px 0 14px; flex-wrap:wrap; }
     .count { color:#9aa0a6; font-size:14px; }
     table { width:100%; border-collapse:collapse; background:#0b0b0b; border:1px solid #333; border-radius:10px; overflow:hidden; }
@@ -15,13 +15,27 @@
     th { background:#111; color:#ddd; text-align:left; font-weight:700; }
     tr:hover td { background:#0f0f0f; }
     a.url { color:#4ea1ff; word-break:break-all; text-decoration:none; }
+    .title { color:#cfcfcf; font-size:12px; margin-top:4px; }
     .cats { color:#ddd; }
     .chip { display:inline-block; background:#1b1b1b; border:1px solid #2a2a2a; border-radius:999px; padding:3px 9px; margin:2px 6px 2px 0; font-size:12px; }
     .hint { font-size:12px; color:#9aa0a6; margin-top:6px; white-space:pre-line; }
     .actions{ display:flex; gap:8px; }
     .btn{ padding:8px 12px; border:1px solid #333; background:#1b1b1b; color:#fff; border-radius:8px; cursor:pointer; }
     .btn:hover{ background:#222; }
+    .btn-small{ padding:8px 10px; font-size:13px; border-radius:8px; }
     .err{ color:#f87171; }
+    .ok{ color:#34d399; }
+    .selects{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+    .selects select{ min-width:140px; background:#0f0f0f; color:#fff; border:1px solid #2a2a2a; border-radius:6px; padding:6px; }
+    .rowmsg{ font-size:12px; margin-top:6px; color:#9aa0a6; }
+    .pager { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+    .pager .pbtn{
+      min-width:34px; text-align:center; padding:6px 10px; border:1px solid #333; background:#1b1b1b;
+      color:#fff; border-radius:8px; cursor:pointer;
+    }
+    .pager .pbtn[disabled]{ opacity:.5; cursor:default; }
+    .pager .current{ background:#2a2a2a; font-weight:700; }
+    @media (max-width:560px){ th:nth-child(4), td:nth-child(4){ display:block; } }
   </style>
 </head>
 <body>
@@ -47,7 +61,7 @@
 
   <main>
     <div class="wrap">
-      <h2>현재 등록된 URL & 카테고리</h2>
+      <h2>현재 등록된 URL & 카테고리 (수정 가능)</h2>
       <div class="toolbar">
         <div id="status" class="count">불러오는 중…</div>
         <div class="actions">
@@ -59,17 +73,21 @@
         <thead>
           <tr>
             <th style="width:56px;">#</th>
-            <th>URL</th>
-            <th style="width:45%;">카테고리(라벨)</th>
+            <th>URL / 제목</th>
+            <th style="width:38%;">현재 카테고리</th>
+            <th style="width:36%;">카테고리 변경</th>
           </tr>
         </thead>
         <tbody id="tbody">
-          <tr><td colspan="3" class="hint">읽는 중…</td></tr>
+          <tr><td colspan="4" class="hint">읽는 중…</td></tr>
         </tbody>
       </table>
 
+      <div id="pager" class="pager" aria-label="페이지 이동"></div>
+
       <p id="footnote" class="hint">
-        * 모르는 슬러그는 <code>[slug]</code>로 표시됩니다. (예전 값일 수 있음)
+        * 모르는 슬러그는 <code>[slug]</code>로 표시됩니다. (예전 값일 수 있음)<br/>
+        * 본인이 올리지 않은 영상은 **권한**에 따라 수정이 거부될 수 있습니다.
       </p>
     </div>
   </main>
@@ -80,8 +98,8 @@
   <script type="module">
     import { auth, db } from './js/firebase-init.js';
     import { onAuthStateChanged, signOut as fbSignOut } from './js/auth.js';
-    import { CATEGORY_GROUPS } from './js/categories.js';
-    import { collection, getDocs, orderBy, query } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+    import { CATEGORY_GROUPS, flattenPublicCategories } from './js/categories.js';
+    import { collection, getDocs, orderBy, query, updateDoc, doc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
     /* ------- 상단 드롭다운 공통 ------- */
     const signupLink   = document.getElementById("signupLink");
@@ -93,7 +111,6 @@
     const btnMyUploads = document.getElementById("btnMyUploads");
     const btnSignOut   = document.getElementById("btnSignOut");
     const btnGoUpload  = document.getElementById("btnGoUpload");
-
     function openDropdown(){ dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); dropdown.setAttribute('aria-hidden','false'); }
     function closeDropdown(){ dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"), 180); dropdown.setAttribute('aria-hidden','true'); }
     menuBtn?.addEventListener("click",(e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden")?openDropdown():closeDropdown(); });
@@ -113,7 +130,7 @@
       welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
     });
 
-    /* ------- 카테고리 라벨 맵 ------- */
+    /* ------- 카테고리 라벨/옵션 ------- */
     const labelMap = new Map();
     for (const g of CATEGORY_GROUPS){ for (const c of g.children){ labelMap.set(c.value, c.label); } }
     const alias = {
@@ -127,13 +144,31 @@
       if (alias[slug]) return alias[slug] + ' [구]';
       return `[${slug}]`;
     }
-    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+    const PUBLIC_CATS = flattenPublicCategories(); // [{value,label}...]
+    const ALLOWED = new Set(PUBLIC_CATS.map(c=>c.value));
+    function buildOptions(){
+      // optgroup으로 그룹화
+      const groups = CATEGORY_GROUPS.filter(g=> !g.personal);
+      let html = `<option value="">선택안함</option>`;
+      for (const g of groups){
+        html += `<optgroup label="${escapeHtml(g.label)}">` +
+                g.children.map(c=>`<option value="${c.value}">${escapeHtml(c.label)}</option>`).join('') +
+                `</optgroup>`;
+      }
+      return html;
+    }
+    const SELECT_OPTIONS_HTML = buildOptions();
 
-    /* ------- 안전한 로딩(타임아웃 + 폴백) ------- */
+    /* ------- 표 렌더/페이징 ------- */
     const tbody  = document.getElementById('tbody');
     const status = document.getElementById('status');
     const foot   = document.getElementById('footnote');
     const btnReload = document.getElementById('btnReload');
+    const pager = document.getElementById('pager');
+
+    const PAGE_SIZE = 30;
+    let ALL_ROWS = []; // {id,url,title,categories,createdAt}
+    let currentPage = 1;
 
     function withTimeout(promise, ms=12000){
       return Promise.race([
@@ -141,14 +176,11 @@
         new Promise((_, reject)=> setTimeout(()=> reject(new Error('timeout')), ms))
       ]);
     }
-
     function toMs(createdAt){
       try{ return createdAt?.toMillis ? createdAt.toMillis() : (typeof createdAt==='number'? createdAt : 0); }
       catch{ return 0; }
     }
-
     async function fetchAllVideos(){
-      // 1) 시도: createdAt desc 정렬
       try{
         const q1 = query(collection(db,'videos'), orderBy('createdAt','desc'));
         const snap = await withTimeout(getDocs(q1), 12000);
@@ -156,7 +188,6 @@
       }catch(e1){
         console.warn('orderBy createdAt 실패, 폴백 시도:', e1);
         foot.innerHTML = `* 정렬 최적화 쿼리가 실패하여 폴백으로 불러왔습니다. 사유: <span class="err">${escapeHtml(e1.message||String(e1))}</span>`;
-        // 2) 폴백: 정렬 없이 전체 → 클라이언트에서 createdAt desc 정렬
         const snap2 = await withTimeout(getDocs(collection(db,'videos')), 12000);
         const rows = snap2.docs.map(d=> ({ id:d.id, ...d.data() }));
         rows.sort((a,b)=> toMs(b.createdAt) - toMs(a.createdAt));
@@ -164,41 +195,149 @@
       }
     }
 
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+    function renderPager(){
+      const total = ALL_ROWS.length;
+      const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      pager.innerHTML = '';
+      const makeBtn = (label, page, disabled=false, isCurrent=false)=>{
+        const b = document.createElement('button');
+        b.className = 'pbtn' + (isCurrent ? ' current' : '');
+        b.textContent = label;
+        if (disabled) b.setAttribute('disabled','true');
+        b.dataset.page = String(page);
+        return b;
+      };
+      if (pages <= 12){
+        for (let p=1;p<=pages;p++){
+          pager.appendChild(makeBtn(String(p), p, false, p===currentPage));
+        }
+      }else{
+        // condensed: 1 … (current-2..current+2) … last
+        const add = (el)=> pager.appendChild(el);
+        add(makeBtn('1',1,false, currentPage===1));
+        if (currentPage > 4){ const dot=document.createElement('span'); dot.className='pbtn'; dot.textContent='…'; dot.setAttribute('disabled','true'); add(dot); }
+        const start = Math.max(2, currentPage-2);
+        const end   = Math.min(pages-1, currentPage+2);
+        for (let p=start; p<=end; p++){ add(makeBtn(String(p), p, false, p===currentPage)); }
+        if (currentPage < pages-3){ const dot=document.createElement('span'); dot.className='pbtn'; dot.textContent='…'; dot.setAttribute('disabled','true'); add(dot); }
+        add(makeBtn(String(pages), pages, false, currentPage===pages));
+      }
+    }
+
+    function renderPage(){
+      const total = ALL_ROWS.length;
+      const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      if (currentPage > pages) currentPage = pages;
+
+      const start = (currentPage-1) * PAGE_SIZE;
+      const end   = Math.min(total, start + PAGE_SIZE);
+      const slice = ALL_ROWS.slice(start, end);
+
+      status.textContent = `${total}개 • ${currentPage}/${pages} 페이지`;
+      if (!slice.length){
+        tbody.innerHTML = `<tr><td colspan="4" class="hint">표시할 데이터가 없습니다.</td></tr>`;
+        renderPager();
+        return;
+      }
+
+      const rows = [];
+      for (let i=0; i<slice.length; i++){
+        const v = slice[i];
+        const idx = start + i + 1;
+        const url  = v?.url || '';
+        const title= (v?.title || '').trim();
+        const cats = Array.isArray(v?.categories) ? v.categories : [];
+        const labels = cats.map(labelFor);
+        const id = v.id;
+
+        rows.push(`
+          <tr id="row_${id}">
+            <td>${idx}</td>
+            <td>
+              <a class="url" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>
+              <div class="title">${escapeHtml(title || '(제목 없음)')}</div>
+            </td>
+            <td class="cats" id="cats_${id}">
+              ${labels.length ? labels.map(x=>`<span class="chip">${escapeHtml(x)}</span>`).join('') : '<span class="hint">없음</span>'}
+            </td>
+            <td>
+              <div class="selects">
+                <select class="catSel">${SELECT_OPTIONS_HTML}</select>
+                <select class="catSel">${SELECT_OPTIONS_HTML}</select>
+                <select class="catSel">${SELECT_OPTIONS_HTML}</select>
+                <button class="btn btn-small convertBtn" data-id="${id}">카테고리변환</button>
+              </div>
+              <div class="rowmsg" id="msg_${id}"></div>
+            </td>
+          </tr>
+        `);
+      }
+      tbody.innerHTML = rows.join('');
+      attachRowHandlers();
+      renderPager();
+    }
+
+    function attachRowHandlers(){
+      tbody.querySelectorAll('.convertBtn').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          const id = btn.dataset.id;
+          const row = document.getElementById(`row_${id}`);
+          const sels = Array.from(row.querySelectorAll('select.catSel'));
+          const msg  = document.getElementById(`msg_${id}`);
+          const catsCell = document.getElementById(`cats_${id}`);
+
+          // 읽기
+          const raw = sels.map(s=> s.value).filter(Boolean);
+          // 중복 제거
+          const dedup = [...new Set(raw)];
+          if (dedup.length === 0){ msg.textContent = '최소 1개의 카테고리를 선택하세요.'; msg.className='rowmsg err'; return; }
+          if (dedup.length > 3){ msg.textContent = '카테고리는 최대 3개까지 가능합니다.'; msg.className='rowmsg err'; return; }
+          // 허용 검증
+          for (const v of dedup){ if (!ALLOWED.has(v)){ msg.textContent = `허용되지 않는 값: ${v}`; msg.className='rowmsg err'; return; } }
+
+          // 저장
+          msg.textContent = '저장 중…'; msg.className='rowmsg';
+          btn.disabled = true;
+          try{
+            await updateDoc(doc(db,'videos', id), { categories: dedup });
+            // 모델 업데이트
+            const idx = ALL_ROWS.findIndex(x=> x.id === id);
+            if (idx >= 0){ ALL_ROWS[idx].categories = dedup; }
+            // 뷰 업데이트
+            const chips = dedup.map(v=> `<span class="chip">${escapeHtml(labelFor(v))}</span>`).join('');
+            catsCell.innerHTML = chips || '<span class="hint">없음</span>';
+            // 셀렉트 유지(원한다면 초기화 가능)
+            msg.textContent = '저장됨'; msg.className='rowmsg ok';
+          }catch(e){
+            msg.textContent = `오류: ${e.message || String(e)}`; msg.className='rowmsg err';
+          }finally{
+            btn.disabled = false;
+          }
+        });
+      });
+    }
+
     async function load(){
       status.textContent = '불러오는 중…';
-      tbody.innerHTML = `<tr><td colspan="3" class="hint">읽는 중…</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" class="hint">읽는 중…</td></tr>`;
       try{
-        const rows = await fetchAllVideos();
-
-        if (!rows.length){
-          tbody.innerHTML = `<tr><td colspan="3" class="hint">영상이 없습니다.</td></tr>`;
-          status.textContent = '0개';
-          return;
-        }
-
-        const out = [];
-        let i = 0;
-        for (const v of rows){
-          i++;
-          const url  = v?.url || '';
-          const cats = Array.isArray(v?.categories) ? v.categories : [];
-          const labels = cats.map(labelFor);
-          out.push(`
-            <tr>
-              <td>${i}</td>
-              <td><a class="url" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a></td>
-              <td class="cats">${labels.length ? labels.map(x=>`<span class="chip">${escapeHtml(x)}</span>`).join('') : '<span class="hint">없음</span>'}</td>
-            </tr>
-          `);
-        }
-        tbody.innerHTML = out.join('');
-        status.textContent = `${rows.length}개`;
+        ALL_ROWS = await fetchAllVideos();
+        currentPage = 1;
+        renderPage();
       }catch(e){
         console.error(e);
         status.textContent = '오류';
-        tbody.innerHTML = `<tr><td colspan="3" class="hint err">불러오기 실패: ${escapeHtml(e.message||String(e))}\n광고차단/방화벽/네트워크 상태를 확인해 주세요.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="hint err">불러오기 실패: ${escapeHtml(e.message||String(e))}\n광고차단/방화벽/네트워크 상태를 확인해 주세요.</td></tr>`;
       }
     }
+
+    pager.addEventListener('click', (e)=>{
+      const b = e.target.closest('.pbtn'); if (!b || b.hasAttribute('disabled')) return;
+      const p = parseInt(b.dataset.page, 10);
+      if (!isNaN(p)){ currentPage = p; renderPage(); }
+    });
 
     btnReload.addEventListener('click', load);
     load();
