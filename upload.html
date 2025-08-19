@@ -14,54 +14,55 @@
       resize:vertical; overflow-y:hidden; line-height:1.35;
     }
 
-    /* 버튼들 */
+    /* 기본 버튼 */
     .btn-primary{
-      margin-top:12px; width:100%; padding:12px; border:0; border-radius:8px;
+      margin-top:10px; width:100%; padding:11px; border:0; border-radius:8px;
       background:#4ea1ff; color:#fff; font-weight:700; cursor:pointer;
     }
     .btn-secondary{
-      padding:14px 16px; border:1px solid #166534;
+      padding:12px 14px; border:1px solid #166534;
       background:#22c55e; color:#fff; border-radius:10px; cursor:pointer; font-weight:800;
-      line-height:1.15;
-      width:clamp(200px, 44vw, 360px);   /* 너무 크지 않게 제한 */
-      justify-self:start;
+      line-height:1.12; box-sizing:border-box;
+      width:100%; max-width:340px; /* 너무 크지 않게, 그리드 칸 안에서만 */
     }
     .btn-secondary:hover{ background:#16a34a; }
     .msg { margin-top:10px; font-size:13px; color:#ccc; min-height:1.2em; white-space:pre-line; }
 
-    /* URL 아래: 좌측 라디오(세로) + 우측 붙여넣기 버튼 (모바일/PC 모두 동일 레이아웃) */
+    /* URL 아래: 좌측 라디오(세로, 더 컴팩트) + 우측 붙여넣기 버튼 */
     .actions{
-      display:grid; grid-template-columns: 180px 1fr; gap:10px; margin-top:8px; align-items:center;
+      display:grid; grid-template-columns: minmax(128px,150px) 1fr; gap:8px; margin-top:8px; align-items:center;
+      width:100%;
     }
     .order{
-      display:flex; flex-direction:column; gap:8px; align-items:stretch;
-      color:#9aa0a6; font-size:13px; padding:2px 0;
+      display:flex; flex-direction:column; gap:6px; align-items:stretch;
+      color:#9aa0a6; font-size:13px; padding:0;
     }
     .order .pill{
       display:inline-flex; align-items:center; gap:8px;
-      padding:8px 12px; border:1px solid #2a2a2a; background:#141414; border-radius:10px; cursor:pointer;
+      padding:6px 10px; border:1px solid #2a2a2a; background:#141414; border-radius:9px; cursor:pointer;
       width:100%; justify-content:center; font-weight:700; color:#ddd;   /* 두 박스 동일폭 */
+      line-height:1.05;
     }
 
-    /* 카테고리 UI — 더 타이트(인덱스보다 한 단계 더 촘촘) */
+    /* 카테고리 UI — 업로드는 인덱스보다 더 타이트 */
     .group{
       border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
-      padding:6px 6px 8px; margin:5px 0;
+      padding:4px; margin:4px 0;
     }
     .group legend{
-      padding:0 4px; font-weight:800; font-size:15px; color:#eee;
-      margin-bottom:1px; line-height:1.02; display:inline-flex; gap:6px; align-items:center;
+      padding:0 3px; font-weight:800; font-size:15px; color:#eee;
+      margin-bottom:0; line-height:1; display:inline-flex; gap:6px; align-items:center;
     }
     .group .subnote{ font-size:12px; color:#9aa0a6; margin-left:6px; }
 
-    /* 큰제목↔세부 사이 간격 더 축소 */
+    /* 큰제목↔세부 간격 절반 이하 */
     .child-grid{
-      margin-top:2px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:3px;
+      margin-top:1px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:2px;
     }
     @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
     .child-grid label{
       background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px;
-      padding:5px 7px; font-size:14px; line-height:1.18;
+      padding:4px 6px; font-size:14px; line-height:1.12;
       display:flex; gap:6px; align-items:center; justify-content:flex-start;
     }
 
@@ -72,20 +73,25 @@
     }
     .legend-ctrls .mini-pill{ display:inline-flex; gap:4px; align-items:center; }
     .rename-btn{
-      margin-left:6px; font-size:12px; line-height:1; padding:4px 6px;
+      margin-left:6px; font-size:12px; line-height:1; padding:5px 8px;
       border:1px solid #2a2a2a; background:#131313; color:#aaa; border-radius:6px; cursor:pointer;
+      white-space:nowrap; min-width:64px; /* "이름변경" 줄바꿈 방지 */
     }
     .rename-btn:hover{ color:#fff; background:#1b1b1b; }
+
+    .personal-note{
+      font-size:12px; color:#9aa0a6; margin:4px 2px 0;
+    }
 
     details.help{ margin-top:8px; }
     details.help summary{ cursor:pointer; color:#9aa0a6; }
     details.help .help-body{ font-size:12px; color:#9aa0a6; margin-top:6px; line-height:1.55; }
     details.help code{ background:#0b0b0b; padding:1px 4px; border-radius:4px; }
 
-    /* 더 좁은 화면에서도 좌우 2열 유지 (좌:라디오 세로, 우:버튼) */
-    @media (max-width:420px){
-      .actions{ grid-template-columns: 160px 1fr; }
-      .btn-secondary{ width:clamp(180px, 52vw, 320px); }
+    /* 아주 좁은 화면에서도 밀리지 않도록 */
+    @media (max-width:380px){
+      .actions{ grid-template-columns: 128px 1fr; gap:6px; }
+      .btn-secondary{ max-width:100%; }
     }
   </style>
 </head>
@@ -107,7 +113,9 @@
     <h2>추천영상 등록</h2>
 
     <label>YouTube 공유 URL들 (한 줄에 하나씩)</label>
-    <textarea id="urlBox" rows="3" placeholder="https://youtu.be/aaa...\nhttps://www.youtube.com/watch?v=bbb...\n..."></textarea>
+    <textarea id="urlBox" rows="3" placeholder="https://youtu.be/aaa...
+https://www.youtube.com/watch?v=bbb...
+..."></textarea>
 
     <div class="actions">
       <div class="order" role="radiogroup" aria-label="등록 순서">
@@ -117,7 +125,7 @@
       <button id="btnPaste" type="button" class="btn-secondary">클립보드 붙여넣기</button>
     </div>
 
-    <!-- 요청: 도움말 위에도 등록 버튼 하나 추가 -->
+    <!-- 도움말 위에도 등록 버튼 하나 -->
     <button id="submitBtnTop" class="btn-primary">등록</button>
 
     <details class="help">
@@ -129,7 +137,7 @@
         • <b>HTTPS</b> 환경에서만 동작합니다. (GitHub Pages OK)<br/>
         • <b>iPhone/iPad (iOS 16+)</b>: 처음 붙여넣기 때 <i>“이 앱에서 붙여넣기 허용”</i> 팝업에서 <b>허용</b>을 선택하세요.<br/>
         • <b>안드로이드/데스크탑 Chrome</b>: <b>설정 → 사이트 설정 → 클립보드</b>에서 <code>https://copytube.github.io</code>를 <b>허용</b>으로 변경하세요.<br/><br/>
-        • <b>개인자료1/2</b>는 로컬저장소에 저장되며 <b>공유되지 않습니다</b>. <b>이름 변경</b> 가능하며, <b>카테고리 위치</b>도 “상단/하단”으로 변경할 수 있습니다.
+        • <b>개인자료(자료1/자료2)</b>는 로컬저장소에 저장되며 <b>공유되지 않습니다</b>. 이름 변경 가능하며, 인덱스 화면에서 그룹 위치(상단/하단)도 변경할 수 있습니다.
       </div>
     </details>
 
@@ -142,7 +150,6 @@
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-
   <script type="module">
     import { auth, db } from './js/firebase-init.js';
     import { onAuthStateChanged } from './js/auth.js';
@@ -194,7 +201,8 @@
       const html = CATEGORY_GROUPS.map(g=>{
         const kids = g.children.map(c=>{
           const isPersonal = (g.key==='personal');
-          const labelText = isPersonal && personalLabels[c.value] ? personalLabels[c.value] : c.label;
+          const defaultLabel = (c.value==='personal1') ? '자료1' : (c.value==='personal2' ? '자료2' : c.label);
+          const labelText = isPersonal && personalLabels[c.value] ? personalLabels[c.value] : defaultLabel;
 
           if (isPersonal){
             return `
@@ -208,19 +216,20 @@
           }
         }).join('');
 
+        // 개인자료는 안내 문구를 '아래'로 보냄
         const legend = (g.key==='personal')
           ? `${g.label}
              <span class="legend-ctrls" title="인덱스 화면에서 개인자료 그룹 위치">
                <label class="mini-pill"><input type="radio" name="personalPos" value="top" ${pos==='top'?'checked':''}> 상단위치</label>
                <label class="mini-pill"><input type="radio" name="personalPos" value="bottom" ${pos==='bottom'?'checked':''}> 하단위치</label>
-             </span>
-             <span class="subnote">(이 기기에만 저장)</span>`
+             </span>`
           : g.label;
 
         return `
           <fieldset class="group" data-key="${g.key}">
             <legend>${legend}</legend>
             <div class="child-grid">${kids}</div>
+            ${g.key==='personal' ? `<div class="personal-note">(이 기기에만 저장)</div>` : ``}
           </fieldset>`;
       }).join('');
 
@@ -254,7 +263,7 @@
         btn.addEventListener('click', ()=>{
           const map = getPersonalLabels();
           const key = btn.dataset.target;
-          const current = map[key] || (key==='personal1' ? '개인자료1' : '개인자료2');
+          const current = map[key] || (key==='personal1' ? '자료1' : '자료2');
           const name = prompt('새 이름을 입력하세요 (최대 12자 권장):', current);
           if (name && name.trim()){
             map[key] = name.trim();
@@ -336,7 +345,7 @@
         try{ arr = JSON.parse(localStorage.getItem(key)||'[]'); }catch{ arr = []; }
         for (const u of urls){ arr.push({ url:u, savedAt:Date.now() }); }
         localStorage.setItem(key, JSON.stringify(arr));
-        msg.textContent = `로컬 저장 완료: ${urls.length}건 (${slot==='personal1'?'개인자료1':'개인자료2'})`;
+        msg.textContent = `로컬 저장 완료: ${urls.length}건 (${slot==='personal1'?'자료1':'자료2'})`;
         urlBox.value=''; autoGrow(urlBox);
         document.querySelectorAll('.cat:checked').forEach(c=> c.checked=false);
         return;
