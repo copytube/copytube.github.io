@@ -19,12 +19,22 @@ const btnWatch     = document.getElementById("btnWatch");
 const btnToggleAll = document.getElementById("btnToggleAll");
 
 let isMenuOpen = false;
-function openDropdown(){ isMenuOpen = true; dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); }
-function closeDropdown(){ isMenuOpen = false; dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"), 180); }
+function openDropdown(){
+  isMenuOpen = true;
+  dropdown.classList.remove("hidden");
+  requestAnimationFrame(()=> dropdown.classList.add("show"));
+}
+function closeDropdown(){
+  isMenuOpen = false;
+  dropdown.classList.remove("show");
+  setTimeout(()=> dropdown.classList.add("hidden"), 180);
+}
 
-// 드롭다운: 스크롤/휠/스와이프/키 입력 시 자동 닫힘
-["scroll","wheel","touchstart","keydown"].forEach(ev=>{
-  window.addEventListener(ev, ()=>{ if(!dropdown.classList.contains('hidden')) closeDropdown(); }, {passive:true});
+// 🔧 드롭다운: 스크롤/휠/스와이프 시 자동 닫힘 (모바일 탭은 제외)
+["scroll","wheel","touchmove"].forEach(ev=>{
+  window.addEventListener(ev, ()=>{
+    if(!dropdown.classList.contains('hidden')) closeDropdown();
+  }, {passive:true});
 });
 
 onAuthStateChanged(auth, (user)=>{
@@ -36,15 +46,42 @@ onAuthStateChanged(auth, (user)=>{
   closeDropdown();
 });
 
-menuBtn.addEventListener("click", (e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown(); });
-document.addEventListener('pointerdown', (e)=>{ if (dropdown.classList.contains('hidden')) return; if (!e.target.closest('#dropdownMenu, #menuBtn')) closeDropdown(); }, true);
+menuBtn.addEventListener("click", (e)=>{
+  e.stopPropagation();
+  dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown();
+});
+
+// 바깥 터치 시 닫기 (캡처 단계에서 실행해도, 내부 클릭은 허용)
+document.addEventListener('pointerdown', (e)=>{
+  if (dropdown.classList.contains('hidden')) return;
+  if (!e.target.closest('#dropdownMenu, #menuBtn')) closeDropdown();
+}, true);
+
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
+
+// 내부 클릭은 전파만 막아 닫힘 방지 (기본 동작: 페이지 이동은 허용)
 dropdown.addEventListener("click", (e)=> e.stopPropagation());
-btnMyUploads?.addEventListener("click", ()=>{ location.href = "manage-uploads.html"; closeDropdown(); });
-btnAbout?.addEventListener("click", ()=>{ location.href = "about.html"; closeDropdown(); });
-btnSignOut?.addEventListener("click", async ()=>{ await fbSignOut(auth); closeDropdown(); });
-btnGoUpload?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
-brandHome?.addEventListener("click", (e)=>{ e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); });
+
+btnMyUploads?.addEventListener("click", ()=>{
+  location.href = "manage-uploads.html";
+  closeDropdown();
+});
+btnAbout?.addEventListener("click", ()=>{
+  location.href = "about.html";
+  closeDropdown();
+});
+btnSignOut?.addEventListener("click", async ()=>{
+  await fbSignOut(auth);
+  closeDropdown();
+});
+btnGoUpload?.addEventListener("click", ()=>{
+  location.href = "upload.html";
+  closeDropdown();
+});
+brandHome?.addEventListener("click", (e)=>{
+  e.preventDefault();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
 
 /* ----------------- 개인자료 라벨/위치 ----------------- */
 function getPersonalLabels(){ try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }catch{ return {}; } }
@@ -88,19 +125,17 @@ let allSelected = false;
 
 function selectAll(on){
   const boxes = Array.from(catsBox.querySelectorAll('.cat'));
-  boxes.forEach(b => { b.checked = !!on; });  // ← 제외 로직 제거
+  boxes.forEach(b => { b.checked = !!on; });
   allSelected = !!on;
   btnToggleAll.setAttribute('aria-pressed', on ? 'true':'false');
 }
-
 
 // 최초 진입 시 이전 선택 복원
 function applySavedSelection(){
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem('selectedCats') || 'null'); } catch {}
   if (!saved){
-    // 아무 저장값이 없으면 "ALL"로 간주해 자동 전체 선택
-    selectAll(true);
+    selectAll(true); // 저장값 없으면 전체 선택
     return;
   }
   if (saved === "ALL"){
