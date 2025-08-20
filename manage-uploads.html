@@ -55,7 +55,7 @@
       min-width:260px;
     }
 
-    /* PC 기본: 드롭다운을 세로 스택 */
+    /* PC: 드롭다운 세로 스택 */
     .cat-editor { display:flex; flex-direction:column; gap:6px; }
     .cat-editor select {
       background:#0f0f0f; color:#fff; border:1px solid #2a2a2a; border-radius:8px; padding:6px 8px; min-width:220px;
@@ -73,7 +73,7 @@
     .pager button { padding:6px 10px; border-radius:8px; border:1px solid #2a2a2a; background:#111; color:#ddd; cursor:pointer; }
     .pager .now { font-weight:800; color:#fff; }
 
-    /* 모바일: 행은 단일 컬럼, 드롭다운 3개를 가로로 한 줄 배치 */
+    /* 모바일: 행 단일 컬럼 + 드롭다운 3개 가로 한 줄 */
     @media (max-width:720px){
       .row { grid-template-columns: 1fr; }
       .right { align-items:stretch; min-width:0; }
@@ -130,6 +130,6 @@
   <!-- 모듈 스크립트 -->
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/manage-uploads.js?v=20250821c"></script>
+  <script type="module" src="js/manage-uploads.js?v=20250821e"></script>
 </body>
 </html>
