@@ -30,6 +30,8 @@ export const CATEGORY_GROUPS = [
       { value: 'celeb',      label: '연예' },
       { value: 'sports',     label: '스포츠' },
       { value: 'nature',     label: '자연' },
+      { value: 'meme',     label: '밈' },
+      { value: 'proud_k',     label: '국뽕' },
       { value: 'baby',       label: '아기' },
       { value: 'animal',     label: '동물' },
     ],
