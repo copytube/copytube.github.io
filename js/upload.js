@@ -26,13 +26,13 @@ const btnAbout     = $('#btnAbout');
 let isMenuOpen = false;
 function openDropdown(){
   isMenuOpen = true;
-  dropdown.classList.remove('hidden');
-  requestAnimationFrame(()=> dropdown.classList.add('show'));
+  dropdown?.classList.remove('hidden');
+  requestAnimationFrame(()=> dropdown?.classList.add('show'));
 }
 function closeDropdown(){
   isMenuOpen = false;
-  dropdown.classList.remove('show');
-  setTimeout(()=> dropdown.classList.add('hidden'), 180);
+  dropdown?.classList.remove('show');
+  setTimeout(()=> dropdown?.classList.add('hidden'), 180);
 }
 
 onAuthStateChanged(auth, (user)=>{
@@ -40,16 +40,16 @@ onAuthStateChanged(auth, (user)=>{
   signupLink?.classList.toggle('hidden', loggedIn);
   signinLink?.classList.toggle('hidden', loggedIn);
   menuBtn?.classList.toggle('hidden', !loggedIn);
-  welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : '';
+  welcome && (welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : '');
   closeDropdown();
 });
 
 menuBtn?.addEventListener('click', (e)=>{
   e.stopPropagation();
-  dropdown.classList.contains('hidden') ? openDropdown() : closeDropdown();
+  dropdown?.classList.contains('hidden') ? openDropdown() : closeDropdown();
 });
 document.addEventListener('pointerdown', (e)=>{
-  if (dropdown.classList.contains('hidden')) return;
+  if (!dropdown || dropdown.classList.contains('hidden')) return;
   const inside = e.target.closest('#dropdownMenu, #menuBtn');
   if (!inside) closeDropdown();
 }, true);
@@ -85,14 +85,20 @@ function setPersonalPosition(pos){
 /* -------------------- 카테고리 렌더 -------------------- */
 const catsBox   = $('#cats');
 const msg       = $('#msg');
+const msgTop    = $('#msgTop'); // 🔼 추가
 const urlsBox   = $('#urls');
+
+// 공통 메시지 헬퍼 🔼 추가
+function setMsg(text){
+  if (msgTop) msgTop.textContent = text || '';
+  if (msg)    msg.textContent    = text || '';
+}
 
 function renderCats(){
   const personalLabels = getPersonalLabels();
   const pos = getPersonalPosition();
 
   const groups = CATEGORY_GROUPS.slice();
-  // 개인자료를 상단으로 이동(선호 설정이 top일 때)
   if (pos === 'top'){
     const idx = groups.findIndex(g => g.key === 'personal');
     if (idx > -1){
@@ -184,31 +190,31 @@ function parseInputUrls(){
 async function pasteFromClipboard(){
   try{
     const txt = await navigator.clipboard.readText();
-    if (!txt){ msg.textContent = '클립보드에 텍스트가 없습니다.'; return; }
+    if (!txt){ setMsg('클립보드에 텍스트가 없습니다.'); return; }
     if (urlsBox.value.trim()){
       urlsBox.value = urlsBox.value.replace(/\s*$/,'') + '\n' + txt.trim();
     }else{
       urlsBox.value = txt.trim();
     }
-    msg.textContent = '붙여넣기 완료.';
+    setMsg('붙여넣기 완료.');
   }catch(e){
-    msg.textContent = '클립보드 접근이 차단되었습니다. 브라우저 설정에서 허용해 주세요.';
+    setMsg('클립보드 접근이 차단되었습니다. 브라우저 설정에서 허용해 주세요.');
   }
 }
 
 async function submitAll(){
-  msg.textContent = '등록 중...';
+  setMsg('등록 중...');
 
   const user = auth.currentUser;
-  if (!user){ msg.textContent = '로그인 후 이용하세요.'; return; }
+  if (!user){ setMsg('로그인 후 이용하세요.'); return; }
 
   const urls = parseInputUrls();
-  if (!urls.length){ msg.textContent = 'URL을 한 줄에 하나씩 입력해 주세요.'; return; }
+  if (!urls.length){ setMsg('URL을 한 줄에 하나씩 입력해 주세요.'); return; }
 
   const categories = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value)
     .filter(v => v !== 'personal1' && v !== 'personal2');
-  if (!categories.length){ msg.textContent = '카테고리를 최소 1개 선택해 주세요.'; return; }
-  if (categories.length > 3){ msg.textContent = '카테고리는 최대 3개까지 선택 가능합니다.'; return; }
+  if (!categories.length){ setMsg('카테고리를 최소 1개 선택해 주세요.'); return; }
+  if (categories.length > 3){ setMsg('카테고리는 최대 3개까지 선택 가능합니다.'); return; }
 
   const order = (document.querySelector('input[name="order"]:checked')?.value || 'bottom');
   const list  = (order === 'bottom') ? urls.slice().reverse() : urls.slice();
@@ -229,7 +235,12 @@ async function submitAll(){
       fail++;
     }
   }
-  msg.textContent = `등록 완료: ${ok}건 성공, ${fail}건 실패`;
+  // 결과 메시지: 위/아래 동시 표시
+  setMsg(`등록 완료: ${ok}건 성공, ${fail}건 실패`);
+
+  // 🔽 등록 후 초기화
+  document.querySelectorAll('.cat:checked').forEach(ch => ch.checked = false);
+  urlsBox.value = '';
 }
 
 /* -------------------- 버튼 바인딩 -------------------- */
