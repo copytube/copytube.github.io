@@ -12,6 +12,7 @@ const dropdown     = document.getElementById("dropdownMenu");
 const btnSignOut   = document.getElementById("btnSignOut");
 const btnGoUpload  = document.getElementById("btnGoUpload");
 const btnMyUploads = document.getElementById("btnMyUploads");
+const btnAbout     = document.getElementById("btnAbout");
 const brandHome    = document.getElementById("brandHome");
 
 const catsBox      = document.getElementById("cats");
@@ -49,6 +50,11 @@ document.addEventListener('pointerdown', (e)=>{
 }, true);
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
 dropdown.addEventListener("click", (e)=> e.stopPropagation());
+
+btnAbout?.addEventListener("click", ()=>{
+  location.href = "about.html";
+  closeDropdown();
+});
 btnMyUploads?.addEventListener("click", ()=>{
   location.href = "manage-uploads.html";
   closeDropdown();
@@ -93,7 +99,9 @@ function renderGroups(){
   const html = groups.map(g=>{
     const kids = g.children.map(c=>{
       const isPersonal = (g.key==='personal');
-      const labelText = isPersonal && personalLabels[c.value] ? personalLabels[c.value] : c.label;
+      const defaultLabel = (c.value==='personal1') ? '자료1' : (c.value==='personal2' ? '자료2' : c.label);
+      const labelText = isPersonal && (localStorage.getItem('personalLabels') ? JSON.parse(localStorage.getItem('personalLabels'))[c.value] : '') 
+                        || defaultLabel;
       return `<label><input type="checkbox" class="cat" value="${c.value}"> ${labelText}</label>`;
     }).join('');
 
@@ -118,7 +126,6 @@ let allSelected = false;
 function selectAll(on){
   const boxes = Array.from(catsBox.querySelectorAll('.cat'));
   boxes.forEach(b=>{
-    // 개인자료(personal1/2)는 전체보기에서 제외
     if (b.value === 'personal1' || b.value === 'personal2') return;
     b.checked = !!on;
   });
@@ -132,13 +139,8 @@ btnToggleAll.addEventListener('click', ()=>{
 /* ----------------- 저장 & 이동 ----------------- */
 btnWatch.addEventListener('click', ()=>{
   const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
-
-  // 개인자료(personal1/2)는 시청 페이지에는 의미 없음 → 제외
   const filtered = selected.filter(v => v !== 'personal1' && v !== 'personal2');
-
-  // 아무것도 선택 안 했거나 전체보기 토글 켠 상태라면 ALL 저장
   const valueToSave = (filtered.length === 0 || allSelected) ? "ALL" : filtered;
-
   localStorage.setItem('selectedCats', JSON.stringify(valueToSave));
   location.href = 'watch.html';
 });
