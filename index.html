@@ -4,31 +4,26 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Copytube - 카테고리 선택</title>
-
-  <!-- CSP -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    connect-src 'self'
-      https://firestore.googleapis.com
-      https://identitytoolkit.googleapis.com
-      https://securetoken.googleapis.com
-      https://firebaseinstallations.googleapis.com
-      https://www.googleapis.com
-      https://www.gstatic.com;
+    connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
     img-src 'self' data: https://i.ytimg.com;
-    frame-src https://www.youtube.com https://www.youtube-nocookie.com;
+    frame-src https://www.youtube.com;
     script-src 'self' https://www.gstatic.com 'unsafe-inline';
     style-src 'self' 'unsafe-inline';
     object-src 'none';
     base-uri 'self';
   ">
-
   <link rel="stylesheet" href="css/style.css"/>
   <style>
+    /* 선택 화면 컴팩트 톤 (페이지 한정 보정) */
     .toolbar { display:flex; gap:10px; align-items:center; justify-content:center; margin:8px 0 10px; flex-wrap:wrap; }
     .label-strong{ font-weight:800; font-size:18px; }
     .btn-primary{ padding:10px 16px; border:0; border-radius:10px; background:#4ea1ff; color:#fff; font-weight:800; cursor:pointer; }
-    .btn-pill{ display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:12px; border:1px solid #2a2a2a; background:#111; color:#ddd; cursor:pointer; font-weight:700; }
+    .btn-pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:10px 14px; border-radius:12px; border:1px solid #2a2a2a; background:#111; color:#ddd; cursor:pointer; font-weight:700;
+    }
     .btn-pill[aria-pressed="true"]{ background:#1b1b1b; border-color:#3a3a3a; }
   </style>
 </head>
@@ -40,17 +35,17 @@
       </a>
     </div>
 
-    <div class="right">
+    <div class="right" style="position:relative;">
       <a id="signupLink" class="link" href="signup.html">Sign up</a>
       <a id="signinLink" class="link" href="signin.html">Sign in</a>
       <span id="welcome" class="welcome"></span>
       <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
 
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
-        <button id="btnMyUploads" type="button">내영상관리</button>
-        <button id="btnSignOut" type="button">Sign out</button>
-        <button id="btnGoUpload" class="menu-strong" type="button">추천영상등록</button>
-        <button id="btnAbout" type="button">CopyTube는…</button>
+        <button id="btnAbout"      type="button">CopyTube는..</button>
+        <button id="btnMyUploads"  type="button">내영상관리</button>
+        <button id="btnSignOut"    type="button">Sign out</button>
+        <button id="btnGoUpload"   class="menu-strong" type="button">추천영상등록</button>
       </div>
     </div>
   </header>
@@ -71,12 +66,12 @@
         </button>
       </div>
 
-      <div id="cats"><!-- JS로 그룹 렌더링 --></div>
+      <div id="cats"><!-- JS 렌더 --></div>
     </div>
   </section>
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/index.js?v=20250820"></script>
+  <script type="module" src="js/index.js?v=20250821"></script>
 </body>
 </html>
