@@ -22,54 +22,46 @@
     main{ max-width:980px; margin:96px auto 40px; padding:0 16px; }
     h2{ margin:0 0 8px; }
 
-    /* 상단 컨트롤 줄 */
-    .row{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:8px;
-      align-items:stretch;
-    }
-    @media(min-width:720px){
-      .row{
-        grid-template-columns: minmax(0,1fr) 180px 180px; /* textarea | paste | submit */
-        gap:10px;
-      }
-    }
-
+    /* URL 입력 박스 (기본 3줄) */
     textarea#urlBox{
-      width:100%; min-height:7.5em; /* 기본 3줄 보다 살짝 크게 */
+      width:100%; min-height:6em;
       padding:10px; border:1px solid #333; border-radius:10px;
       background:#000; color:#fff; resize:vertical; line-height:1.35;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
     }
 
-    .btn{
-      border:0; border-radius:12px; cursor:pointer; font-weight:800;
-      padding:10px 12px; text-align:center;
+    /* URL 아래 도구줄: 라디오(세로) + 버튼 2개 */
+    .tools-row{
+      display:grid; gap:8px; align-items:stretch; margin-top:8px;
+      grid-template-columns: 1fr 140px 140px; /* 라디오 | 붙여넣기 | 등록 */
     }
+    @media (max-width:520px){
+      .tools-row{ grid-template-columns: auto 120px 120px; }
+    }
+
+    /* 라디오 박스 (여기 스타일이 최우선 적용되도록 구체성 ↑) */
+    .order-box{
+      background:#0f0f0f; border:1px solid #2a2a2a; border-radius:10px; padding:8px;
+      display:flex; flex-direction:column; gap:6px; min-width:140px;
+    }
+    .order-box .title{ font-weight:700; font-size:13px; color:#ddd; margin-bottom:2px; }
+    .order-box label{ 
+      display:flex; gap:8px; align-items:center; font-size:14px; line-height:1.2;
+      white-space:nowrap;  /* 줄바꿈 방지 */
+    }
+    .order-box input[type="radio"]{ transform:scale(1.05); }
+
+    /* 버튼 */
+    .btn{ border:0; border-radius:12px; cursor:pointer; font-weight:800;
+          padding:10px 12px; text-align:center; display:flex; align-items:center; justify-content:center; }
     .btn-clip{ background:#16a34a; color:#fff; }
     .btn-submit{ background:#4ea1ff; color:#fff; }
 
-    /* 버튼 안 글자 정렬/줄바꿈 */
+    /* 버튼 내부 줄바꿈/정렬 */
     .btn-clip .small{ display:block; line-height:1.1; }
-    .btn-submit{ display:flex; align-items:center; justify-content:center; }
+    .btn-submit span{ line-height:1.1; }
 
-    /* 모바일에서: 라디오(정렬 옵션) 세로 → 버튼 오른쪽 */
-    .tool-strip{
-      display:grid; grid-template-columns: 1fr; gap:8px;
-    }
-    @media(min-width:720px){
-      .tool-strip{ grid-template-columns: 180px 180px; gap:10px; }
-    }
-
-    .order-box{
-      background:#0f0f0f; border:1px solid #2a2a2a; border-radius:10px; padding:8px;
-      display:flex; flex-direction:column; gap:6px;
-    }
-    .order-box label{ display:flex; gap:8px; align-items:center; }
-    .order-box input[type="radio"]{ transform:scale(1.05); }
-
-    /* 도움말(접힘) */
+    /* 붙여넣기 도움말 (접힘) */
     details.help{
       background:#0f0f0f; border:1px solid #2a2a2a; border-radius:10px; padding:10px 12px;
       margin:8px 0 12px;
@@ -83,7 +75,7 @@
     details.help[open] .arrow{ transform: rotate(90deg); }
     .help-body{ font-size:13px; color:#ccc; margin-top:8px; line-height:1.5; }
 
-    /* 카테고리 컴팩트 – index와 동일 밀도 */
+    /* 카테고리: index와 동일 밀도(컴팩트) */
     .group{
       border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
       padding:8px; margin:8px 0;
@@ -105,20 +97,14 @@
       display:flex; gap:6px; align-items:center; justify-content:flex-start;
     }
 
-    /* 개인자료 라벨 옆 “이름변경” 버튼 */
+    /* 개인자료 이름변경 버튼(라벨 옆) */
     .rename-btn{
       margin-left:auto; font-size:12px; padding:4px 8px; border-radius:6px; border:1px solid #3a3a3a;
       background:#151515; color:#ddd; cursor:pointer;
+      white-space:nowrap;
     }
 
-    /* 개인자료 위치(상/하) – 개인자료 그룹 하단에 표시 */
-    .personal-pos{
-      margin-top:8px; padding-top:6px; border-top:1px dashed #333; display:flex; gap:10px; align-items:center; flex-wrap:wrap;
-    }
-    .personal-pos .title{ font-size:13px; color:#aaa; }
-    .personal-pos label{ display:inline-flex; align-items:center; gap:6px; }
-
-    /* 결과 메시지 */
+    /* 하단 상태 메시지 */
     #msg{ margin-top:10px; font-size:13px; color:#ccc; min-height:1.2em; white-space:pre-line; }
   </style>
 </head>
@@ -147,22 +133,27 @@
   <main>
     <h2>추천영상 등록</h2>
 
-    <div class="row" style="margin-top:8px;">
-      <textarea id="urlBox" placeholder="여러 줄 붙여넣기 가능\n한 줄에 1개의 YouTube URL"></textarea>
+    <!-- URL 입력 -->
+    <textarea id="urlBox" placeholder="여러 줄 붙여넣기 가능&#10;한 줄에 1개의 YouTube URL"></textarea>
 
-      <div class="tool-strip">
-        <!-- 붙여넣기 -->
-        <button id="btnPaste" class="btn btn-clip">
-          <span class="small">클립보드</span>
-          <span class="small">붙여넣기</span>
-        </button>
-
-        <!-- 등록 -->
-        <button id="btnSubmitTop" class="btn btn-submit">등록</button>
+    <!-- URL 아래 컨트롤 -->
+    <div class="tools-row">
+      <!-- ☆ 여기 라디오가 반드시 보입니다 -->
+      <div class="order-box" id="orderBox">
+        <div class="title">등록 순서</div>
+        <label><input type="radio" name="order" value="bottom" checked> 아래부터 등록</label>
+        <label><input type="radio" name="order" value="top"> 위부터 등록</label>
       </div>
+
+      <button id="btnPaste" class="btn btn-clip" type="button">
+        <span class="small">클립보드</span>
+        <span class="small">붙여넣기</span>
+      </button>
+
+      <button id="btnSubmitTop" class="btn btn-submit" type="button"><span>등록</span></button>
     </div>
 
-    <!-- 붙여넣기 도움말 (접힘 - 기본 닫힘) -->
+    <!-- 도움말 (접힘: 기본 닫힘) -->
     <details class="help" id="pasteHelp">
       <summary><span class="arrow">▶</span> 붙여넣기 도움말</summary>
       <div class="help-body">
@@ -173,7 +164,7 @@
         • <b>iPhone/iPad (iOS 16+)</b>: 처음 붙여넣기 때 <i>“이 앱에서 붙여넣기 허용”</i> 팝업에서 <b>허용</b>을 선택하세요.<br/>
         • <b>안드로이드/데스크탑 Chrome</b>: <b>설정 → 사이트 설정 → 클립보드</b>에서 <code>https://copytube.github.io</code>를 <b>허용</b>으로 변경하세요.<br/>
         • 또는 <b>길게 누르기 → 붙여넣기</b> 또는 <code>Ctrl/⌘+V</code>를 쓰면 됩니다.<br/><br/>
-        • <b>개인자료 1/2</b>는 로컬저장소에 저장되며 공유되지 않습니다. 이름 변경 가능하며, 카테고리 위치(상단/하단)도 변경 가능합니다.
+        • <b>개인자료 1/2</b>는 로컬저장소에 저장되며 공유되지 않습니다. 이름 변경 가능하며, 카테고리 위치(상/하)도 (카테고리 화면에서) 변경 가능합니다.
       </div>
     </details>
 
@@ -181,13 +172,14 @@
     <div id="cats"><!-- JS로 그룹 렌더링 --></div>
 
     <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
-      <button id="btnSubmitBottom" class="btn btn-submit">등록</button>
+      <button id="btnSubmitBottom" class="btn btn-submit" type="button"><span>등록</span></button>
       <span id="msg"></span>
     </div>
   </main>
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/upload.js?v=20250820_personalpos"></script>
+  <!-- 캐시우회 버전 ↑ -->
+  <script type="module" src="js/upload.js?v=20250820_orderfix"></script>
 </body>
 </html>
