@@ -1,18 +1,33 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>copytube - Firebase 점검</title>
-<link rel="stylesheet" href="css/style.css"/>
-<style>
-  body { padding:96px 24px 24px; }
-  .card { border:1px solid #333; border-radius:12px; padding:16px; margin:12px 0; background:#111; }
-  pre { background:#0b0b0b; padding:12px; border-radius:8px; overflow:auto; color:#cfcfcf; min-height:80px; }
-  button { padding:10px 12px; border:0; border-radius:8px; background:#4ea1ff; color:#fff; font-weight:700; cursor:pointer; }
-  .row { display:flex; gap:8px; flex-wrap:wrap; }
-  .ok{ color:#9ef01a } .bad{ color:#ff6b6b } .muted{ color:#9aa0a6 }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>copytube - Firebase 점검</title>
+
+  <!-- CSP -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    connect-src 'self'
+      https://firestore.googleapis.com
+      https://identitytoolkit.googleapis.com
+      https://securetoken.googleapis.com
+      https://firebaseinstallations.googleapis.com
+      https://www.googleapis.com
+      https://www.gstatic.com;
+    img-src 'self' data:;
+    frame-src https://www.youtube.com https://www.youtube-nocookie.com;
+    script-src 'self' https://www.gstatic.com 'unsafe-inline';
+    style-src 'self' 'unsafe-inline';
+    object-src 'none';
+    base-uri 'self';
+  ">
+  <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    body { padding: 96px 24px 24px; }
+    .card { border: 1px solid #333; border-radius: 12px; padding: 16px; margin: 12px 0; background:#111; }
+    pre { background:#0b0b0b; padding:12px; border-radius:8px; overflow:auto; color:#cfcfcf; }
+  </style>
 </head>
 <body>
   <header id="topbar">
@@ -22,100 +37,52 @@
   </header>
 
   <h1>Firebase 점검</h1>
-
-  <div class="card" id="basic"></div>
-
+  <div class="card"><div id="basic"></div></div>
+  <div class="card"><h3>연결/상태</h3><div id="status">초기화 중…</div></div>
   <div class="card">
-    <h3>연결/상태</h3>
-    <div class="row">
-      <button id="btnNet">네트워크 진단</button>
-      <button id="btnRead">Firestore 읽기 테스트</button>
-      <button id="btnWrite">쓰기 테스트(로그인 전 거부가 정상)</button>
-    </div>
-    <pre id="log">대기 중…</pre>
+    <h3>네트워크 진단</h3>
+    <pre id="netlog">대기 중…</pre>
   </div>
 
-<script type="module">
-import { app, auth, db } from './js/firebase-init.js';
-import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
-import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
+  <script type="module">
+    import { app, auth } from './js/firebase-init.js';
+    import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
 
-const $ = (s)=>document.querySelector(s);
-const log = $('#log'), basic = $('#basic');
+    const $ = (id)=>document.getElementById(id);
+    const status=$('status'), netlog=$('netlog');
 
-function p(s){ log.textContent += s + '\\n'; }
-function clr(){ log.textContent = ''; }
+    $('basic').innerHTML = `
+      <div>projectId: <b>${app.options?.projectId}</b></div>
+      <div>authDomain: <b>${app.options?.authDomain}</b></div>
+    `;
+    onAuthStateChanged(auth, (user) => {
+      status.textContent = user ? `로그인됨 (uid=${user.uid}, name=${user.displayName||''})` : '로그아웃됨';
+    });
 
-const info = [
-  ['location', location.href],
-  ['protocol', location.protocol],
-  ['navigator.onLine', String(navigator.onLine)],
-  ['projectId', app.options?.projectId||'(없음)'],
-  ['authDomain', app.options?.authDomain||'(없음)'],
-];
-
-basic.innerHTML = info.map(([k,v])=>`<div><span class="muted">${k}:</span> <b>${v}</b></div>`).join('');
-
-// 로그인 상태 표기
-const header = document.createElement('div');
-header.style.marginTop = '6px';
-header.id = 'status';
-basic.appendChild(header);
-onAuthStateChanged(auth, (user)=>{
-  header.innerHTML = user
-    ? `<span class="ok">로그인됨</span> (uid=${user.uid}, name=${user.displayName||''})`
-    : `<span class="bad">로그아웃됨</span>`;
-});
-
-// 1) 네트워크 진단
-$('#btnNet').onclick = async ()=>{
-  clr();
-  p('[네트워크 진단 시작]');
-  if (location.protocol === 'file:') p('! file:// 로 열렸습니다. 가급적 https://에서 테스트하세요.');
-  p('navigator.onLine = '+navigator.onLine);
-
-  const endpoints = [
-    ['gstatic (SDK)', 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js'],
-    ['firestore', 'https://firestore.googleapis.com/$discovery/rest?version=v1'],
-    ['identitytoolkit', 'https://identitytoolkit.googleapis.com'],
-    ['securetoken', 'https://securetoken.googleapis.com'],
-    ['installations', 'https://firebaseinstallations.googleapis.com'],
-  ];
-
-  for (const [name,url] of endpoints){
-    try{
-      const r = await fetch(url, { method:'GET', mode:'cors' });
-      p(`✓ ${name}: ${r.status} ${r.statusText}`);
-    }catch(e){
-      p(`✗ ${name}: ${e.message || e}  ← 광고차단/방화벽이 막고 있을 수 있음`);
+    async function ping(url){
+      try{
+        const r = await fetch(url, { mode:'no-cors' });
+        return true;
+      }catch{ return false; }
     }
-  }
-  p('[끝]');
-};
-
-// 2) 읽기
-$('#btnRead').onclick = async ()=>{
-  clr(); p('[READ] usernames/healthcheck 시도…');
-  try{
-    const snap = await getDoc(doc(db,'usernames','healthcheck'));
-    p(`→ 성공. 존재여부: ${snap.exists()}`);
-  }catch(e){
-    p(`→ 실패: ${e.code||e.name} - ${e.message}`);
-    if (String(e.message||'').includes('client is offline'))
-      p('힌트: firestore.googleapis.com 이 차단되었을 가능성 ↑');
-  }
-};
-
-// 3) 쓰기
-$('#btnWrite').onclick = async ()=>{
-  clr(); p('[WRITE] usernames/__check… (로그인 전 거부가 정상)');
-  try {
-    await setDoc(doc(db,'usernames','__check_'+Date.now()), { reserved:true, at:serverTimestamp() });
-    p('→ 성공 (로그인 상태)');
-  } catch(e){
-    p(`→ 실패: ${e.code||e.name} - ${e.message}`);
-  }
-};
-</script>
+    (async ()=>{
+      const lines = [];
+      lines.push('[네트워크 진단 시작]');
+      lines.push('navigator.onLine = ' + (navigator.onLine ? 'true':'false'));
+      const targets = [
+        ['gstatic (SDK)', 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js'],
+        ['firestore', 'https://firestore.googleapis.com/google.firestore.v1.Firestore/'],
+        ['identitytoolkit', 'https://identitytoolkit.googleapis.com'],
+        ['securetoken', 'https://securetoken.googleapis.com'],
+        ['installations', 'https://firebaseinstallations.googleapis.com'],
+      ];
+      for (const [name, url] of targets){
+        const ok = await ping(url);
+        lines.push(`${ok?'✓':'✗'} ${name}: ${ok ? 'OK' : 'Failed to fetch'}`);
+      }
+      lines.push('[끝]');
+      netlog.textContent = lines.join('\\n');
+    })();
+  </script>
 </body>
 </html>
