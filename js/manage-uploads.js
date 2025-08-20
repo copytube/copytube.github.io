@@ -2,13 +2,14 @@
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import {
-  collection, query, where, orderBy, limit, startAfter, getDocs, getDoc, doc, deleteDoc
+  collection, query, where, orderBy, limit, startAfter, getDocs,
+  getDoc, doc, updateDoc, deleteDoc
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 import { CATEGORY_GROUPS } from './categories.js';
 
-const $ = (s)=>document.querySelector(s);
+const $ = s => document.querySelector(s);
 
-/* ---------- 상단바 / 드롭다운(모든 페이지 공통 패턴) ---------- */
+/* ---------- 상단바 / 드롭다운 ---------- */
 const signupLink   = $('#signupLink');
 const signinLink   = $('#signinLink');
 const welcome      = $('#welcome');
@@ -35,7 +36,7 @@ onAuthStateChanged(auth, (user)=>{
   signupLink?.classList.toggle('hidden', loggedIn);
   signinLink?.classList.toggle('hidden', loggedIn);
   menuBtn?.classList.toggle('hidden', !loggedIn);
-  if (welcome) welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : '';
+  welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : '';
   closeDropdown();
 });
 menuBtn?.addEventListener('click', (e)=>{ e.stopPropagation(); dropdown.classList.contains('hidden') ? openDropdown() : closeDropdown(); });
@@ -44,7 +45,7 @@ document.addEventListener('pointerdown', (e)=>{
   const inside = e.target.closest('#dropdownMenu, #menuBtn');
   if (!inside) closeDropdown();
 }, true);
-document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeDropdown(); });
+document.addEventListener('keydown', (e)=>{ if (e.key==='Escape') closeDropdown(); });
 dropdown?.addEventListener('click', (e)=> e.stopPropagation());
 
 btnGoUpload?.addEventListener('click', ()=>{ location.href = 'upload.html'; closeDropdown(); });
@@ -52,212 +53,222 @@ btnMyUploads?.addEventListener('click', ()=>{ location.href = 'manage-uploads.ht
 btnAbout?.addEventListener('click', ()=>{ location.href = 'about.html'; closeDropdown(); });
 btnSignOut?.addEventListener('click', async ()=>{ await fbSignOut(auth); closeDropdown(); });
 
-/* ---------- 카테고리 라벨 맵(알 수 없는 코드도 표시) ---------- */
+/* ---------- 카테고리 라벨 맵 (미등록 코드도 안전 표기) ---------- */
 const labelMap = new Map(CATEGORY_GROUPS.flatMap(g => g.children.map(c => [c.value, c.label])));
-const labelOf = (v) => labelMap.get(v) || `(${String(v)})`;
+const labelOf  = (v) => labelMap.get(v) || `(${String(v)})`;
 
 /* ---------- DOM ---------- */
-const list      = $('#list');
-const msg       = $('#msg');
-const adminBadge= $('#adminBadge');
-const btnPrev   = $('#btnPrev');
-const btnNext   = $('#btnNext');
-const pageInfo  = $('#pageInfo');
-const btnRefresh= $('#btnRefresh');
+const listEl     = $('#list');
+const statusEl   = $('#status');
+const adminBadge = $('#adminBadge');
+const prevBtn    = $('#prevBtn');
+const nextBtn    = $('#nextBtn');
+const pageInfo   = $('#pageInfo');
+const refreshBtn = $('#refreshBtn');
 
 /* ---------- 상태 ---------- */
 const PAGE_SIZE = 30;
-let isAdmin = false;
-let cursors = []; // 각 페이지의 시작점 스냅샷 누적
-let page = 0;
-let lastDoc = null;
-let usingFallback = false; // 인덱스 없이 전량 가져오기 사용 여부
-let fallbackRows = [];     // fallback 모드일 때 전체 행 캐시
+let currentUser = null;
+let isAdmin     = false;
+let cursors     = [];   // 각 페이지 마지막 문서 스냅샷
+let page        = 1;
+let reachedEnd  = false;
 
 /* ---------- 유틸 ---------- */
-function toMs(t){
-  try{ return t?.toMillis ? t.toMillis() : (typeof t==='number' ? t : 0); }catch{ return 0; }
-}
 function escapeHTML(s){
-  return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function catChipsHTML(arr){
+  if (!Array.isArray(arr) || !arr.length) return '<span class="sub">(카테고리 없음)</span>';
+  return `<div class="cats">${arr.map(v=>`<span class="chip">${escapeHTML(labelOf(v))}</span>`).join('')}</div>`;
+}
+function buildSelect(name){
+  // personal 그룹(로컬 전용)은 제외
+  const opts = ['<option value="">선택안함</option>'];
+  for (const g of CATEGORY_GROUPS){
+    if (g.personal) continue;
+    const inner = g.children.map(c => `<option value="${c.value}">${escapeHTML(c.label)}</option>`).join('');
+    opts.push(`<optgroup label="${escapeHTML(g.label)}">${inner}</optgroup>`);
+  }
+  return `<select class="sel" data-name="${name}">${opts.join('')}</select>`;
 }
 
-/* ---------- 관리자 여부 확인 ---------- */
+/* ---------- 1행 렌더 ---------- */
+function renderRow(docId, data){
+  const cats  = Array.isArray(data.categories) ? data.categories : [];
+  const url   = data.url || '';
+  const uid   = data.uid || '';
+  const title = data.title || '';
+
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.dataset.id = docId;
+  row.innerHTML = `
+    <div class="meta">
+      <div class="title">${escapeHTML(title || url)}</div>
+      <div class="sub">${escapeHTML(url)}</div>
+      ${catChipsHTML(cats)}
+      ${isAdmin ? `<div class="sub __uploader">업로더: ${escapeHTML(uid)}</div>` : ''}
+    </div>
+    <div class="right">
+      <div class="cat-editor">
+        ${buildSelect('s1')}
+        ${buildSelect('s2')}
+        ${buildSelect('s3')}
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary btn-apply" type="button">카테고리변환</button>
+        <button class="btn btn-danger btn-del" type="button">삭제</button>
+      </div>
+    </div>
+  `;
+
+  // 현재 카테고리로 프리셀렉트
+  const sels = Array.from(row.querySelectorAll('select.sel'));
+  cats.slice(0,3).forEach((v, i) => {
+    if (sels[i]) sels[i].value = v;
+  });
+
+  // 적용 버튼
+  row.querySelector('.btn-apply').addEventListener('click', async ()=>{
+    const chosen = Array.from(row.querySelectorAll('select.sel')).map(s=>s.value).filter(Boolean);
+    // 중복 제거 + 최대 3
+    const uniq = [...new Set(chosen)].slice(0,3);
+    if (uniq.length === 0){ alert('최소 1개의 카테고리를 선택하세요.'); return; }
+
+    try{
+      await updateDoc(doc(db,'videos', docId), { categories: uniq });
+      statusEl.textContent = '변경 완료';
+      // 칩 갱신
+      const meta = row.querySelector('.meta');
+      const oldCats = meta.querySelector('.cats');
+      if (oldCats) oldCats.remove();
+      meta.insertAdjacentHTML('beforeend', catChipsHTML(uniq));
+    }catch(e){
+      alert('변경 실패: ' + (e.message || e));
+    }
+  });
+
+  // 삭제 버튼
+  row.querySelector('.btn-del').addEventListener('click', async ()=>{
+    if (!confirm('정말 삭제하시겠습니까?')) return;
+    try{
+      await deleteDoc(doc(db,'videos', docId));
+      row.remove();
+    }catch(e){
+      alert('삭제 실패: ' + (e.message || e));
+    }
+  });
+
+  return row;
+}
+
+/* ---------- 리스트 렌더 ---------- */
+function clearList(){ listEl.innerHTML = ''; }
+
+/* ---------- 관리자 여부 ---------- */
 async function checkAdmin(uid){
   try{
     const s = await getDoc(doc(db,'admins', uid));
     return s.exists();
-  }catch{ return false; }
-}
-
-/* ---------- 행 렌더 ---------- */
-function renderRows(rows){
-  list.innerHTML = '';
-  for (const v of rows){
-    const cats = Array.isArray(v.categories) ? v.categories : [];
-    const catsHtml = cats.map(c => `<span class="catline">${escapeHTML(labelOf(c))}</span>`).join('<br/>');
-
-    const urlSafe = escapeHTML(v.url || '');
-    const title   = escapeHTML(v.title || v.url || '(제목 없음)');
-
-    const el = document.createElement('div');
-    el.className = 'row';
-    el.innerHTML = `
-      <input class="sel" type="radio" name="sel" value="${v.id}">
-      <div class="meta">
-        <div class="title">${title}</div>
-        <div class="url">${urlSafe}${v.uid ? ' • 업로더: '+escapeHTML(v.uid) : ''}</div>
-        <div class="catbox">${catsHtml || '<span class="catline">(카테고리 없음)</span>'}</div>
-      </div>
-      <div>
-        <button class="btn delete" data-id="${v.id}" type="button">삭제</button>
-      </div>
-    `;
-    el.querySelector('.btn.delete').addEventListener('click', async ()=>{
-      const id = el.querySelector('.btn.delete').getAttribute('data-id');
-      if (!confirm('정말 삭제하시겠습니까?')) return;
-      try{
-        await deleteDoc(doc(db,'videos', id));
-        el.remove();
-      }catch(e){
-        alert('삭제 실패: ' + (e.message || e.code || e));
-      }
-    });
-    list.appendChild(el);
+  }catch{
+    return false;
   }
 }
 
-/* ---------- 페이지 정보 ---------- */
-function updatePager(hasPrev, hasNext){
-  btnPrev.classList.toggle('hidden', !hasPrev);
-  btnNext.classList.toggle('hidden', !hasNext);
-  pageInfo.textContent = `페이지 ${page+1}${usingFallback ? ' (오프라인 정렬)' : ''}`;
-}
+/* ---------- 페이지 로드 ---------- */
+async function loadPage(p){
+  if (!currentUser) return;
+  statusEl.textContent = '읽는 중...';
 
-/* ---------- Firestore 페이지 로드 ---------- */
-async function loadPage(direction = 'stay'){
-  msg.textContent = '불러오는 중...';
-  list.innerHTML = '';
-  btnPrev.classList.add('hidden'); btnNext.classList.add('hidden');
-
-  const user = auth.currentUser;
-  if (!user){ msg.textContent = '로그인 후 이용하세요.'; return; }
-
-  // 관리자 체크 1회
-  if (page === 0 && cursors.length === 0){
-    isAdmin = await checkAdmin(user.uid);
-    adminBadge.classList.toggle('hidden', !isAdmin);
-  }
-
-  // 1) 기본: 서버 페이지네이션 쿼리
   try{
-    const base = collection(db,'videos');
     const parts = [];
-    if (!isAdmin){
-      parts.push(where('uid','==', user.uid));
-    }
+    const base  = collection(db,'videos');
+
+    if (!isAdmin) parts.push(where('uid','==', currentUser.uid));
     parts.push(orderBy('createdAt','desc'));
-    if (direction === 'next' && lastDoc) parts.push(startAfter(lastDoc));
     parts.push(limit(PAGE_SIZE));
+    if (p > 1){
+      const cursor = cursors[p-2];
+      if (cursor) parts.push(startAfter(cursor));
+    }
 
     const q = query(base, ...parts);
     const snap = await getDocs(q);
 
-    if (direction === 'prev'){
-      // prev는 커서 스택으로만 이동 (서버 prev 페이지는 생략)
-      if (page > 0){
-        page -= 1;
-        lastDoc = cursors[page] || null;
-        // 다시 앞으로(현재 커서 기준) 로딩
-        return loadPage('stay');
-      }
+    clearList();
+    if (snap.empty){
+      listEl.innerHTML = '<div class="sub">목록이 없습니다.</div>';
+      reachedEnd = true;
     }else{
-      // 현재 위치 커서 저장
-      if (snap.docs.length){
-        if (direction === 'next' || (direction === 'stay' && cursors.length===0)){
-          cursors[page] = snap.docs[0]; // 각 페이지의 첫 문서를 커서로 기록
-        }
-        lastDoc = snap.docs[snap.docs.length-1];
-      }
-      const rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-      renderRows(rows);
-      // 다음 페이지 존재 추정
-      updatePager(page>0, snap.docs.length === PAGE_SIZE);
-      msg.textContent = rows.length ? '' : '영상이 없습니다.';
-      usingFallback = false;
-      return;
+      snap.docs.forEach(d => listEl.appendChild(renderRow(d.id, d.data())));
+      cursors[p-1] = snap.docs[snap.docs.length - 1];
+      reachedEnd = (snap.size < PAGE_SIZE);
     }
-  }catch(e){
-    // 2) 실패 시(인덱스/권한/네트워크), 전량 읽기 후 클라이언트 정렬/페이징
-    //    데이터가 적은 현재 단계에서만 권장; 커지면 Cloud Function/집계로 이전
-  }
 
-  // Fallback 모드
-  try{
-    usingFallback = true;
-    const snap = await getDocs(collection(db,'videos'));
-    let rows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    if (!isAdmin) rows = rows.filter(r => r.uid === auth.currentUser.uid);
-    rows.sort((a,b)=> toMs(b.createdAt) - toMs(a.createdAt));
-    fallbackRows = rows;
+    pageInfo.textContent = String(p);
+    statusEl.textContent = '';
 
-    // 페이지 슬라이싱
-    const start = page * PAGE_SIZE;
-    const slice = rows.slice(start, start + PAGE_SIZE);
-    renderRows(slice);
-    updatePager(page>0, (start + PAGE_SIZE) < rows.length);
-    msg.textContent = slice.length ? '' : '영상이 없습니다.';
   }catch(e){
-    console.error(e);
-    msg.textContent = `목록을 불러오지 못했습니다: ${e.message || e.code || e}`;
+    // 인덱스/권한 문제 등으로 실패하면 사용자 범위 전체 가져와 정렬 후 슬라이스 (초기 데이터량 가정)
+    try{
+      const all = await getDocs(collection(db,'videos'));
+      let rows = all.docs.map(d => ({ id:d.id, ...d.data() }));
+      if (!isAdmin) rows = rows.filter(r => r.uid === currentUser.uid);
+      rows.sort((a,b)=>{
+        const am = a.createdAt?.toMillis?.() || 0;
+        const bm = b.createdAt?.toMillis?.() || 0;
+        return bm - am;
+      });
+      const start = (p-1)*PAGE_SIZE;
+      const slice = rows.slice(start, start+PAGE_SIZE);
+
+      clearList();
+      slice.forEach(v => listEl.appendChild(renderRow(v.id, v)));
+      reachedEnd = (start + PAGE_SIZE >= rows.length);
+      pageInfo.textContent = String(p);
+      statusEl.textContent = '(오프라인 정렬)';
+
+    }catch(e2){
+      console.error(e, e2);
+      statusEl.textContent = '읽기 실패: ' + (e.message || e);
+    }
   }
 }
 
-/* ---------- 페이지 이동 ---------- */
-btnNext.addEventListener('click', ()=>{
-  if (usingFallback){
-    const start = (page+1)*PAGE_SIZE;
-    if (start < fallbackRows.length){
-      page += 1;
-      const slice = fallbackRows.slice(start, start + PAGE_SIZE);
-      renderRows(slice);
-      updatePager(page>0, (start + PAGE_SIZE) < fallbackRows.length);
-    }
-  }else{
-    page += 1;
-    loadPage('next');
-  }
+/* ---------- 페이징 ---------- */
+prevBtn.addEventListener('click', ()=>{
+  if (page <= 1) return;
+  page -= 1;
+  loadPage(page);
 });
-btnPrev.addEventListener('click', ()=>{
-  if (usingFallback){
-    if (page > 0){
-      page -= 1;
-      const start = page*PAGE_SIZE;
-      const slice = fallbackRows.slice(start, start + PAGE_SIZE);
-      renderRows(slice);
-      updatePager(page>0, (start + PAGE_SIZE) < fallbackRows.length);
-    }
-  }else{
-    // 커서 스택으로 이전 페이지 근사
-    if (page > 0){
-      page -= 1;
-      lastDoc = cursors[page] || null;
-      loadPage('stay');
-    }
-  }
+nextBtn.addEventListener('click', ()=>{
+  if (reachedEnd) return;
+  page += 1;
+  loadPage(page);
 });
-btnRefresh.addEventListener('click', ()=>{
-  page = 0; cursors = []; lastDoc = null; usingFallback = false; fallbackRows = [];
-  loadPage('stay');
+refreshBtn.addEventListener('click', ()=>{
+  cursors = []; page = 1; reachedEnd = false;
+  loadPage(page);
 });
 
 /* ---------- 시작 ---------- */
 onAuthStateChanged(auth, async (user)=>{
-  if (!user){
-    msg.textContent = '로그인 후 이용하세요.';
-    list.innerHTML = '';
+  const loggedIn = !!user;
+  signupLink?.classList.toggle('hidden', loggedIn);
+  signinLink?.classList.toggle('hidden', loggedIn);
+  welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : '';
+
+  if (!loggedIn){
+    currentUser = null;
+    statusEl.textContent = '로그인 후 이용하세요.';
+    clearList();
     return;
   }
-  page = 0; cursors = []; lastDoc = null; usingFallback = false; fallbackRows = [];
-  await loadPage('stay');
+  currentUser = user;
+  isAdmin = await checkAdmin(user.uid);
+  adminBadge.style.display = isAdmin ? '' : 'none';
+
+  cursors = []; page = 1; reachedEnd = false;
+  loadPage(page);
 });
