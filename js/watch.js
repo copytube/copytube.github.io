@@ -5,15 +5,13 @@ import {
   collection, getDocs, query, where, orderBy, limit, startAfter
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-/* ---------- 뷰포트 높이 보정 (모바일 주소창 높이 대응) ---------- */
-function updateVh(){
-  document.documentElement.style.setProperty('--app-vh', `${window.innerHeight}px`);
-}
+/* ---------- 뷰포트 높이 보정 ---------- */
+function updateVh(){ document.documentElement.style.setProperty('--app-vh', `${window.innerHeight}px`); }
 updateVh();
 window.addEventListener('resize', updateVh);
 window.addEventListener('orientationchange', updateVh);
 
-/* ---------- DOM ---------- */
+/* ----------------- DOM ----------------- */
 const topbar        = document.getElementById("topbar");
 const signupLink    = document.getElementById("signupLink");
 const signinLink    = document.getElementById("signinLink");
@@ -28,68 +26,47 @@ const btnAbout      = document.getElementById("btnAbout");
 const brandHome     = document.getElementById("brandHome");
 const videoContainer = document.getElementById("videoContainer");
 
-/* ---------- 드롭다운 (index와 동일한 터치 처리) ---------- */
+/* ----------------- 드롭다운 ----------------- */
 let isMenuOpen = false;
-function openDropdown(){
-  isMenuOpen = true;
-  dropdown.classList.remove("hidden");
-  requestAnimationFrame(()=> dropdown.classList.add("show"));
-}
-function closeDropdown(){
-  isMenuOpen = false;
-  dropdown.classList.remove("show");
-  setTimeout(()=> dropdown.classList.add("hidden"), 180);
-}
+function openDropdown(){ isMenuOpen = true; dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); }
+function closeDropdown(){ isMenuOpen = false; dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"), 180); }
+
 onAuthStateChanged(auth, (user)=>{
   const loggedIn = !!user;
-  signupLink.classList.toggle("hidden", loggedIn);
-  signinLink.classList.toggle("hidden", loggedIn);
-  menuBtn.classList.toggle("hidden", !loggedIn);
+  signupLink?.classList.toggle("hidden", loggedIn);
+  signinLink?.classList.toggle("hidden", loggedIn);
   welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
+  // 메뉴 버튼은 항상 표시
   closeDropdown();
 });
-menuBtn.addEventListener("click", (e)=>{
-  e.stopPropagation();
-  dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown();
-});
-// 바깥 조작 시 닫기 (pointerdown; touchstart 아님)
-document.addEventListener('pointerdown', (e)=>{
-  if (dropdown.classList.contains('hidden')) return;
-  const inside = e.target.closest('#dropdownMenu, #menuBtn');
-  if (!inside) closeDropdown();
-}, true);
-// 스크롤/휠/키 입력 시 닫기
+
+menuBtn?.addEventListener("click", (e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown(); });
+document.addEventListener('pointerdown', (e)=>{ if (dropdown.classList.contains('hidden')) return; if (!e.target.closest('#dropdownMenu, #menuBtn')) closeDropdown(); }, true);
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
+dropdown?.addEventListener("click", (e)=> e.stopPropagation());
+
 ["scroll","wheel","keydown","touchmove"].forEach(ev=>{
   window.addEventListener(ev, ()=>{ if(!dropdown.classList.contains('hidden')) closeDropdown(); }, {passive:true});
 });
-// 내부 클릭 버블 차단
-dropdown.addEventListener("click", (e)=> e.stopPropagation());
-// 내비게이션
+
+// 로그인 필요 메뉴는 미로그인 시 로그인 페이지로 유도
+function goOrSignIn(path){ auth.currentUser ? (location.href = path) : (location.href = 'signin.html'); }
 btnGoCategory?.addEventListener("click", ()=>{ location.href = "index.html"; closeDropdown(); });
-btnMyUploads ?.addEventListener("click", ()=>{ location.href = "manage-uploads.html"; closeDropdown(); });
+btnMyUploads ?.addEventListener("click", ()=>{ goOrSignIn("manage-uploads.html"); closeDropdown(); });
 btnAbout     ?.addEventListener("click", ()=>{ location.href = "about.html"; closeDropdown(); });
-btnSignOut   ?.addEventListener("click", async ()=>{ await fbSignOut(auth); closeDropdown(); });
-btnGoUpload  ?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
+btnSignOut   ?.addEventListener("click", async ()=>{ if (!auth.currentUser){ location.href = 'signin.html'; return; } await fbSignOut(auth); closeDropdown(); });
+btnGoUpload  ?.addEventListener("click", ()=>{ goOrSignIn("upload.html"); closeDropdown(); });
 brandHome    ?.addEventListener("click", (e)=>{ e.preventDefault(); location.href = "index.html"; });
 
-/* ---------- 상단바: 스와이프/조작 시 1초 노출 후 숨김 ---------- */
+/* ----------------- 상단바 자동 숨김 ----------------- */
 const HIDE_DELAY_MS = 1000;
 let hideTimer = null;
-function showTopbarTemp(){
-  topbar.classList.remove('hide');
-  scheduleHide();
-}
-function scheduleHide(){
-  if(hideTimer) clearTimeout(hideTimer);
-  if(!isMenuOpen){
-    hideTimer = setTimeout(()=> topbar.classList.add('hide'), HIDE_DELAY_MS);
-  }
-}
+function showTopbarTemp(){ topbar.classList.remove('hide'); scheduleHide(); }
+function scheduleHide(){ if(hideTimer) clearTimeout(hideTimer); if(!isMenuOpen){ hideTimer = setTimeout(()=> topbar.classList.add('hide'), HIDE_DELAY_MS); } }
 ['scroll','wheel','mousemove','keydown','pointermove','touchmove'].forEach(ev=>{
   const target = ev==='scroll' ? videoContainer : window;
   target.addEventListener(ev, ()=>{ if(!isMenuOpen) showTopbarTemp(); }, { passive:true });
 });
-// 모서리(첫/마지막)에서 스와이프만 해도 1초 표시되도록
 let touchStartY = null;
 videoContainer.addEventListener('touchstart', (e)=>{ touchStartY = e.touches[0]?.clientY ?? null; }, {passive:true});
 videoContainer.addEventListener('touchend', (e)=>{
@@ -100,32 +77,26 @@ videoContainer.addEventListener('touchend', (e)=>{
   touchStartY = null;
 }, {passive:true});
 
-/* ---------- 선택 카테고리 ---------- */
-function getSelectedCats(){
-  try { return JSON.parse(localStorage.getItem('selectedCats')||'null'); }
-  catch { return "ALL"; }
-}
+/* ----------------- 선택/연속재생 플래그 ----------------- */
+function getSelectedCats(){ try { return JSON.parse(localStorage.getItem('selectedCats')||'null'); } catch { return "ALL"; } }
+const AUTO_NEXT = localStorage.getItem('autonext') === 'on';
 
-/* ---------- YouTube 제어: 최초 언뮤트 후 전 카드 자동 언뮤트 ---------- */
-let userSoundConsent = false;   // 사용자가 한 번이라도 소리 허용했는지
-let currentActive    = null;    // 현재 재생 중인 카드(div.video)
+/* ----------------- YouTube 제어 ----------------- */
+let userSoundConsent = false;
+let currentActive    = null;
+let isLoadingMore    = false;
+let hasMore          = true;
 
-function ytCmd(iframe, func, args = []){
+function ytCmd(iframe, func, args = []) {
   if (!iframe || !iframe.contentWindow) return;
   iframe.contentWindow.postMessage(JSON.stringify({ event:"command", func, args }), "*");
 }
 
-// 명시적 언뮤트(탭/키/클릭 등 사용자 제스처) → 상태 저장 + 현재 카드 언뮤트/재생
 function grantSoundAndUnmuteCurrent(){
   userSoundConsent = true;
   const iframe = currentActive?.querySelector('iframe');
-  if (iframe){
-    ytCmd(iframe, "unMute");
-    ytCmd(iframe, "playVideo");
-  }
+  if (iframe){ ytCmd(iframe,"unMute"); ytCmd(iframe,"playVideo"); }
 }
-
-// 한 번만: 아무 사용자 제스처에서 소리 허용으로 간주
 const onceOpts = (ev)=> (ev==='touchstart' ? { once:true, passive:true } : { once:true });
 const grantOnce = ()=>{
   grantSoundAndUnmuteCurrent();
@@ -137,14 +108,24 @@ const grantOnce = ()=>{
   window.addEventListener(ev, grantOnce, onceOpts(ev));
 });
 
-/* ---------- 활성 카드 관리 (IntersectionObserver) ---------- */
+window.addEventListener('message', (e)=>{
+  if (typeof e.data !== 'string') return;
+  let data; try{ data = JSON.parse(e.data); }catch{ return; }
+  if (!data || !data.event) return;
+  if (data.event === 'onStateChange' && data.info === 0){
+    const activeIframe = currentActive?.querySelector('iframe');
+    if (!activeIframe || e.source !== activeIframe.contentWindow) return;
+    if (AUTO_NEXT){ goToNextCard(); }
+  }
+}, false);
+
+/* ----------------- 활성 영상 ----------------- */
 const activeIO = new IntersectionObserver((entries)=>{
   entries.forEach(entry=>{
     const card = entry.target;
     const iframe = card.querySelector('iframe');
 
-    if (entry.isIntersecting && entry.intersectionRatio >= 0.6){
-      // 이전 카드 정리
+    if(entry.isIntersecting && entry.intersectionRatio >= 0.6){
       if(currentActive && currentActive !== card){
         const prev = currentActive.querySelector('iframe');
         if(prev){ ytCmd(prev,"mute"); ytCmd(prev,"pauseVideo"); }
@@ -157,32 +138,17 @@ const activeIO = new IntersectionObserver((entries)=>{
         ytCmd(ifr,"playVideo");
         userSoundConsent ? ytCmd(ifr,"unMute") : ytCmd(ifr,"mute");
       }
-      showTopbarTemp(); // 새 카드 진입 시 1초 노출
-    }else{
+      const next = card.nextElementSibling;
+      if (next && next.classList.contains('video')) ensureIframe(next);
+      showTopbarTemp();
+    } else {
       if (iframe){ ytCmd(iframe,"mute"); ytCmd(iframe,"pauseVideo"); }
     }
   });
-}, { root: videoContainer, threshold: [0, 0.6, 1] });
+}, { root: videoContainer, threshold:[0,0.6,1] });
 
-/* ---------- 카드/임베드 ---------- */
-function extractId(url){
-  const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
-  return m ? m[1] : url;
-}
-function ensureIframe(card){
-  if(card.querySelector('iframe')) return;
-  const id = card.dataset.vid;
-  const origin = encodeURIComponent(location.origin);
-  const iframe = document.createElement('iframe');
-  iframe.src = `https://www.youtube.com/embed/${id}?enablejsapi=1&playsinline=1&autoplay=1&mute=1&rel=0&origin=${origin}`;
-  iframe.allow = "autoplay; encrypted-media; picture-in-picture";
-  iframe.allowFullscreen = true;
-  Object.assign(iframe.style, { width:"100%", height:"100%", border:"0" });
-
-  // 바꿔치기
-  const thumb = card.querySelector('.thumb');
-  thumb ? card.replaceChild(iframe, thumb) : card.appendChild(iframe);
-}
+/* ----------------- 렌더 ----------------- */
+function showHint(text){ videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto">${text}</p></div>`; }
 
 function makeCard(url, docId){
   const id = extractId(url);
@@ -191,7 +157,6 @@ function makeCard(url, docId){
   card.dataset.vid = id;
   card.dataset.docId = docId;
 
-  // 썸네일 + 첫 방문 안내
   card.innerHTML = `
     <div class="thumb">
       <img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="thumbnail" loading="lazy"/>
@@ -199,12 +164,10 @@ function makeCard(url, docId){
       ${userSoundConsent ? '' : '<div class="mute-tip">🔇 현재 음소거 • 한 번만 허용하면 계속 소리 재생</div>'}
     </div>
   `;
-
-  // 카드 탭 → 임베드 생성 + 소리 허용
   card.addEventListener('click', ()=>{
     ensureIframe(card);
     const ifr = card.querySelector('iframe');
-    if (!userSoundConsent) userSoundConsent = true;
+    if(!userSoundConsent) userSoundConsent = true;
     if (ifr){ ytCmd(ifr,"playVideo"); ytCmd(ifr,"unMute"); }
     currentActive = card;
   });
@@ -213,9 +176,36 @@ function makeCard(url, docId){
   return card;
 }
 
-/* ---------- 데이터 로드(무한 스크롤) ---------- */
+function ensureIframe(card){
+  if(card.querySelector('iframe')) return;
+  const id = card.dataset.vid;
+  const origin = encodeURIComponent(location.origin);
+  const iframe = document.createElement('iframe');
+  const playerId = `yt-${id}-${Math.random().toString(36).slice(2,8)}`;
+  iframe.id = playerId;
+  iframe.src = `https://www.youtube.com/embed/${id}?enablejsapi=1&playsinline=1&autoplay=1&mute=1&rel=0&origin=${origin}&widget_referrer=${encodeURIComponent(location.href)}&playerapiid=${encodeURIComponent(playerId)}`;
+  iframe.allow = "autoplay; encrypted-media; picture-in-picture";
+  iframe.allowFullscreen = true;
+  Object.assign(iframe.style, { width:"100%", height:"100%", border:"0" });
+  iframe.addEventListener('load', ()=>{
+    try{
+      iframe.contentWindow.postMessage(JSON.stringify({ event:'listening', id: playerId }), '*');
+      ytCmd(iframe, "addEventListener", ["onStateChange"]);
+      ytCmd(iframe, "addEventListener", ["onReady"]);
+    }catch{}
+  });
+  const thumb = card.querySelector('.thumb');
+  thumb ? card.replaceChild(iframe, thumb) : card.appendChild(iframe);
+}
+
+function extractId(url){
+  const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
+  return m ? m[1] : url;
+}
+
+/* ----------------- 데이터 로드 ----------------- */
 const PAGE_SIZE = 12;
-let isLoading = false, hasMore = true, lastDoc = null;
+let isLoading = false, lastDoc = null;
 let loadedIds = new Set();
 
 function resetFeed(){
@@ -224,16 +214,11 @@ function resetFeed(){
   isLoading = false; hasMore = true; lastDoc = null; loadedIds.clear(); currentActive = null;
 }
 
-function showHint(text){
-  videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto">${text}</p></div>`;
-}
-
 async function loadMore(initial=false){
   if(isLoading || !hasMore) return;
   isLoading = true;
 
   const selected = getSelectedCats();
-
   try{
     const base = collection(db, "videos");
     const parts = [];
@@ -241,7 +226,7 @@ async function loadMore(initial=false){
     if(selected === "ALL" || !selected){
       parts.push(orderBy("createdAt","desc"));
     }else if(Array.isArray(selected) && selected.length){
-      const cats = selected.length > 10 ? null : selected; // array-contains-any 최대 10
+      const cats = selected.length > 10 ? null : selected;
       if(cats){
         parts.push(where("categories","array-contains-any", cats));
         parts.push(orderBy("createdAt","desc"));
@@ -281,13 +266,33 @@ async function loadMore(initial=false){
   }
 }
 
-// 바닥 근처 프리페치
 videoContainer.addEventListener('scroll', ()=>{
   const nearBottom = videoContainer.scrollTop + videoContainer.clientHeight >= videoContainer.scrollHeight - 200;
   if(nearBottom) loadMore(false);
 });
 
-/* ---------- 시작 ---------- */
+/* ----------------- 자동 다음 ----------------- */
+async function goToNextCard(){
+  const next = currentActive?.nextElementSibling;
+  if (next && next.classList.contains('video')){
+    next.scrollIntoView({ behavior:'smooth', block:'start' });
+    return;
+  }
+  if (!hasMore || isLoadingMore) return;
+  isLoadingMore = true;
+  const prevCount = videoContainer.querySelectorAll('.video').length;
+  await loadMore(false);
+  const nowCount = videoContainer.querySelectorAll('.video').length;
+  if (nowCount > prevCount){
+    const firstNew = videoContainer.querySelectorAll('.video')[prevCount];
+    if (firstNew) firstNew.scrollIntoView({ behavior:'smooth', block:'start' });
+  }else{
+    showTopbarTemp();
+  }
+  isLoadingMore = false;
+}
+
+/* ----------------- 시작: 인증 무관 ----------------- */
 resetFeed();
 loadMore(true);
-showTopbarTemp();   // 초기 1초 노출
+showTopbarTemp();
