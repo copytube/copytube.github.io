@@ -2,32 +2,45 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="
-  default-src 'self';
-  connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
-  img-src 'self' data: https://i.ytimg.com;
-  frame-src https://www.youtube.com;
-  script-src 'self' https://www.gstatic.com 'unsafe-inline';
-  style-src 'self' 'unsafe-inline';
-  object-src 'none';
-  base-uri 'self';
-">
-
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>회원가입 - copytube</title>
+
+  <!-- CSP -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    connect-src 'self'
+      https://identitytoolkit.googleapis.com
+      https://securetoken.googleapis.com
+      https://firebaseinstallations.googleapis.com
+      https://www.googleapis.com
+      https://www.gstatic.com
+      https://firestore.googleapis.com;
+    img-src 'self' data:;
+    frame-src https://www.youtube.com https://www.youtube-nocookie.com;
+    script-src 'self' https://www.gstatic.com 'unsafe-inline';
+    style-src 'self' 'unsafe-inline';
+    object-src 'none';
+    base-uri 'self';
+  ">
+  <link rel="stylesheet" href="css/style.css"/>
   <style>
-    body { margin:0; font-family: system-ui, Arial, sans-serif; }
-    main { max-width:420px; margin:40px auto; padding:0 16px; }
-    h2 { margin:0 0 10px; }
+    main { max-width:420px; margin:96px auto 40px; padding:0 16px; }
     label { display:block; margin-top:14px; font-size:14px; }
-    input { width:100%; padding:10px; margin-top:6px; box-sizing:border-box; border:1px solid #ccc; border-radius:6px; }
+    input { width:100%; padding:10px; margin-top:6px; box-sizing:border-box; border:1px solid #333; border-radius:6px; background:#000; color:#fff; }
     button { margin-top:18px; width:100%; padding:12px; border:0; border-radius:8px; background:#0366d6; color:#fff; font-weight:600; cursor:pointer; }
-    .msg { margin-top:10px; font-size:13px; color:#333; white-space:pre-line; min-height:1.2em; }
-    a { color:#0366d6; text-decoration:none; }
-    small { color:#666; }
+    .msg { margin-top:10px; font-size:13px; color:#ccc; white-space:pre-line; min-height:1.2em; }
   </style>
 </head>
 <body>
+  <header id="topbar">
+    <div class="brand">
+      <a href="./"><img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/></a>
+    </div>
+    <div class="right">
+      <a class="link" href="signin.html">Sign in</a>
+    </div>
+  </header>
+
   <main>
     <h2>회원가입</h2>
     <p><small>닉네임과 비밀번호만 입력하면 됩니다.</small></p>
@@ -35,82 +48,52 @@
     <label>닉네임
       <input id="nickname" placeholder="예: coolboy" />
     </label>
-
     <label>비밀번호
       <input id="password" type="password" placeholder="4자 이상" autocomplete="new-password"/>
     </label>
-
     <button id="submitBtn">가입하기</button>
     <div class="msg" id="msg"></div>
-
-    <p style="margin-top:12px;">이미 계정이 있으신가요? <a href="signin.html">Sign in</a></p>
+    <p style="margin-top:12px;">이미 계정이 있으신가요? <a class="link" href="signin.html">Sign in</a></p>
   </main>
 
-  <!-- Firebase 초기화/공용 함수들 -->
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-
-  <!-- 가입 로직 -->
   <script type="module">
     import {
-      auth, db,
-      createUserWithEmailAndPassword,
-      updateProfile,
-      runTransaction, doc,
-      deleteUser,
-      onAuthStateChanged
+      auth, db, createUserWithEmailAndPassword, updateProfile,
+      runTransaction, doc, deleteUser, onAuthStateChanged
     } from './js/auth.js';
     import { sanitizeNickname } from './js/auth.js';
 
     const $ = (id) => document.getElementById(id);
     const msg = $('msg');
 
-    // auth 상태가 확실히 준비될 때까지 기다리는 헬퍼
     async function waitAuthReady() {
-      // v10+ 에서는 auth.authStateReady가 있을 수 있음
-      if (typeof auth.authStateReady === 'function') {
-        await auth.authStateReady();
-        return;
-      }
-      await new Promise((resolve) => {
-        const unsub = onAuthStateChanged(auth, () => { unsub(); resolve(); });
-      });
+      if (typeof auth.authStateReady === 'function') { await auth.authStateReady(); return; }
+      await new Promise((resolve) => { const unsub = onAuthStateChanged(auth, () => { unsub(); resolve(); }); });
     }
 
     $('submitBtn').addEventListener('click', async () => {
       msg.textContent = '처리 중...';
-
       const rawNick = $('nickname').value.trim();
       const password = $('password').value;
 
-      // 1) 입력 검증
-      if (!rawNick || !password) {
-        msg.textContent = '닉네임과 비밀번호를 입력해 주세요.';
-        return;
-      }
-      if (password.length < 4) {
-        msg.textContent = '비밀번호는 4자 이상으로 해주세요.';
-        return;
-      }
+      if (!rawNick || !password) { msg.textContent = '닉네임과 비밀번호를 입력해 주세요.'; return; }
+      if (password.length < 4)    { msg.textContent = '비밀번호는 4자 이상으로 해주세요.'; return; }
+
       const nickname = sanitizeNickname(rawNick);
-      if (!nickname) {
-        msg.textContent = '닉네임은 영문/숫자/한글/[-_.]만 허용, 길이 2~20자입니다.';
-        return;
-      }
+      if (!nickname) { msg.textContent = '닉네임은 영문/숫자/한글/[-_.]만 허용, 길이 2~20자입니다.'; return; }
 
       const pseudoEmail = `${nickname.toLowerCase()}@copytube.local`;
       let createdUser = null;
 
       try {
-        // 2) 사용자 먼저 생성 (→ 이 시점부터 request.auth != null 가능)
         const cred = await createUserWithEmailAndPassword(auth, pseudoEmail, password);
         createdUser = cred.user;
 
-        // 3) 인증상태 전파 대기 + 토큰 새로고침(간헐적 권한 오류 방지)
         await waitAuthReady();
         if (auth.currentUser) { await auth.currentUser.getIdToken(true); }
 
-        // 4) 닉네임 점유 (usernames/{nicknameLower}) — 트랜잭션
         await runTransaction(db, async (tx) => {
           const key = nickname.toLowerCase();
           const ref = doc(db, 'usernames', key);
@@ -119,17 +102,13 @@
           tx.set(ref, { reserved: true, uid: createdUser.uid, createdAt: Date.now() });
         });
 
-        // 5) 표시이름 업데이트
         await updateProfile(createdUser, { displayName: nickname });
 
         msg.textContent = '회원가입 완료! 로그인 페이지로 이동합니다...';
         setTimeout(() => { location.href = 'signin.html'; }, 600);
 
       } catch (e) {
-        // 닉네임 점유 실패 등 → 방금 만든 계정만 롤백
-        if (createdUser) {
-          try { await deleteUser(createdUser); } catch (_) {}
-        }
+        if (createdUser) { try { await deleteUser(createdUser); } catch (_) {} }
         console.error(e);
         msg.textContent = `오류: ${e.message || e.code || e}`;
       }
