@@ -19,7 +19,6 @@
 
   <link rel="stylesheet" href="css/style.css"/>
   <style>
-    /* 선택 화면 컴팩트 */
     .intro{
       min-height:100vh; display:flex; align-items:center; justify-content:center; text-align:center;
       padding:96px 24px 24px; background:var(--bg-2); border-bottom:1px solid var(--border);
@@ -38,21 +37,31 @@
       padding:10px 14px; border-radius:12px; border:1px solid #2a2a2a; background:#111; color:#ddd;
       cursor:pointer; font-weight:700;
     }
+    .btn-pill input{ transform:scale(1.1); accent-color:#4ea1ff; }
     .btn-pill[aria-pressed="true"]{ background:#1b1b1b; border-color:#3a3a3a; }
 
-    /* 그룹형 카테고리 – 인덱스 밀도 */
+    /* 그룹(부모 체크박스 추가) */
     .group{
       border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
       padding:8px; margin:8px 0;
       text-align:left; max-width:900px; margin-left:auto; margin-right:auto;
     }
     .group legend{
+      display:flex; align-items:center; gap:8px;
       padding:0 4px; font-weight:800; font-size:15px; color:#eee;
-      margin-bottom:2px; line-height:1.05; display:inline-flex; gap:6px; align-items:center;
+      margin-bottom:2px; line-height:1.05;
     }
-    .group .subnote{ font-size:12px; color:#9aa0a6; margin-left:6px; }
+    .group .group-toggle{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 8px; border-radius:8px;
+      background:#101010; border:1px solid #2a2a2a; color:#e5e7eb; cursor:pointer;
+      font-weight:800;
+    }
+    .group .group-toggle input{ accent-color:#4ea1ff; transform:scale(1.05); }
+    .group .subnote{ font-size:12px; color:#9aa0a6; margin-left:6px; font-weight:600; }
+
     .child-grid{
-      margin-top:2px; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px;
+      margin-top:6px; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px;
     }
     @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
     .child-grid label{
@@ -74,7 +83,7 @@
       <a id="signupLink" class="link" href="signup.html">Sign up</a>
       <a id="signinLink" class="link" href="signin.html">Sign in</a>
       <span id="welcome" class="welcome"></span>
-      <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
+      <button id="menuBtn" class="icon" aria-label="menu">三</button>
 
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
         <button id="btnAbout" type="button">CopyTube는…</button>
@@ -93,6 +102,11 @@
       <div class="toolbar">
         <span class="label-strong">카테고리 선택</span>
         <button id="btnWatch" class="btn-primary">▶ 영상보기</button>
+
+        <label class="btn-pill" id="autoNextWrap" title="영상 종료 시 자동으로 다음 영상으로 이동">
+          <input type="checkbox" id="cbAutoNext"/>
+          연속재생
+        </label>
       </div>
 
       <div style="margin-bottom:8px;">
@@ -107,6 +121,6 @@
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/index.js?v=20250820b"></script>
+  <script type="module" src="js/index.js?v=20250821-gcheck"></script>
 </body>
 </html>
