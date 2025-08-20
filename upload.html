@@ -43,28 +43,25 @@
     .pill-radio input{ accent-color:#4ea1ff; transform:scale(1.1); }
 
     .btn-clip, .btn-submit{
-      grid-row: span 2; /* 라디오 2줄 높이와 동일하게 세로로 늘림 */
+      grid-row: span 2;
       display:flex; align-items:center; justify-content:center; text-align:center;
       border:0; border-radius:12px; cursor:pointer;
       font-weight:800; line-height:1.2;
-      padding:0 12px; /* 세로는 높이로 맞추므로 좌우만 패딩 */
-      min-height:96px; /* 모바일에서도 충분한 터치 높이 */
+      padding:0 12px;
+      min-height:96px;
     }
-
-    /* PC에서 두 버튼 폭 동일 */
     @media (min-width: 900px){
       .btn-clip, .btn-submit{ min-height:110px; }
     }
-
     .btn-clip{
       background:#22c55e; color:#fff;
-      font-size:16px;          /* 글자 크기 축소 */
-      white-space:normal;      /* 두 줄 허용 */
+      font-size:16px;
+      white-space:normal;
       word-break:keep-all;
     }
     .btn-submit{
       background:#4ea1ff; color:#fff;
-      font-size:16px;          /* 글자 크기 축소 */
+      font-size:16px;
     }
 
     /* 등록 결과/에러 메시지 */
@@ -163,6 +160,9 @@
         <button id="btnSubmitTop" class="btn-submit" type="button">등록</button>
       </div>
 
+      <!-- 🔼 추가: 상단 메시지 -->
+      <div id="msgTop" class="msg"></div>
+
       <!-- 붙여넣기 도움말 -->
       <details class="help" id="pasteHelp">
         <summary>붙여넣기 도움말</summary>
@@ -238,7 +238,14 @@
     const $ = sel => document.querySelector(sel);
     const catsBox = $('#cats');
     const msg = $('#msg');
+    const msgTop = $('#msgTop'); // 🔼 추가
     const urlsBox = $('#urls');
+
+    // 공통 메시지 헬퍼 🔼 추가
+    function setMsg(text){
+      if (msgTop) msgTop.textContent = text || '';
+      if (msg)    msg.textContent    = text || '';
+    }
 
     function getPersonalLabels(){
       try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }catch{ return {}; }
@@ -262,7 +269,6 @@
       const pos = getPersonalPosition();
 
       const groups = CATEGORY_GROUPS.slice();
-      // 개인자료 위치 변경(상단/하단)
       if (pos === 'top'){
         const i = groups.findIndex(g=>g.key==='personal');
         if(i>-1){ const [pg] = groups.splice(i,1); groups.unshift(pg); }
@@ -293,7 +299,6 @@
 
       catsBox.innerHTML = html;
 
-      // 이름변경 버튼 바인딩
       catsBox.querySelectorAll('.rename-btn').forEach(btn=>{
         btn.addEventListener('click', ()=>{
           const key = btn.getAttribute('data-key');
@@ -306,7 +311,6 @@
         });
       });
 
-      // 카테고리 3개 제한
       const limit = 3;
       catsBox.querySelectorAll('input.cat').forEach(chk=>{
         chk.addEventListener('change', ()=>{
@@ -321,7 +325,6 @@
     }
     renderCats();
 
-    /* 개인자료 위치 스위치 초기화 */
     (function initPersonalPosUI(){
       const box = $('#personalPosRow');
       if(!box) return;
@@ -348,35 +351,33 @@
     async function pasteFromClipboard(){
       try{
         const txt = await navigator.clipboard.readText();
-        if(!txt) { msg.textContent = '클립보드에 텍스트가 없습니다.'; return; }
+        if(!txt) { setMsg('클립보드에 텍스트가 없습니다.'); return; }
         if (urlsBox.value.trim()){
-          // 기존 내용 끝에 줄바꿈 추가 후 붙여넣기
           urlsBox.value = urlsBox.value.replace(/\s*$/,'') + '\n' + txt.trim();
         }else{
           urlsBox.value = txt.trim();
         }
-        msg.textContent = '붙여넣기 완료.';
+        setMsg('붙여넣기 완료.');
       }catch(e){
-        msg.textContent = '클립보드 접근이 차단되었습니다. 브라우저 설정에서 허용해 주세요.';
+        setMsg('클립보드 접근이 차단되었습니다. 브라우저 설정에서 허용해 주세요.');
       }
     }
 
     /* ---------- 업로드 ---------- */
     async function submitAll(){
-      msg.textContent = '등록 중...';
+      setMsg('등록 중...');
 
       const user = auth.currentUser;
-      if(!user){ msg.textContent = '로그인 후 이용하세요.'; return; }
+      if(!user){ setMsg('로그인 후 이용하세요.'); return; }
 
       const urls = parseInputUrls();
-      if(!urls.length){ msg.textContent = 'URL을 한 줄에 하나씩 입력해 주세요.'; return; }
+      if(!urls.length){ setMsg('URL을 한 줄에 하나씩 입력해 주세요.'); return; }
 
       const categories = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value)
         .filter(v => v!=='personal1' && v!=='personal2');
-      if(!categories.length){ msg.textContent = '카테고리를 최소 1개 선택해 주세요.'; return; }
-      if(categories.length > 3){ msg.textContent = '카테고리는 최대 3개까지 선택 가능합니다.'; return; }
+      if(!categories.length){ setMsg('카테고리를 최소 1개 선택해 주세요.'); return; }
+      if(categories.length > 3){ setMsg('카테고리는 최대 3개까지 선택 가능합니다.'); return; }
 
-      // 등록 순서: 아래부터=입력 역순 처리
       const order = (document.querySelector('input[name="order"]:checked')?.value || 'bottom');
       const list = (order === 'bottom') ? urls.slice().reverse() : urls.slice();
 
@@ -391,8 +392,13 @@
           ok++;
         }catch(e){ fail++; }
       }
-      msg.textContent = `등록 완료: ${ok}건 성공, ${fail}건 실패`;
-      // 페이지 유지 (리다이렉트 없음)
+
+      // 결과 메시지: 위/아래 동시 표시
+      setMsg(`등록 완료: ${ok}건 성공, ${fail}건 실패`);
+
+      // 🔽 등록 후 초기화: 카테고리 체크 해제 & URL 입력칸 비우기
+      document.querySelectorAll('.cat:checked').forEach(ch => ch.checked = false);
+      urlsBox.value = '';
     }
 
     // 버튼 바인딩
