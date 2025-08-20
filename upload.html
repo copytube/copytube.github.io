@@ -3,269 +3,94 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>추천영상 등록 - Copytube</title>
-
-  <!-- CSP -->
+  <title>추천영상등록 - Copytube</title>
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    connect-src 'self'
-      https://firestore.googleapis.com
-      https://identitytoolkit.googleapis.com
-      https://securetoken.googleapis.com
-      https://firebaseinstallations.googleapis.com
-      https://www.googleapis.com
-      https://www.gstatic.com;
+    connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
     img-src 'self' data: https://i.ytimg.com;
-    frame-src https://www.youtube.com https://www.youtube-nocookie.com;
+    frame-src https://www.youtube.com;
     script-src 'self' https://www.gstatic.com 'unsafe-inline';
     style-src 'self' 'unsafe-inline';
     object-src 'none';
     base-uri 'self';
   ">
-
   <link rel="stylesheet" href="css/style.css"/>
-  <style>
-    main { max-width:900px; margin:96px auto 40px; padding:0 16px; text-align:left; }
-    textarea#url{ width:100%; min-height:3lh; resize:vertical; border:1px solid #333; border-radius:10px; background:#000; color:#fff; padding:10px; }
-    .title-line{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
-    .tools-grid .btn{ min-width:110px; max-width:150px; }
-    .btn.clip.tall{ padding:18px 14px; }
-    /* 개인자료 이름변경 버튼 */
-    .rename-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
-    .rename-row input{ width:160px; padding:6px 8px; border:1px solid #2a2a2a; border-radius:8px; background:#0f0f0f; color:#fff; }
-    .compact-note{ font-size:12px; color:#9aa0a6; margin:6px 0 2px; }
-  </style>
 </head>
-<body>
+<body class="uploader">
   <header id="topbar">
     <div class="brand">
-      <a href="./"><img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/></a>
+      <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
+        <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
+      </a>
     </div>
-    <div class="right">
+    <div class="right" style="position:relative;">
       <a id="signupLink" class="link" href="signup.html">Sign up</a>
       <a id="signinLink" class="link" href="signin.html">Sign in</a>
       <span id="welcome" class="welcome"></span>
       <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
-        <button id="btnMyUploads" type="button">내영상관리</button>
-        <button id="btnSignOut" type="button">Sign out</button>
-        <button id="btnGoUpload" class="menu-strong" type="button" disabled>추천영상등록</button>
-        <button id="btnAbout" type="button">CopyTube는…</button>
+        <button id="btnAbout"      type="button">CopyTube는..</button>
+        <button id="btnMyUploads"  type="button">내영상관리</button>
+        <button id="btnSignOut"    type="button">Sign out</button>
+        <button id="btnGoUpload"   class="menu-strong" type="button">추천영상등록</button>
       </div>
     </div>
   </header>
 
-  <main class="intro" style="align-items:flex-start;">
-    <div style="width:100%;">
-      <div class="title-line">
-        <h2>추천영상 등록</h2>
-      </div>
+  <main class="intro" style="align-items:flex-start; padding-top:96px;">
+    <div style="max-width:900px; width:100%; text-align:left; margin:0 auto;">
+      <h2 style="margin:0 0 8px;">추천영상 등록</h2>
 
-      <label style="display:block;margin:12px 0 6px;">YouTube URL (여러 줄 가능)
-        <textarea id="url" placeholder="https://youtu.be/... 한 줄에 1개씩 붙여넣기" rows="3"></textarea>
+      <!-- URL 입력 -->
+      <label style="display:block;margin-top:8px;">YouTube 공유 URL (여러 줄 가능)
+        <textarea id="url" rows="3" placeholder="https://youtu.be/... (한 줄에 1개씩)" style="width:100%;padding:10px;margin-top:6px;border-radius:8px;border:1px solid #333;background:#000;color:#fff;"></textarea>
       </label>
 
-      <div class="tools-grid" style="margin:8px 0 12px;">
-        <div class="radios" role="radiogroup" aria-label="등록 순서">
-          <label><input type="radio" name="order" value="bottom" checked> 아래부터 등록</label>
-          <label><input type="radio" name="order" value="top"> 위부터 등록</label>
+      <!-- 컨트롤 줄: 라디오(세로) + 붙여넣기 + 등록 -->
+      <div class="controls-row">
+        <div class="controls-col">
+          <div class="radio-stack">
+            <label><input type="radio" name="order" value="bottom" checked> 아래부터 등록</label>
+            <label><input type="radio" name="order" value="top"> 위부터 등록</label>
+          </div>
         </div>
-        <button id="btnPaste" class="btn clip tall" type="button">클립보드 붙여넣기</button>
-        <button id="btnSubmitTop" class="btn primary" type="button">등록</button>
+        <button id="btnPaste" class="btn-clipboard" type="button">클립보드 붙여넣기</button>
+        <button id="btnSubmitTop" class="btn-submit" type="button">등록</button>
       </div>
 
-      <details class="help" id="help" style="margin:8px 0;" open>
+      <!-- 접히는 도움말(삼각형 토글 유지) -->
+      <details id="pasteHelp" style="margin:6px 0 12px;">
         <summary>붙여넣기 도움말</summary>
-        <div class="help-body">
+        <div class="help-body" style="font-size:13px; color:#cfcfcf; margin-top:6px; line-height:1.5;">
           • <b>URL 입력칸</b>에 직접 붙여넣거나, <b>오른쪽 “클립보드 붙여넣기”</b> 버튼을 사용하세요. (브라우저/OS 허용 필요)<br/>
-          • <b>URL 다중 등록:</b> 입력박스에 <b>한 줄에 1개의 URL</b>을 넣고, <b>카테고리 선택 후 “등록”</b>을 누르면 모두 한 번에 등록됩니다.<br/>
-          • 위의 <b>“아래부터/위부터 등록”</b> 옵션으로 등록 순서를 결정합니다. (피드는 최신순이라 시리즈는 보통 <b>아래부터 등록</b>이 자연스럽습니다.)<br/><br/>
+          • <b>URL다중등록:</b> URL 입력칸에 <b>한 줄에 1개의 URL</b>을 붙여넣고, <b>카테고리 선택 후 “등록”</b>을 누르면 한 번에 모두 등록됩니다.<br/>
+          • 위의 <b>“아래부터/위부터 등록”</b> 옵션으로 등록 순서를 결정합니다. (피드가 최신순이라 시리즈는 보통 <b>아래부터 등록</b>해야 차례대로 보여집니다.)<br/><br/>
           • <b>HTTPS</b> 환경에서만 동작합니다. (GitHub Pages OK)<br/>
-          • <b>iPhone/iPad</b>: 처음 붙여넣기 때 <i>“이 앱에서 붙여넣기 허용”</i>을 눌러 주세요.<br/>
-          • <b>안드로이드/데스크탑 Chrome</b>: <b>설정 → 사이트 설정 → 클립보드</b>에서 <code>https://copytube.github.io</code> 허용.<br/><br/>
-          • <b>개인자료1/2</b>는 <b>로컬저장소</b>에 저장되며 공유되지 않습니다. 이름 변경 가능하며 카테고리 위치도 상단으로 변경 가능합니다.<br/>
-          • 인덱스 화면은 <b>처음 카테고리 선택 화면</b>을 뜻합니다.
+          • <b>iPhone/iPad (iOS 16+)</b>: 처음 붙여넣기 때 <i>“이 앱에서 붙여넣기 허용”</i> 팝업에서 <b>허용</b> 선택<br/>
+          • <b>안드로이드/데스크탑 Chrome</b>: <b>설정 → 사이트 설정 → 클립보드</b>에서 <code>https://copytube.github.io</code>를 <b>허용</b>으로 변경<br/>
+          • 또는 <b>길게 누르기 → 붙여넣기</b> 또는 <code>Ctrl/⌘+V</code> 사용<br/><br/>
+          • <b>개인자료</b>는 로컬저장소에만 저장되며 공유되지 않습니다. 이름 변경 가능, 카테고리 위치 상단으로 변경 가능(카테고리 선택 화면에서).
         </div>
       </details>
 
-      <!-- 카테고리 -->
+      <!-- 안내문: 카테고리 선택 위로 -->
+      <p id="maxNote" class="welcome" style="margin:2px 0 6px; color:#9aa0a6;">
+        카테고리는 <b>최대 3개</b>까지 선택 가능합니다.
+      </p>
+
+      <!-- 카테고리 그룹 -->
       <div id="cats"><!-- JS 렌더 --></div>
-      <div class="compact-note">* 카테고리는 최대 3개까지 선택 가능합니다.</div>
 
-      <div class="rename-row" id="renameRow" hidden>
-        <span class="compact-note">개인자료 이름 변경:</span>
-        <label>자료1 → <input id="nameP1" placeholder="자료1"/></label>
-        <label>자료2 → <input id="nameP2" placeholder="자료2"/></label>
-        <button id="btnSaveNames" class="btn" type="button">이름변경</button>
+      <!-- 제출 하단 버튼/메시지 -->
+      <div style="display:flex; gap:8px; align-items:center; margin:10px 0 0;">
+        <button id="btnSubmit" class="btn-submit" type="button">등록</button>
+        <div id="msg" class="welcome" style="min-height:1.2em;"></div>
       </div>
-
-      <div style="display:flex; gap:8px; margin:12px 0;">
-        <button id="btnSubmitBottom" class="btn primary" type="button">등록</button>
-        <a href="./" class="link" style="align-self:center;">← 카테고리로 돌아가기</a>
-      </div>
-
-      <div id="msg" class="welcome" style="margin-top:6px;"></div>
     </div>
   </main>
 
-  <script type="module">
-    import { auth, db } from './js/firebase-init.js';
-    import { onAuthStateChanged, addDoc, collection, serverTimestamp, signOut as fbSignOut } from './js/auth.js';
-    import { CATEGORY_GROUPS } from './js/categories.js';
-    import { escapeHTML, safePersonalLabel, isAllowedYouTubeUrl, extractYouTubeId, sanitizeUrlList } from './js/sanitize.js';
-
-    /* 헤더 드롭다운 */
-    const signupLink   = document.getElementById("signupLink");
-    const signinLink   = document.getElementById("signinLink");
-    const welcome      = document.getElementById("welcome");
-    const menuBtn      = document.getElementById("menuBtn");
-    const dropdown     = document.getElementById("dropdownMenu");
-    const btnSignOut   = document.getElementById("btnSignOut");
-    const btnMyUploads = document.getElementById("btnMyUploads");
-    const btnGoUpload  = document.getElementById("btnGoUpload");
-    const btnAbout     = document.getElementById("btnAbout");
-
-    let isMenuOpen=false;
-    function openDropdown(){ isMenuOpen=true; dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); }
-    function closeDropdown(){ isMenuOpen=false; dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"), 180); }
-    onAuthStateChanged(auth, (user)=>{
-      const loggedIn = !!user;
-      signupLink.classList.toggle("hidden", loggedIn);
-      signinLink.classList.toggle("hidden", loggedIn);
-      menuBtn.classList.toggle("hidden", !loggedIn);
-      welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
-      closeDropdown();
-      if(!user){ document.getElementById('msg').textContent = '로그인 후 등록 가능합니다.'; }
-    });
-    menuBtn.addEventListener("click", (e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown(); });
-    document.addEventListener('pointerdown', (e)=>{ if (dropdown.classList.contains('hidden')) return; const inside = e.target.closest('#dropdownMenu, #menuBtn'); if (!inside) closeDropdown(); }, true);
-    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
-    dropdown.addEventListener("click", (e)=> e.stopPropagation());
-    btnMyUploads?.addEventListener("click", ()=>{ location.href="manage-uploads.html"; closeDropdown(); });
-    btnSignOut?.addEventListener("click", async ()=>{ await fbSignOut(auth); closeDropdown(); });
-    btnGoUpload?.addEventListener("click", ()=>{ /* 현재 페이지 */ closeDropdown(); });
-    btnAbout?.addEventListener("click", ()=>{ location.href="about.html"; closeDropdown(); });
-
-    /* 개인자료 라벨/위치 */
-    function getPersonalLabels(){
-      try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }
-      catch{ return {}; }
-    }
-    function savePersonalLabels(map){
-      localStorage.setItem('personalLabels', JSON.stringify(map||{}));
-    }
-
-    /* 카테고리 렌더(업로드: 자식만 체크 가능, 그룹 제목엔 체크 없음) */
-    const catsRoot = document.getElementById('cats');
-    function renderCategories(){
-      const personalLabels = getPersonalLabels();
-      const html = CATEGORY_GROUPS.map(g=>{
-        const kids = g.children.map(c=>{
-          const isPersonal = (g.key==='personal');
-          const defaultLabel = (c.value==='personal1') ? '자료1' : (c.value==='personal2' ? '자료2' : c.label);
-          const labelText = isPersonal && personalLabels[c.value] ? personalLabels[c.value] : defaultLabel;
-          return `<label><input type="checkbox" class="cat" value="${c.value}"> ${labelText}</label>`;
-        }).join('');
-        const legend = (g.key==='personal')
-          ? `${g.label} <span class="subnote">(로컬저장소)</span>`
-          : g.label;
-        return `
-          <fieldset class="group" data-key="${g.key}">
-            <legend>${legend}</legend>
-            <div class="child-grid">${kids}</div>
-          </fieldset>
-        `;
-      }).join('');
-      catsRoot.innerHTML = html;
-
-      // 개인자료 이름변경 UI 노출
-      const hasPersonal = CATEGORY_GROUPS.some(g=>g.key==='personal');
-      document.getElementById('renameRow').hidden = !hasPersonal;
-      if (hasPersonal){
-        const labels = getPersonalLabels();
-        document.getElementById('nameP1').value = labels.personal1 || '자료1';
-        document.getElementById('nameP2').value = labels.personal2 || '자료2';
-      }
-    }
-    renderCategories();
-
-    /* 이름변경 */
-    document.getElementById('btnSaveNames').addEventListener('click', ()=>{
-      const p1 = safePersonalLabel(document.getElementById('nameP1').value) || '자료1';
-      const p2 = safePersonalLabel(document.getElementById('nameP2').value) || '자료2';
-      const next = { personal1:p1, personal2:p2 };
-      savePersonalLabels(next);
-      renderCategories(); // 즉시 반영
-    });
-
-    /* 붙여넣기 버튼 */
-    document.getElementById('btnPaste').addEventListener('click', async ()=>{
-      const msg = document.getElementById('msg');
-      try{
-        const txt = await navigator.clipboard.readText();
-        if (!txt){ msg.textContent = '클립보드가 비었습니다.'; return; }
-        const ta = document.getElementById('url');
-        const add = txt.endsWith('\n') ? txt : (txt + '\n');
-        ta.value = (ta.value || '') + add;
-        msg.textContent = '붙여넣기 완료.';
-      }catch(e){
-        msg.textContent = '브라우저가 클립보드 접근을 허용하지 않았습니다. (도움말 참고)';
-      }
-    });
-
-    /* 유효성: 카테고리 3개 제한 */
-    function getSelectedCats(){
-      const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
-      if (selected.includes('personal1') || selected.includes('personal2')){
-        // 업로드 대상 아님
-        return { ok:false, message:'개인자료는 서버로 업로드되지 않습니다. 개인자료는 로컬 전용입니다.' };
-      }
-      if (selected.length === 0) return { ok:false, message:'카테고리를 1개 이상 선택해 주세요.' };
-      if (selected.length > 3)   return { ok:false, message:'카테고리는 최대 3개까지 선택 가능합니다.' };
-      return { ok:true, cats:selected };
-    }
-
-    /* 등록 */
-    async function registerAll(){
-      const msg = document.getElementById('msg');
-      msg.textContent = '검사 중...';
-
-      const order = (document.querySelector('input[name="order"]:checked')?.value || 'bottom');
-      const list = sanitizeUrlList(document.getElementById('url').value);
-      if (!list.length){ msg.textContent = 'URL을 1개 이상 입력해 주세요.'; return; }
-
-      // URL 검사
-      const bad = list.filter(u => !isAllowedYouTubeUrl(u));
-      if (bad.length){
-        msg.textContent = `유효하지 않은 YouTube URL이 있습니다. 첫 번째: ${bad[0]}`;
-        return;
-      }
-
-      // 카테고리 검사
-      const catCheck = getSelectedCats();
-      if (!catCheck.ok){ msg.textContent = catCheck.message; return; }
-      const cats = catCheck.cats;
-
-      const user = auth.currentUser;
-      if (!user){ msg.textContent='로그인 후 이용하세요.'; return; }
-
-      msg.textContent = '등록 중...';
-      const urls = (order==='bottom') ? list : list.slice().reverse();
-
-      try{
-        for(const url of urls){
-          await addDoc(collection(db,'videos'), {
-            url, title: url, categories: cats, uid: user.uid, createdAt: serverTimestamp()
-          });
-        }
-        msg.textContent = `등록 완료! (${urls.length}개)`;
-        // 입력은 비우지 않음(요청 시 바꿀 수 있음)
-      }catch(e){
-        msg.textContent = `오류: ${e.message||e}`;
-      }
-    }
-    document.getElementById('btnSubmitTop').addEventListener('click', registerAll);
-    document.getElementById('btnSubmitBottom').addEventListener('click', registerAll);
-  </script>
+  <script type="module" src="js/firebase-init.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="js/upload.js?v=20250821"></script>
 </body>
 </html>
