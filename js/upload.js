@@ -1,178 +1,205 @@
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
-import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 import { CATEGORY_GROUPS } from './categories.js';
 
-const $ = (s)=>document.querySelector(s);
+import {
+  addDoc, collection, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-/* 헤더 드롭다운 */
-const signupLink = $('#signupLink');
-const signinLink = $('#signinLink');
-const welcome    = $('#welcome');
-const menuBtn    = $('#menuBtn');
-const dropdown   = $('#dropdownMenu');
-const btnSignOut = $('#btnSignOut');
-const btnMyUploads = $('#btnMyUploads');
-const btnGoUpload  = $('#btnGoUpload');
-const btnAbout   = $('#btnAbout');
+/* ---------- 드롭다운 공통 ---------- */
+const menuBtn  = document.getElementById("menuBtn");
+const dropdown = document.getElementById("dropdownMenu");
+const welcome  = document.getElementById("welcome");
+
+const btnGoCategory = document.getElementById("btnGoCategory");
+const btnMyUploads  = document.getElementById("btnMyUploads");
+const btnAbout      = document.getElementById("btnAbout");
+const btnSignOut    = document.getElementById("btnSignOut");
+
+onAuthStateChanged(auth, (user)=>{
+  welcome.textContent = user ? `안녕하세요, ${user.displayName||'회원'}님` : '';
+});
 
 let isMenuOpen=false;
 function openDropdown(){ isMenuOpen=true; dropdown.classList.remove('hidden'); requestAnimationFrame(()=>dropdown.classList.add('show')); }
-function closeDropdown(){ isMenuOpen=false; dropdown.classList.remove('show'); setTimeout(()=>dropdown.classList.add('hidden'),180); }
-menuBtn.addEventListener('click', e=>{ e.stopPropagation(); dropdown.classList.contains('hidden')?openDropdown():closeDropdown(); });
-document.addEventListener('pointerdown', e=>{
+function closeDropdown(){ isMenuOpen=false; dropdown.classList.remove('show'); setTimeout(()=>dropdown.classList.add('hidden'), 180); }
+menuBtn.addEventListener('click', (e)=>{ e.stopPropagation(); dropdown.classList.contains('hidden')?openDropdown():closeDropdown(); });
+document.addEventListener('pointerdown',(e)=>{
   if (dropdown.classList.contains('hidden')) return;
-  const inside = e.target.closest('#dropdownMenu, #menuBtn'); if(!inside) closeDropdown();
-}, {capture:true});
-document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDropdown(); });
-dropdown.addEventListener('click', e=> e.stopPropagation());
+  const inside = e.target.closest('#dropdownMenu,#menuBtn');
+  if(!inside) closeDropdown();
+},{capture:true});
+document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDropdown(); });
 
-btnSignOut?.addEventListener('click', async ()=>{ await fbSignOut(auth); closeDropdown(); });
-btnMyUploads?.addEventListener('click', ()=>{ location.href = 'manage-uploads.html'; closeDropdown(); });
-btnGoUpload?.addEventListener('click', ()=>{ location.href = 'upload.html'; closeDropdown(); });
-btnAbout?.addEventListener('click', ()=>{ location.href = 'about.html'; closeDropdown(); });
+btnGoCategory?.addEventListener('click', ()=>{ location.href='index.html'; closeDropdown(); });
+btnMyUploads ?.addEventListener('click', ()=>{ location.href='manage-uploads.html'; closeDropdown(); });
+btnAbout     ?.addEventListener('click', ()=>{ location.href='about.html'; closeDropdown(); });
+btnSignOut   ?.addEventListener('click', async()=>{ await fbSignOut(auth); closeDropdown(); });
 
-/* 로그인 상태표시 */
-onAuthStateChanged(auth, (user)=>{
-  const loggedIn = !!user;
-  signupLink.classList.toggle("hidden", loggedIn);
-  signinLink.classList.toggle("hidden", loggedIn);
-  menuBtn.classList.toggle("hidden", !loggedIn);
-  welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
-});
-
-/* URL/컨트롤 */
-const urlBox = $('#url');
-const btnPaste = $('#btnPaste');
-const btnSubmitTop = $('#btnSubmitTop');
-const btnSubmit = $('#btnSubmit');
-const msg  = $('#msg');
-
-/* 클립보드 붙여넣기 */
-btnPaste.addEventListener('click', async ()=>{
-  try{
-    const text = await navigator.clipboard.readText();
-    if(!text) { msg.textContent='클립보드에 텍스트가 없습니다.'; return; }
-    // 기존 내용 뒤에 줄바꿈 추가
-    const base = urlBox.value ? (urlBox.value.replace(/\s*$/,'')+'\n') : '';
-    urlBox.value = base + text;
-    msg.textContent = '붙여넣기 완료';
-  }catch(e){
-    msg.textContent = '클립보드 권한을 허용해 주세요(브라우저 설정 참고).';
-  }
-});
-
-/* 카테고리 렌더 (개인자료는 선택 비활성화 + 이름변경 버튼은 라벨 옆) */
-const catsWrap = $('#cats');
-
+/* ---------- 퍼스널 라벨/위치 ---------- */
 function getPersonalLabels(){
-  try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }
-  catch{ return {}; }
+  try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }catch{ return {}; }
 }
 function setPersonalLabel(key, val){
   const map = getPersonalLabels(); map[key]=val; localStorage.setItem('personalLabels', JSON.stringify(map));
 }
-function openRename(key, current){
-  const name = prompt('개인자료 이름 변경', current||'');
-  if(!name) return;
-  setPersonalLabel(key, name);
-  renderCategories(); // 즉시 반영
-}
+function getPersonalPosition(){ return localStorage.getItem('personalPosition')==='top' ? 'top' : 'bottom'; }
 
-function renderCategories(){
+/* ---------- 카테고리 렌더 (인덱스 밀도와 동일) ---------- */
+const mount = document.getElementById('catMount');
+
+function renderCats(){
   const personalLabels = getPersonalLabels();
+  const pos = getPersonalPosition();
+
+  // personal 위치 이동
   const groups = CATEGORY_GROUPS.slice();
+  if(pos==='top'){
+    const i = groups.findIndex(g=>g.key==='personal');
+    if(i>-1){ const [g]=groups.splice(i,1); groups.unshift(g); }
+  }
 
   const html = groups.map(g=>{
-    const isPersonalGroup = (g.key==='personal');
-    const kids = g.children.map(c=>{
-      const defaultLabel = (c.value==='personal1') ? '자료1' : (c.value==='personal2' ? '자료2' : c.label);
-      const labelText = isPersonalGroup && personalLabels[c.value] ? personalLabels[c.value] : defaultLabel;
+    const legend = (g.key==='personal')
+      ? `${g.label} <span class="subnote">(로컬저장소)</span>`
+      : g.label;
 
-      // 개인자료는 서버 업로드 대상 아님 → 체크박스 disabled
-      const disabled = isPersonalGroup ? 'disabled' : '';
-      // 개인자료 이름변경 버튼(라벨 내부 오른쪽)
-      const renameBtn = isPersonalGroup
-        ? `<button type="button" class="rename-inline" data-rename="${c.value}">이름변경</button>`
-        : '';
+    const kids = g.children.map(c=>{
+      const isPersonal = g.key==='personal';
+      const defaultLabel = (c.value==='personal1')?'자료1':(c.value==='personal2'?'자료2':c.label);
+      const labelText = isPersonal && personalLabels[c.value] ? personalLabels[c.value] : defaultLabel;
 
       return `
-        <label style="display:flex; align-items:center; gap:8px;">
-          <input type="checkbox" class="cat" value="${c.value}" ${disabled}>
-          <span style="flex:0 1 auto;">${labelText}</span>
-          ${renameBtn}
-        </label>
-      `;
+        <label>
+          <span class="child-left">
+            <input type="checkbox" class="cat" value="${c.value}" />
+            ${labelText}
+          </span>
+          ${isPersonal ? `<button type="button" class="rename-btn" data-target="${c.value}">이름변경</button>`:''}
+        </label>`;
     }).join('');
-
-    const legend = isPersonalGroup ? `${g.label} <span class="subnote">(로컬저장소)</span>` : g.label;
 
     return `
       <fieldset class="group" data-key="${g.key}">
         <legend>${legend}</legend>
         <div class="child-grid">${kids}</div>
-      </fieldset>
-    `;
+      </fieldset>`;
   }).join('');
 
-  catsWrap.innerHTML = html;
+  mount.innerHTML = html;
 
-  // 이름변경 이벤트 위임
-  catsWrap.querySelectorAll('button[data-rename]').forEach(btn=>{
+  // 이름변경 핸들러
+  mount.querySelectorAll('.rename-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      const key = btn.getAttribute('data-rename');
-      const current = personalLabels[key] || (key==='personal1'?'자료1': (key==='personal2'?'자료2':''));
-      openRename(key, current);
+      const key = btn.dataset.target;
+      const cur = getPersonalLabels()[key] || (key==='personal1'?'자료1':'자료2');
+      const val = prompt('새 이름을 입력하세요', cur);
+      if(!val) return;
+      const safe = sanitize(val).slice(0, 20);
+      setPersonalLabel(key, safe);
+      renderCats();
     });
   });
 }
-renderCategories();
+renderCats();
 
-/* 업로드 처리 */
-function extractId(url){ const m=String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/); return m?m[1]:''; }
+/* ---------- 입력/버튼 ---------- */
+const urlInput   = document.getElementById('urlInput');
+const btnPaste   = document.getElementById('btnPaste');
+const btnTop     = document.getElementById('btnSubmitTop');
+const btnBottom  = document.getElementById('btnSubmitBottom');
 
-async function fetchYTTitle(url){
+function readOrder(){ return (document.querySelector('input[name="order"]:checked')?.value || 'asc'); }
+
+btnPaste.addEventListener('click', async()=>{
   try{
-    const r = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
-    if(!r.ok) throw 0;
-    const j = await r.json();
-    return j.title || '';
-  }catch{ return ''; }
-}
-
-async function doSubmit(){
-  msg.textContent = '등록 중...';
-  const user = auth.currentUser;
-  if(!user){ msg.textContent = '로그인 후 이용하세요.'; return; }
-
-  const urls = urlBox.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  if(!urls.length){ msg.textContent = 'URL을 입력해 주세요.'; return; }
-
-  const selected = Array.from(document.querySelectorAll('.cat:checked'))
-    .map(c=>c.value)
-    .filter(v => v!=='personal1' && v!=='personal2'); // 개인자료 제외(서버 업로드 대상 아님)
-
-  if(selected.length===0){ msg.textContent = '카테고리를 1개 이상 선택해 주세요.'; return; }
-  if(selected.length>3){ msg.textContent = '카테고리는 최대 3개까지 선택 가능합니다.'; return; }
-
-  const order = (document.querySelector('input[name="order"]:checked')?.value) || 'bottom';
-  const list = (order==='bottom') ? urls : urls.slice().reverse();
-
-  let ok=0, fail=0;
-  for(const raw of list){
-    const id = extractId(raw);
-    if(!id){ fail++; continue; }
-    const title = (await fetchYTTitle(raw)) || raw;
-    try{
-      await addDoc(collection(db,'videos'), {
-        url: raw, title, categories: selected, uid: user.uid, createdAt: serverTimestamp()
-      });
-      ok++;
-    }catch(e){ fail++; }
+    const text = await navigator.clipboard.readText();
+    if(!text) return;
+    // 기존 내용 뒤에 줄바꿈 추가
+    urlInput.value = (urlInput.value ? (urlInput.value.replace(/\s+$/,'')+'\n') : '') + text;
+  }catch(e){
+    alert('클립보드 접근이 차단되었습니다. 설정 > 사이트 설정 > 클립보드에서 허용으로 변경해주세요.');
   }
-  msg.textContent = `완료: ${ok} 성공, ${fail} 실패`;
+});
+
+btnTop   .addEventListener('click', submitAll);
+btnBottom.addEventListener('click', submitAll);
+
+/* ---------- 업로드 로직 ---------- */
+function parseUrls(raw){
+  return raw.split(/\r?\n/)
+            .map(s=>s.trim())
+            .filter(s=>s && /^https?:\/\//i.test(s));
 }
 
-/* 위/아래 등록 버튼 */
-btnSubmitTop.addEventListener('click', doSubmit);
-btnSubmit.addEventListener('click', doSubmit);
+function selectedCats(){
+  return Array.from(document.querySelectorAll('.cat:checked')).map(i=>i.value);
+}
+
+function sanitize(input){
+  return String(input).replace(/[<>"'`]/g, s => ({
+    '<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'
+  }[s]));
+}
+
+async function submitAll(){
+  const urls = parseUrls(urlInput.value);
+  if(urls.length===0){ alert('URL을 입력해주세요.'); return; }
+
+  const sel = selectedCats();
+  // 최대 3개
+  if(sel.length===0){ alert('카테고리를 1~3개 선택해주세요.'); return; }
+  if(sel.length>3){ alert('카테고리는 최대 3개까지 선택 가능합니다.'); return; }
+
+  // 정렬
+  const order = readOrder();
+  const list = order==='asc' ? urls : urls.slice().reverse();
+
+  // personal 분리
+  const hasPersonal = sel.includes('personal1') || sel.includes('personal2');
+  const serverCats  = sel.filter(v=> v!=='personal1' && v!=='personal2');
+
+  // 로그인 확인 (서버 업로드가 있는 경우만)
+  const user = auth.currentUser;
+  if(serverCats.length>0 && !user){
+    alert('로그인 후 업로드할 수 있습니다.');
+    return;
+  }
+
+  // 업로드/저장
+  let ok=0, fail=0;
+
+  // 로컬 저장(개인자료)
+  if(hasPersonal){
+    const labels = getPersonalLabels();
+    const targets = [];
+    if(sel.includes('personal1')) targets.push('personal1');
+    if(sel.includes('personal2')) targets.push('personal2');
+    targets.forEach(key=>{
+      const k = `urls_${key}`;
+      const prev = JSON.parse(localStorage.getItem(k) || '[]');
+      localStorage.setItem(k, JSON.stringify([...list, ...prev]));
+    });
+    ok += list.length;
+  }
+
+  // 서버 업로드
+  if(serverCats.length>0 && user){
+    for(const u of list){
+      try{
+        await addDoc(collection(db,'videos'), {
+          url: sanitize(u),
+          uid: user.uid,
+          categories: serverCats.slice(0,3),
+          createdAt: serverTimestamp()
+        });
+        ok++;
+      }catch(e){
+        console.error(e); fail++;
+      }
+    }
+  }
+
+  alert(`등록 완료: ${ok}개${fail? `, 실패 ${fail}개`:''}`);
+  // 페이지는 머무름(리다이렉트 안 함)
+}
