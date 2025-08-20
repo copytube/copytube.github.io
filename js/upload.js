@@ -4,7 +4,7 @@ import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 import { CATEGORY_GROUPS } from './categories.js';
 
-/* ----------------- 공통 UI 요소 ----------------- */
+/* ----------------- 공통 UI ----------------- */
 const signupLink   = document.getElementById("signupLink");
 const signinLink   = document.getElementById("signinLink");
 const welcome      = document.getElementById("welcome");
@@ -61,19 +61,12 @@ btnSignOut   ?.addEventListener("click", async ()=>{ await fbSignOut(auth); clos
 btnGoUpload  ?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
 brandHome    ?.addEventListener("click", (e)=>{ e.preventDefault(); location.href = "index.html"; });
 
-/* ----------------- 개인자료 라벨/위치 저장 ----------------- */
+/* ----------------- 개인자료 라벨 저장 ----------------- */
 function getPersonalLabels(){
   try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }catch{ return {}; }
 }
 function setPersonalLabels(m){
   localStorage.setItem('personalLabels', JSON.stringify(m||{}));
-}
-function getPersonalPosition(){
-  const v = localStorage.getItem('personalPosition');
-  return v === 'top' ? 'top' : 'bottom'; // 기본 하단
-}
-function setPersonalPosition(pos){
-  localStorage.setItem('personalPosition', (pos==='top'?'top':'bottom'));
 }
 
 /* ----------------- 카테고리 렌더 ----------------- */
@@ -86,7 +79,6 @@ function renderCategories(){
       const defaultLabel = (c.value==='personal1') ? '자료1' : (c.value==='personal2' ? '자료2' : c.label);
       const labelText    = isPersonal && personalLabels[c.value] ? personalLabels[c.value] : defaultLabel;
 
-      // 개인자료 라벨 옆에 "이름변경" 버튼
       const rename = isPersonal
         ? `<button class="rename-btn" data-key="${c.value}" type="button">이름변경</button>`
         : '';
@@ -112,7 +104,7 @@ function renderCategories(){
 
   catsBox.innerHTML = html;
 
-  // 개인자료 이름변경 동작
+  // 개인자료 이름변경
   catsBox.querySelectorAll('.rename-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const key = btn.dataset.key;
@@ -122,12 +114,11 @@ function renderCategories(){
       if(!next) return;
       map[key] = next.trim().slice(0,20);
       setPersonalLabels(map);
-      renderCategories(); // 라벨 즉시 갱신
-      attachPersonalPositionUI(); // 재부착
+      renderCategories(); // 즉시 반영
     });
   });
 
-  // 최대 3개 체크 제한(개인자료는 서버 업로드 대상이 아니므로 제한 제외)
+  // 최대 3개 체크 제한(개인자료 제외)
   const limit = 3;
   catsBox.querySelectorAll('input.cat').forEach(ch=>{
     ch.addEventListener('change', ()=>{
@@ -139,36 +130,6 @@ function renderCategories(){
       }else{
         showMsg('');
       }
-    });
-  });
-}
-
-/* 개인자료 “상단/하단” 위치 라디오를 ‘개인자료’ 그룹 하단에 부착 */
-function attachPersonalPositionUI(){
-  const fs = catsBox.querySelector('fieldset.group[data-key="personal"]');
-  if (!fs) return;
-  // 기존 UI 제거 후 다시
-  fs.querySelectorAll('.personal-pos').forEach(n=>n.remove());
-
-  const wrap = document.createElement('div');
-  wrap.className = 'personal-pos';
-  wrap.innerHTML = `
-    <span class="title">개인자료 위치:</span>
-    <label><input type="radio" name="personalPos" value="top"> 상단</label>
-    <label><input type="radio" name="personalPos" value="bottom"> 하단</label>
-  `;
-  fs.appendChild(wrap);
-
-  // 값 반영
-  const cur = getPersonalPosition();
-  const rTop = wrap.querySelector('input[value="top"]');
-  const rBot = wrap.querySelector('input[value="bottom"]');
-  (cur==='top'? rTop : rBot).checked = true;
-
-  wrap.querySelectorAll('input[name="personalPos"]').forEach(r=>{
-    r.addEventListener('change', ()=>{
-      setPersonalPosition(r.value === 'top' ? 'top' : 'bottom');
-      showMsg(`개인자료 위치가 "${r.value==='top'?'상단':'하단'}"으로 설정되었습니다.`);
     });
   });
 }
@@ -194,6 +155,10 @@ function extractId(url){
 function parseLines(raw){
   return raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
 }
+function currentOrder(){
+  const r = document.querySelector('input[name="order"]:checked');
+  return r ? r.value : 'bottom'; // 기본 아래부터
+}
 
 async function doSubmit(){
   showMsg('등록 중...');
@@ -203,14 +168,14 @@ async function doSubmit(){
   const lines = parseLines(urlBox.value);
   if(lines.length===0){ showMsg('URL을 입력해 주세요.'); return; }
 
-  // 선택 카테고리 수집 (개인자료는 업로드 제외)
+  // 선택 카테고리(개인자료 제외)
   const selected = Array.from(catsBox.querySelectorAll('.cat:checked')).map(c=>c.value);
   const cats = selected.filter(v => v!=='personal1' && v!=='personal2');
   if (cats.length > 3){ showMsg('카테고리는 최대 3개까지입니다.'); return; }
 
-  // 정렬 옵션(아래부터/위부터): 아래부터가 최신이 되도록 역순 업로드
-  const orderBottomFirst = true; // 기본 ‘아래부터’
-  const toUpload = orderBottomFirst ? lines.slice().reverse() : lines.slice();
+  // 순서: 아래부터(역순) / 위부터(그대로)
+  const order = currentOrder();
+  const toUpload = (order==='bottom') ? lines.slice().reverse() : lines.slice();
 
   let ok=0, fail=0;
   for (const url of toUpload){
@@ -237,5 +202,4 @@ function showMsg(t){ msg.textContent = t || ''; }
 
 /* ----------------- 시작 ----------------- */
 renderCategories();
-attachPersonalPositionUI();
 showMsg('');
