@@ -2,45 +2,56 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="
-  default-src 'self';
-  connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
-  img-src 'self' data: https://i.ytimg.com;
-  frame-src https://www.youtube.com;
-  script-src 'self' https://www.gstatic.com 'unsafe-inline';
-  style-src 'self' 'unsafe-inline';
-  object-src 'none';
-  base-uri 'self';
-">
-
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>로그인 - copytube</title>
+
+  <!-- CSP -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    connect-src 'self'
+      https://identitytoolkit.googleapis.com
+      https://securetoken.googleapis.com
+      https://firebaseinstallations.googleapis.com
+      https://www.googleapis.com
+      https://www.gstatic.com
+      https://firestore.googleapis.com;
+    img-src 'self' data:;
+    frame-src https://www.youtube.com https://www.youtube-nocookie.com;
+    script-src 'self' https://www.gstatic.com 'unsafe-inline';
+    style-src 'self' 'unsafe-inline';
+    object-src 'none';
+    base-uri 'self';
+  ">
+  <link rel="stylesheet" href="css/style.css"/>
   <style>
-    body { margin:0; font-family: system-ui, Arial, sans-serif; }
-    main { max-width:420px; margin:40px auto; padding:0 16px; }
+    main { max-width:420px; margin:96px auto 40px; padding:0 16px; }
     label { display:block; margin-top:14px; font-size:14px; }
-    input { width:100%; padding:10px; margin-top:6px; box-sizing:border-box; border:1px solid #ccc; border-radius:6px; }
+    input { width:100%; padding:10px; margin-top:6px; box-sizing:border-box; border:1px solid #333; border-radius:6px; background:#000; color:#fff; }
     button { margin-top:18px; width:100%; padding:12px; border:0; border-radius:8px; background:#0366d6; color:#fff; font-weight:600; cursor:pointer; }
-    .msg { margin-top:10px; font-size:13px; color:#333; white-space:pre-line; }
-    a { color:#0366d6; text-decoration:none; }
+    .msg { margin-top:10px; font-size:13px; color:#ccc; white-space:pre-line; }
   </style>
 </head>
 <body>
+  <header id="topbar">
+    <div class="brand">
+      <a href="./"><img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/></a>
+    </div>
+    <div class="right">
+      <a class="link" href="signup.html">Sign up</a>
+    </div>
+  </header>
+
   <main>
     <h2>로그인</h2>
-
-    <label>아이디 (이메일 또는 닉네임)
-      <input id="loginId" placeholder="예: niceguy 또는 niceguy@example.com" autocomplete="username"/>
+    <label>아이디 (닉네임 또는 이메일)
+      <input id="loginId" placeholder="예: coolboy 또는 coolboy@example.com" autocomplete="username"/>
     </label>
-
     <label>비밀번호
       <input id="password" type="password" autocomplete="current-password"/>
     </label>
-
     <button id="submitBtn">로그인</button>
     <div class="msg" id="msg"></div>
-
-    <p style="margin-top:12px;">처음이신가요? <a href="signup.html">Sign up</a></p>
+    <p style="margin-top:12px;">처음이신가요? <a class="link" href="signup.html">Sign up</a></p>
   </main>
 
   <script type="module" src="js/firebase-init.js"></script>
@@ -48,7 +59,6 @@
   <script type="module">
     import { auth, signInWithEmailAndPassword } from './js/auth.js';
     import { normalizeLoginId } from './js/auth.js';
-
     const $ = (id) => document.getElementById(id);
     const msg = $('msg');
 
@@ -56,19 +66,12 @@
       msg.textContent = '로그인 중...';
       const rawId = $('loginId').value.trim();
       const password = $('password').value;
-
-      if (!rawId || !password) {
-        msg.textContent = '아이디와 비밀번호를 입력해 주세요.';
-        return;
-      }
-
+      if (!rawId || !password) { msg.textContent = '아이디와 비밀번호를 입력해 주세요.'; return; }
       try {
         const { emailLike } = normalizeLoginId(rawId);
         await signInWithEmailAndPassword(auth, emailLike, password);
-        location.href = './'; // 로그인 성공 → 첫 화면
-      } catch (e) {
-        msg.textContent = `오류: ${e.message}`;
-      }
+        location.href = './';
+      } catch (e) { msg.textContent = `오류: ${e.message}`; }
     });
   </script>
 </body>
