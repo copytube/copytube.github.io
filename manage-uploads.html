@@ -3,20 +3,14 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>내영상관리 - Copytube</title>
+  <title>내 영상 관리 - CopyTube</title>
 
-  <!-- CSP -->
+  <!-- CSP (보안 강화) -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    connect-src 'self'
-      https://firestore.googleapis.com
-      https://identitytoolkit.googleapis.com
-      https://securetoken.googleapis.com
-      https://firebaseinstallations.googleapis.com
-      https://www.googleapis.com
-      https://www.gstatic.com;
+    connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
     img-src 'self' data: https://i.ytimg.com;
-    frame-src https://www.youtube.com https://www.youtube-nocookie.com;
+    frame-src https://www.youtube.com;
     script-src 'self' https://www.gstatic.com 'unsafe-inline';
     style-src 'self' 'unsafe-inline';
     object-src 'none';
@@ -24,216 +18,80 @@
   ">
 
   <link rel="stylesheet" href="css/style.css"/>
+
   <style>
-    main { max-width:1000px; margin:96px auto 40px; padding:0 16px; text-align:left; }
-    .pager{ display:flex; gap:6px; margin-top:12px; justify-content:center; flex-wrap:wrap;}
-    .pager button{ padding:6px 10px; border-radius:8px; border:1px solid #2a2a2a; background:#0f0f0f; color:#fff; cursor:pointer; }
-    .title{ font-weight:800; }
-    .cats-col{ display:flex; flex-direction:column; gap:4px; }
+    main { max-width:1000px; margin:96px auto 40px; padding:0 16px; }
+    h2 { display:flex; align-items:center; gap:10px; }
+    .admin-badge{ font-size:12px; color:#9ef01a; font-weight:700; }
+    .msg { margin:8px 0 12px; color:#ccc; min-height:1.2em; white-space:pre-line; }
+
+    .row{
+      display:flex; gap:10px; align-items:flex-start;
+      background:#1b1b1b; border:1px solid #333; border-radius:10px;
+      padding:10px;
+    }
+    .row .sel{ margin-top:4px; }
+    .row .meta{ display:flex; flex-direction:column; gap:6px; min-width:0; flex:1; }
+    .row .title{ font-weight:800; overflow-wrap:anywhere; }
+    .row .url{ font-size:12px; color:#9aa0a6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .catbox{ display:flex; flex-direction:column; gap:4px; font-size:13px; }
+    .catline{ display:inline-block; background:#0f0f0f; border:1px solid #2a2a2a; border-radius:6px; padding:4px 8px; width:max-content; }
+    .ops{ display:flex; gap:8px; align-items:center; }
+    .btn{ padding:8px 12px; border:0; border-radius:8px; cursor:pointer; font-weight:800; }
+    .btn.delete{ background:#dc2626; color:#fff; }
+    .btn.refresh{ background:#374151; color:#fff; }
+    .pager{ display:flex; gap:8px; margin:12px 0 0; align-items:center; }
+    .pager button{ padding:8px 12px; border:0; border-radius:8px; background:#111; color:#ddd; cursor:pointer; }
+    .hidden{ display:none !important; }
   </style>
 </head>
 <body>
+  <!-- 상단바 -->
   <header id="topbar">
     <div class="brand">
-      <a href="./"><img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/></a>
+      <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
+        <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
+      </a>
     </div>
-    <div class="right">
+    <div class="right" style="position:relative;">
       <a id="signupLink" class="link" href="signup.html">Sign up</a>
       <a id="signinLink" class="link" href="signin.html">Sign in</a>
       <span id="welcome" class="welcome"></span>
       <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
+
+      <!-- 드롭다운 -->
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
-        <button id="btnMyUploads" type="button" disabled>내영상관리</button>
+        <button id="btnAbout" type="button">CopyTube는…</button>
+        <button id="btnMyUploads" type="button">내영상관리</button>
         <button id="btnSignOut" type="button">Sign out</button>
         <button id="btnGoUpload" class="menu-strong" type="button">추천영상등록</button>
-        <button id="btnAbout" type="button">CopyTube는…</button>
       </div>
     </div>
   </header>
 
   <main>
-    <h2>내영상관리</h2>
-    <div id="msg" class="welcome" style="margin:8px 0 12px;"></div>
-    <div id="list" class="list"></div>
-    <div class="pager" id="pager"></div>
+    <h2>
+      내 영상 관리
+      <small id="adminBadge" class="admin-badge hidden">(관리자 모드: 전체 표시)</small>
+    </h2>
+    <div class="msg" id="msg"></div>
+
+    <div class="ops">
+      <button id="btnRefresh" class="btn refresh" type="button">새로고침</button>
+    </div>
+
+    <div id="list" style="display:flex;flex-direction:column;gap:8px;margin-top:10px;"></div>
+
+    <div class="pager">
+      <button id="btnPrev" type="button" class="hidden">← 이전</button>
+      <span id="pageInfo" style="color:#9aa0a6;"></span>
+      <button id="btnNext" type="button" class="hidden">다음 →</button>
+    </div>
   </main>
 
-  <script type="module">
-    import { auth, db } from './js/firebase-init.js';
-    import { onAuthStateChanged, signOut as fbSignOut, collection, query, where, getDocs, deleteDoc, doc, getDoc, orderBy, limit, startAfter, updateDoc } from './js/auth.js';
-    import { CATEGORY_GROUPS } from './js/categories.js';
-    import { escapeHTML } from './js/sanitize.js';
-
-    /* 라벨 맵(미등록 코드 fallback) */
-    const labelMap = new Map(CATEGORY_GROUPS.flatMap(g => g.children.map(c => [c.value, c.label])));
-    const labelOf = v => labelMap.get(v) || `(${v})`;
-
-    /* 헤더 드롭다운 */
-    const signupLink   = document.getElementById("signupLink");
-    const signinLink   = document.getElementById("signinLink");
-    const welcome      = document.getElementById("welcome");
-    const menuBtn      = document.getElementById("menuBtn");
-    const dropdown     = document.getElementById("dropdownMenu");
-    const btnSignOut   = document.getElementById("btnSignOut");
-    const btnMyUploads = document.getElementById("btnMyUploads");
-    const btnGoUpload  = document.getElementById("btnGoUpload");
-    const btnAbout     = document.getElementById("btnAbout");
-
-    let isMenuOpen=false;
-    function openDropdown(){ isMenuOpen=true; dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); }
-    function closeDropdown(){ isMenuOpen=false; dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"), 180); }
-    onAuthStateChanged(auth, async (user)=>{
-      const loggedIn = !!user;
-      signupLink.classList.toggle("hidden", loggedIn);
-      signinLink.classList.toggle("hidden", loggedIn);
-      menuBtn.classList.toggle("hidden", !loggedIn);
-      welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
-      closeDropdown();
-      if (user){ await loadPage(user); } else { document.getElementById('msg').textContent = '로그인 후 이용하세요.'; }
-    });
-    menuBtn.addEventListener("click", (e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown(); });
-    document.addEventListener('pointerdown', (e)=>{ if (dropdown.classList.contains('hidden')) return; const inside = e.target.closest('#dropdownMenu, #menuBtn'); if (!inside) closeDropdown(); }, true);
-    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
-    dropdown.addEventListener("click", (e)=> e.stopPropagation());
-    btnMyUploads?.addEventListener("click", ()=>{ /* 현재 */ closeDropdown(); });
-    btnSignOut?.addEventListener("click", async ()=>{ await fbSignOut(auth); closeDropdown(); });
-    btnGoUpload?.addEventListener("click", ()=>{ location.href="upload.html"; closeDropdown(); });
-    btnAbout?.addEventListener("click", ()=>{ location.href="about.html"; closeDropdown(); });
-
-    /* 관리자 여부 */
-    async function isAdmin(uid){
-      try{
-        const s = await getDoc(doc(db,'admins', uid));
-        return s.exists();
-      }catch{ return false; }
-    }
-
-    const list = document.getElementById('list');
-    const msg  = document.getElementById('msg');
-    const pager= document.getElementById('pager');
-
-    let lastDocGlobal = null;
-    let pages = [];
-    let currentPage = 0;
-
-    async function loadPage(user){
-      msg.textContent = '불러오는 중...';
-      list.innerHTML = ''; pager.innerHTML = '';
-      lastDocGlobal = null; pages = []; currentPage = 0;
-
-      const admin = await isAdmin(user.uid);
-
-      // 첫 페이지 로드
-      const { docs, last } = await fetchPage(admin ? null : user.uid, null);
-      pages.push({ docs, last });
-      lastDocGlobal = last;
-      renderList(docs, admin);
-      renderPager();
-
-      msg.textContent = docs.length ? '' : '영상이 없습니다.';
-    }
-
-    async function fetchPage(uid, after){
-      const base = collection(db,'videos');
-      let qy;
-      if (uid){
-        qy = query(base, where('uid','==',uid), orderBy('createdAt','desc'), limit(30), ...(after ? [startAfter(after)] : []));
-      }else{
-        qy = query(base, orderBy('createdAt','desc'), limit(30), ...(after ? [startAfter(after)] : []));
-      }
-      const snap = await getDocs(qy);
-      return { docs: snap.docs, last: snap.docs.length ? snap.docs[snap.docs.length-1] : null };
-    }
-
-    function renderList(docs, admin){
-      list.innerHTML = docs.map(d=>{
-        const v = d.data();
-        const cats = Array.isArray(v.categories) ? v.categories : [];
-        const catsHtml = cats.map(c => `<span class="badge">${escapeHTML(labelOf(c))}</span>`).join('');
-        return `
-          <div class="card" data-id="${d.id}">
-            <div>
-              <div class="title">${escapeHTML(v.title || v.url)}</div>
-              <div class="meta">${escapeHTML(v.url)}${v.uid ? ' • 업로더: '+escapeHTML(v.uid) : ''}</div>
-              <div class="cats-col" style="margin-top:6px;">${catsHtml || '<span class="badge">(카테고리 없음)</span>'}</div>
-            </div>
-            <div class="row-actions">
-              <div class="select3">
-                <select class="sel sel1"><option value="">선택안함</option>${optionsHtml()}</select>
-                <select class="sel sel2"><option value="">선택안함</option>${optionsHtml()}</select>
-                <select class="sel sel3"><option value="">선택안함</option>${optionsHtml()}</select>
-              </div>
-              <button class="btn change" type="button">카테고리변환</button>
-              <button class="btn" data-del="1" type="button" style="background:#dc2626;">삭제</button>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      // 이벤트 바인딩
-      list.querySelectorAll('.card').forEach(card=>{
-        const id = card.dataset.id;
-        card.querySelector('.change').addEventListener('click', async ()=>{
-          const picks = ['.sel1','.sel2','.sel3'].map(s=> card.querySelector(s).value).filter(Boolean);
-          const uniq = Array.from(new Set(picks));
-          if (uniq.length===0){ msg.textContent = '하나 이상 선택해 주세요.'; return; }
-          if (uniq.length>3){ msg.textContent = '최대 3개까지 가능합니다.'; return; }
-          try{
-            await updateDoc(doc(db,'videos', id), { categories: uniq });
-            msg.textContent = '변경되었습니다. 새로고침합니다.';
-            location.reload();
-          }catch(e){
-            msg.textContent = `변경 실패: ${e.message||e}`;
-          }
-        });
-        card.querySelector('[data-del]').addEventListener('click', async ()=>{
-          if(!confirm('정말 삭제하시겠습니까?')) return;
-          try{
-            await deleteDoc(doc(db,'videos', id));
-            msg.textContent = '삭제되었습니다. 새로고침합니다.';
-            location.reload();
-          }catch(e){
-            msg.textContent = `삭제 실패: ${e.message||e}`;
-          }
-        });
-      });
-    }
-
-    function optionsHtml(){
-      const all = CATEGORY_GROUPS.flatMap(g=>g.children.map(c=>({value:c.value,label:c.label})));
-      return all.map(o=>`<option value="${o.value}">${escapeHTML(o.label)}</option>`).join('');
-    }
-
-    function renderPager(){
-      pager.innerHTML = '';
-      for(let i=0;i<pages.length;i++){
-        const b = document.createElement('button');
-        b.textContent = (i+1);
-        if (i===currentPage) b.style.background='#333';
-        b.addEventListener('click', ()=>{
-          currentPage = i;
-          renderList(pages[i].docs, /*admin*/true); // 렌더만
-        });
-        pager.appendChild(b);
-      }
-      // 다음 로드 버튼
-      if (lastDocGlobal){
-        const more = document.createElement('button');
-        more.textContent = '더보기';
-        more.addEventListener('click', async ()=>{
-          const admin = !!auth.currentUser && await isAdmin(auth.currentUser.uid);
-          const { docs, last } = await fetchPage(admin ? null : auth.currentUser.uid, lastDocGlobal);
-          if (docs.length){
-            pages.push({ docs, last });
-            lastDocGlobal = last;
-            currentPage = pages.length-1;
-            renderList(docs, admin);
-            renderPager();
-          }
-        });
-        pager.appendChild(more);
-      }
-    }
-  </script>
+  <!-- 모듈 스크립트 -->
+  <script type="module" src="js/firebase-init.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="js/manage-uploads.js?v=20250820-1"></script>
 </body>
 </html>
