@@ -88,13 +88,11 @@ let allSelected = false;
 
 function selectAll(on){
   const boxes = Array.from(catsBox.querySelectorAll('.cat'));
-  boxes.forEach(b=>{
-    if (b.value === 'personal1' || b.value === 'personal2') return; // 개인자료 제외
-    b.checked = !!on;
-  });
+  boxes.forEach(b => { b.checked = !!on; });  // ← 제외 로직 제거
   allSelected = !!on;
   btnToggleAll.setAttribute('aria-pressed', on ? 'true':'false');
 }
+
 
 // 최초 진입 시 이전 선택 복원
 function applySavedSelection(){
