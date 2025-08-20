@@ -2,6 +2,17 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8"/>
+  <meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
+  img-src 'self' data: https://i.ytimg.com;
+  frame-src https://www.youtube.com;
+  script-src 'self' https://www.gstatic.com 'unsafe-inline';
+  style-src 'self' 'unsafe-inline';
+  object-src 'none';
+  base-uri 'self';
+">
+
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Copytube - 시청</title>
   <link rel="stylesheet" href="css/style.css"/>
