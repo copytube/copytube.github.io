@@ -1,5 +1,5 @@
 // js/index.js
-import { CATEGORY_GROUPS } from './categories.js?v=20250820';
+import { CATEGORY_GROUPS } from './categories.js?v=20250821';
 import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { safePersonalLabel } from './sanitize.js';
