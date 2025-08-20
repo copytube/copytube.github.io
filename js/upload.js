@@ -1,122 +1,105 @@
 // js/upload.js
-// 업로드 페이지 전용 스크립트
-
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
-import {
-  addDoc,
-  collection,
-  serverTimestamp,
-} from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
+import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 import { CATEGORY_GROUPS } from './categories.js';
 
-const $ = (s) => document.querySelector(s);
+/* ----------------- 공통 UI 요소 ----------------- */
+const signupLink   = document.getElementById("signupLink");
+const signinLink   = document.getElementById("signinLink");
+const welcome      = document.getElementById("welcome");
+const menuBtn      = document.getElementById("menuBtn");
+const dropdown     = document.getElementById("dropdownMenu");
+const btnSignOut   = document.getElementById("btnSignOut");
+const btnGoUpload  = document.getElementById("btnGoUpload");
+const btnMyUploads = document.getElementById("btnMyUploads");
+const btnAbout     = document.getElementById("btnAbout");
+const brandHome    = document.getElementById("brandHome");
 
-/* -------------------- 상단바 / 드롭다운 -------------------- */
-const signupLink   = $('#signupLink');
-const signinLink   = $('#signinLink');
-const welcome      = $('#welcome');
-const menuBtn      = $('#menuBtn');
-const dropdown     = $('#dropdownMenu');
-const btnSignOut   = $('#btnSignOut');
-const btnGoUpload  = $('#btnGoUpload');
-const btnMyUploads = $('#btnMyUploads');
-const btnAbout     = $('#btnAbout');
+const urlBox       = document.getElementById("urlBox");
+const btnPaste     = document.getElementById("btnPaste");
+const btnSubmitTop = document.getElementById("btnSubmitTop");
+const btnSubmitBottom = document.getElementById("btnSubmitBottom");
+const catsBox      = document.getElementById("cats");
+const msg          = document.getElementById("msg");
 
+/* ----------------- 드롭다운 ----------------- */
 let isMenuOpen = false;
 function openDropdown(){
   isMenuOpen = true;
-  dropdown.classList.remove('hidden');
-  requestAnimationFrame(()=> dropdown.classList.add('show'));
+  dropdown.classList.remove("hidden");
+  requestAnimationFrame(()=> dropdown.classList.add("show"));
 }
 function closeDropdown(){
   isMenuOpen = false;
-  dropdown.classList.remove('show');
-  setTimeout(()=> dropdown.classList.add('hidden'), 180);
+  dropdown.classList.remove("show");
+  setTimeout(()=> dropdown.classList.add("hidden"), 180);
 }
-
 onAuthStateChanged(auth, (user)=>{
   const loggedIn = !!user;
-  signupLink?.classList.toggle('hidden', loggedIn);
-  signinLink?.classList.toggle('hidden', loggedIn);
-  menuBtn?.classList.toggle('hidden', !loggedIn);
-  welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : '';
+  signupLink.classList.toggle("hidden", loggedIn);
+  signinLink.classList.toggle("hidden", loggedIn);
+  menuBtn.classList.toggle("hidden", !loggedIn);
+  welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
   closeDropdown();
 });
-
-menuBtn?.addEventListener('click', (e)=>{
+menuBtn.addEventListener("click", (e)=>{
   e.stopPropagation();
-  dropdown.classList.contains('hidden') ? openDropdown() : closeDropdown();
+  dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown();
 });
 document.addEventListener('pointerdown', (e)=>{
   if (dropdown.classList.contains('hidden')) return;
   const inside = e.target.closest('#dropdownMenu, #menuBtn');
   if (!inside) closeDropdown();
 }, true);
-document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeDropdown(); });
-dropdown?.addEventListener('click', (e)=> e.stopPropagation());
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
+dropdown.addEventListener("click", (e)=> e.stopPropagation());
 
-btnGoUpload?.addEventListener('click', ()=>{ location.href = 'upload.html'; closeDropdown(); });
-btnMyUploads?.addEventListener('click', ()=>{ location.href = 'manage-uploads.html'; closeDropdown(); });
-btnAbout?.addEventListener('click', ()=>{ location.href = 'about.html'; closeDropdown(); });
-btnSignOut?.addEventListener('click', async ()=>{
-  await fbSignOut(auth);
-  closeDropdown();
-});
+btnMyUploads?.addEventListener("click", ()=>{ location.href = "manage-uploads.html"; closeDropdown(); });
+btnAbout     ?.addEventListener("click", ()=>{ location.href = "about.html"; closeDropdown(); });
+btnSignOut   ?.addEventListener("click", async ()=>{ await fbSignOut(auth); closeDropdown(); });
+btnGoUpload  ?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
+brandHome    ?.addEventListener("click", (e)=>{ e.preventDefault(); location.href = "index.html"; });
 
-/* -------------------- 개인자료 라벨/위치 -------------------- */
+/* ----------------- 개인자료 라벨/위치 저장 ----------------- */
 function getPersonalLabels(){
-  try { return JSON.parse(localStorage.getItem('personalLabels') || '{}'); }
-  catch { return {}; }
+  try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }catch{ return {}; }
 }
-function setPersonalLabel(key, label){
-  const labels = getPersonalLabels();
-  labels[key] = label;
-  localStorage.setItem('personalLabels', JSON.stringify(labels));
+function setPersonalLabels(m){
+  localStorage.setItem('personalLabels', JSON.stringify(m||{}));
 }
 function getPersonalPosition(){
   const v = localStorage.getItem('personalPosition');
-  return v === 'top' ? 'top' : 'bottom';
+  return v === 'top' ? 'top' : 'bottom'; // 기본 하단
 }
 function setPersonalPosition(pos){
-  localStorage.setItem('personalPosition', pos === 'top' ? 'top' : 'bottom');
+  localStorage.setItem('personalPosition', (pos==='top'?'top':'bottom'));
 }
 
-/* -------------------- 카테고리 렌더 -------------------- */
-const catsBox   = $('#cats');
-const msg       = $('#msg');
-const urlsBox   = $('#urls');
-
-function renderCats(){
+/* ----------------- 카테고리 렌더 ----------------- */
+function renderCategories(){
   const personalLabels = getPersonalLabels();
-  const pos = getPersonalPosition();
 
-  const groups = CATEGORY_GROUPS.slice();
-  // 개인자료를 상단으로 이동(선호 설정이 top일 때)
-  if (pos === 'top'){
-    const idx = groups.findIndex(g => g.key === 'personal');
-    if (idx > -1){
-      const [pg] = groups.splice(idx, 1);
-      groups.unshift(pg);
-    }
-  }
-
-  const html = groups.map(g=>{
+  const html = CATEGORY_GROUPS.map(g=>{
     const kids = g.children.map(c=>{
-      const isPersonal   = (g.key === 'personal');
-      const defaultLabel = (c.value === 'personal1') ? '자료1'
-                         : (c.value === 'personal2') ? '자료2'
-                         : c.label;
+      const isPersonal   = (g.key==='personal');
+      const defaultLabel = (c.value==='personal1') ? '자료1' : (c.value==='personal2' ? '자료2' : c.label);
       const labelText    = isPersonal && personalLabels[c.value] ? personalLabels[c.value] : defaultLabel;
 
-      const renameBtn    = isPersonal
+      // 개인자료 라벨 옆에 "이름변경" 버튼
+      const rename = isPersonal
         ? `<button class="rename-btn" data-key="${c.value}" type="button">이름변경</button>`
         : '';
 
-      return `<label><input type="checkbox" class="cat" value="${c.value}"> ${labelText}${renameBtn}</label>`;
+      return `
+        <label>
+          <input type="checkbox" class="cat" value="${c.value}">
+          <span>${labelText}</span>
+          ${rename}
+        </label>`;
     }).join('');
 
-    const legend = (g.key === 'personal')
+    const legend = (g.key==='personal')
       ? `${g.label} <span class="subnote">(로컬저장소)</span>`
       : g.label;
 
@@ -124,115 +107,135 @@ function renderCats(){
       <fieldset class="group" data-key="${g.key}">
         <legend>${legend}</legend>
         <div class="child-grid">${kids}</div>
-      </fieldset>
-    `;
+      </fieldset>`;
   }).join('');
 
   catsBox.innerHTML = html;
 
-  // 이름변경
+  // 개인자료 이름변경 동작
   catsBox.querySelectorAll('.rename-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      const key = btn.getAttribute('data-key');
-      const cur = getPersonalLabels()[key] || (key==='personal1'?'자료1':'자료2');
-      const name = prompt('개인자료 이름을 입력하세요 (최대 12자):', cur);
-      const clean = (name||'').trim().slice(0,12).replace(/[<>"]/g,'');
-      if (!clean) return;
-      setPersonalLabel(key, clean);
-      renderCats();
+      const key = btn.dataset.key;
+      const map = getPersonalLabels();
+      const current = map[key] || (key==='personal1'?'자료1':'자료2');
+      const next = prompt('개인자료 이름을 입력하세요.', current);
+      if(!next) return;
+      map[key] = next.trim().slice(0,20);
+      setPersonalLabels(map);
+      renderCategories(); // 라벨 즉시 갱신
+      attachPersonalPositionUI(); // 재부착
     });
   });
 
-  // 카테고리 3개 제한(개인자료 제외)
+  // 최대 3개 체크 제한(개인자료는 서버 업로드 대상이 아니므로 제한 제외)
   const limit = 3;
-  catsBox.querySelectorAll('input.cat').forEach(chk=>{
-    chk.addEventListener('change', ()=>{
+  catsBox.querySelectorAll('input.cat').forEach(ch=>{
+    ch.addEventListener('change', ()=>{
       const checked = Array.from(catsBox.querySelectorAll('input.cat:checked'))
-        .filter(x => x.value !== 'personal1' && x.value !== 'personal2');
+        .filter(x=> x.value!=='personal1' && x.value!=='personal2');
       if (checked.length > limit){
-        chk.checked = false;
-        alert(`카테고리는 최대 ${limit}개까지 선택 가능합니다.`);
+        ch.checked = false;
+        showMsg(`카테고리는 최대 ${limit}개까지 선택 가능합니다.`);
+      }else{
+        showMsg('');
       }
     });
   });
 }
-renderCats();
 
-/* 개인자료 위치 스위치 UI 초기화 */
-(function initPersonalPosUI(){
-  const row = $('#personalPosRow');
-  if (!row) return;
+/* 개인자료 “상단/하단” 위치 라디오를 ‘개인자료’ 그룹 하단에 부착 */
+function attachPersonalPositionUI(){
+  const fs = catsBox.querySelector('fieldset.group[data-key="personal"]');
+  if (!fs) return;
+  // 기존 UI 제거 후 다시
+  fs.querySelectorAll('.personal-pos').forEach(n=>n.remove());
+
+  const wrap = document.createElement('div');
+  wrap.className = 'personal-pos';
+  wrap.innerHTML = `
+    <span class="title">개인자료 위치:</span>
+    <label><input type="radio" name="personalPos" value="top"> 상단</label>
+    <label><input type="radio" name="personalPos" value="bottom"> 하단</label>
+  `;
+  fs.appendChild(wrap);
+
+  // 값 반영
   const cur = getPersonalPosition();
-  const el  = row.querySelector(`input[name="personalPos"][value="${cur}"]`);
-  if (el) el.checked = true;
-  row.querySelectorAll('input[name="personalPos"]').forEach(r=>{
-    r.addEventListener('change', (e)=>{
-      setPersonalPosition(e.target.value);
-      renderCats();
+  const rTop = wrap.querySelector('input[value="top"]');
+  const rBot = wrap.querySelector('input[value="bottom"]');
+  (cur==='top'? rTop : rBot).checked = true;
+
+  wrap.querySelectorAll('input[name="personalPos"]').forEach(r=>{
+    r.addEventListener('change', ()=>{
+      setPersonalPosition(r.value === 'top' ? 'top' : 'bottom');
+      showMsg(`개인자료 위치가 "${r.value==='top'?'상단':'하단'}"으로 설정되었습니다.`);
     });
   });
-})();
+}
 
-/* -------------------- 붙여넣기 / 파싱 / 업로드 -------------------- */
+/* ----------------- 클립보드 붙여넣기 ----------------- */
+btnPaste.addEventListener('click', async ()=>{
+  try{
+    const text = await navigator.clipboard.readText();
+    if (!text){ showMsg('클립보드에 텍스트가 없습니다.'); return; }
+    const cur = urlBox.value.trim();
+    urlBox.value = cur ? (cur + '\n' + text) : text;
+    showMsg('붙여넣기 완료.');
+  }catch(e){
+    showMsg('클립보드 접근이 거부되었습니다. 브라우저 설정에서 허용해 주세요.');
+  }
+});
+
+/* ----------------- 업로드 로직 ----------------- */
 function extractId(url){
   const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
   return m ? m[1] : '';
 }
-function parseInputUrls(){
-  return urlsBox.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-}
-async function pasteFromClipboard(){
-  try{
-    const txt = await navigator.clipboard.readText();
-    if (!txt){ msg.textContent = '클립보드에 텍스트가 없습니다.'; return; }
-    if (urlsBox.value.trim()){
-      urlsBox.value = urlsBox.value.replace(/\s*$/,'') + '\n' + txt.trim();
-    }else{
-      urlsBox.value = txt.trim();
-    }
-    msg.textContent = '붙여넣기 완료.';
-  }catch(e){
-    msg.textContent = '클립보드 접근이 차단되었습니다. 브라우저 설정에서 허용해 주세요.';
-  }
+function parseLines(raw){
+  return raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
 }
 
-async function submitAll(){
-  msg.textContent = '등록 중...';
-
+async function doSubmit(){
+  showMsg('등록 중...');
   const user = auth.currentUser;
-  if (!user){ msg.textContent = '로그인 후 이용하세요.'; return; }
+  if(!user){ showMsg('로그인 후 이용하세요.'); return; }
 
-  const urls = parseInputUrls();
-  if (!urls.length){ msg.textContent = 'URL을 한 줄에 하나씩 입력해 주세요.'; return; }
+  const lines = parseLines(urlBox.value);
+  if(lines.length===0){ showMsg('URL을 입력해 주세요.'); return; }
 
-  const categories = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value)
-    .filter(v => v !== 'personal1' && v !== 'personal2');
-  if (!categories.length){ msg.textContent = '카테고리를 최소 1개 선택해 주세요.'; return; }
-  if (categories.length > 3){ msg.textContent = '카테고리는 최대 3개까지 선택 가능합니다.'; return; }
+  // 선택 카테고리 수집 (개인자료는 업로드 제외)
+  const selected = Array.from(catsBox.querySelectorAll('.cat:checked')).map(c=>c.value);
+  const cats = selected.filter(v => v!=='personal1' && v!=='personal2');
+  if (cats.length > 3){ showMsg('카테고리는 최대 3개까지입니다.'); return; }
 
-  const order = (document.querySelector('input[name="order"]:checked')?.value || 'bottom');
-  const list  = (order === 'bottom') ? urls.slice().reverse() : urls.slice();
+  // 정렬 옵션(아래부터/위부터): 아래부터가 최신이 되도록 역순 업로드
+  const orderBottomFirst = true; // 기본 ‘아래부터’
+  const toUpload = orderBottomFirst ? lines.slice().reverse() : lines.slice();
 
-  let ok = 0, fail = 0;
-  for (const url of list){
+  let ok=0, fail=0;
+  for (const url of toUpload){
     const id = extractId(url);
-    if (!id){ fail++; continue; }
+    if(!id){ fail++; continue; }
     try{
-      await addDoc(collection(db, 'videos'), {
-        url,
-        categories,
-        uid: auth.currentUser.uid,
-        createdAt: serverTimestamp(),
+      await addDoc(collection(db,'videos'), {
+        url, title: url, categories: (cats.length? cats : ['etc']),
+        uid: user.uid, createdAt: serverTimestamp()
       });
       ok++;
     }catch(e){
-      fail++;
+      console.error(e); fail++;
     }
   }
-  msg.textContent = `등록 완료: ${ok}건 성공, ${fail}건 실패`;
+  showMsg(`완료: ${ok}건 성공, ${fail}건 실패`);
 }
 
-/* -------------------- 버튼 바인딩 -------------------- */
-$('#btnPaste')?.addEventListener('click', pasteFromClipboard);
-$('#btnSubmitTop')?.addEventListener('click', submitAll);
-$('#btnSubmitBottom')?.addEventListener('click', submitAll);
+btnSubmitTop.addEventListener('click', doSubmit);
+btnSubmitBottom.addEventListener('click', doSubmit);
+
+/* ----------------- 메시지 ----------------- */
+function showMsg(t){ msg.textContent = t || ''; }
+
+/* ----------------- 시작 ----------------- */
+renderCategories();
+attachPersonalPositionUI();
+showMsg('');
