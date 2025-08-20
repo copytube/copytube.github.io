@@ -15,6 +15,28 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
+  /* ★ 음악감상 (영상·리뷰 아래) */
+  {
+    key: 'music_listen',
+    label: '음악감상',
+    children: [
+      { value: 'music_kpop',          label: 'K-pop' },
+      { value: 'music_kayo',          label: 'K가요' },
+      { value: 'music_ballad',        label: '발라드' },
+      { value: 'music_rock',          label: 'Rock' },
+      { value: 'music_hiphop_rnb',    label: '힙합 & R&B' },
+      { value: 'music_pop',           label: 'Pop' },
+      { value: 'music_classic',       label: '클래식' },
+      { value: 'music_ost_musical',   label: '영화/뮤지컬' },
+      { value: 'music_ani',           label: '애니메이션' },
+      { value: 'music_children',      label: '동요/어린이' },
+      { value: 'music_internet',      label: '인터넷/Creator' },
+      { value: 'music_jazz',          label: '재즈(Jazz)' },
+      { value: 'music_newage_healing',label: '뉴에이지/힐링' },
+      { value: 'music_gospel',        label: '가스펠' },
+    ],
+  },
+
   /* 일상 (자연 다음에 ‘밈’, ‘국뽕’ 추가) */
   {
     key: 'daily',
@@ -28,8 +50,8 @@ export const CATEGORY_GROUPS = [
       { value: 'celeb',      label: '연예' },
       { value: 'sports',     label: '스포츠' },
       { value: 'nature',     label: '자연' },
-      { value: 'meme',       label: '밈' },          // ★ 추가
-      { value: 'national_pride', label: '국뽕' },   // ★ 추가
+      { value: 'meme',       label: '밈' },
+      { value: 'national_pride', label: '국뽕' },
       { value: 'baby',       label: '아기' },
       { value: 'animal',     label: '동물' },
     ],
@@ -76,7 +98,7 @@ export const CATEGORY_GROUPS = [
     key: 'infoit',
     label: '정보·IT',
     children: [
-      { value: 'new_product', label: '신제품' },  // 기존 "제품리뷰" → "신제품"
+      { value: 'new_product', label: '신제품' },
       { value: 'tech_future', label: '기술미래' },
       { value: 'computer',    label: '컴퓨터' },
       { value: 'coding',      label: '코딩' },
