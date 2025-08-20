@@ -1,7 +1,5 @@
-/* 카테고리 그룹 정의 (업로드/선택 화면 공용)
-   - 각 그룹에는 children 배열이 있으며, value 는 Firestore에 저장되는 실제 코드입니다.
-   - personal 그룹은 로컬 저장 전용(서버 업로드 X).
-*/
+// js/categories.js
+
 export const CATEGORY_GROUPS = [
   /* 영상·리뷰 */
   {
@@ -17,7 +15,7 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
-  /* 일상 */
+  /* 일상 (자연 다음에 ‘밈’, ‘국뽕’ 추가) */
   {
     key: 'daily',
     label: '일상',
@@ -30,21 +28,26 @@ export const CATEGORY_GROUPS = [
       { value: 'celeb',      label: '연예' },
       { value: 'sports',     label: '스포츠' },
       { value: 'nature',     label: '자연' },
-      { value: 'meme',     label: '밈' },
-      { value: 'proud_k',     label: '국뽕' },
+      { value: 'meme',       label: '밈' },          // ★ 추가
+      { value: 'national_pride', label: '국뽕' },   // ★ 추가
       { value: 'baby',       label: '아기' },
       { value: 'animal',     label: '동물' },
     ],
   },
 
-  /* 생활정보 */
+  /* 생활정보 (요청 순서) */
   {
     key: 'lifeinfo',
     label: '생활정보',
     children: [
-      { value: 'common_life',  label: '상식·생활팁' },
+      { value: 'common',  label: '상식' },
+      { value: 'life',  label: '생활팁' },
+      { value: 'beauty',     label: '미용' },
+      { value: 'housework',     label: '가사' },
       { value: 'health',       label: '건강' },
       { value: 'exercise',     label: '운동' },
+      { value: 'self',     label: '자기관리' },
+      { value: 'social',     label: '사회생활' },
       { value: 'law',          label: '법률' },
       { value: 'estate',       label: '부동산' },
       { value: 'parenting',    label: '육아' },
@@ -62,7 +65,9 @@ export const CATEGORY_GROUPS = [
       { value: 'travel',   label: '여행' },
       { value: 'activity', label: '액티비티' },
       { value: 'hobby',    label: '취미' },
-      { value: 'mental',   label: '멘탈' },
+      { value: 'making',     label: '만들기' },
+      { value: 'mobility',     label: '모빌리티' },
+      { value: 'interier',   label: '집꾸미기' },
     ],
   },
 
@@ -71,7 +76,7 @@ export const CATEGORY_GROUPS = [
     key: 'infoit',
     label: '정보·IT',
     children: [
-      { value: 'new_product', label: '신제품' },
+      { value: 'new_product', label: '신제품' },  // 기존 "제품리뷰" → "신제품"
       { value: 'tech_future', label: '기술미래' },
       { value: 'computer',    label: '컴퓨터' },
       { value: 'coding',      label: '코딩' },
@@ -100,7 +105,7 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
-  /* 생존 — 위치: 정보·IT 아래, 교육 위 */
+  /* 생존 (정보·IT 아래, 교육 위) */
   {
     key: 'survival',
     label: '생존',
@@ -112,7 +117,7 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
-  /* 사회 — 위치: 정보·IT 아래, 교육 위 */
+  /* 사회 (정보·IT 아래, 교육 위) */
   {
     key: 'society',
     label: '사회',
@@ -150,7 +155,18 @@ export const CATEGORY_GROUPS = [
     label: '의학',
     children: [
       { value: 'med_general', label: '일반' },
+      { value: 'internal',  label: '내과' },
+      { value: 'surgery',  label: '외과' },
       { value: 'pediatrics',  label: '소아과' },
+      { value: 'obgy',  label: '산부인과' },
+      { value: 'urology',  label: '신비뇨기' },
+      { value: 'os',  label: '근골격계' },
+      { value: 'dermacos',  label: '피부성형' },
+      { value: 'neuro',  label: '신경' },
+      { value: 'opthalmo',  label: '안과' },
+      { value: 'ent',  label: '이빈후과' },
+      { value: 'dental',  label: '구강치과' },
+      { value: 'saib',  label: '대체의학' },
     ],
   },
 
@@ -163,7 +179,7 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
-  /* 개인자료 — ‘기타’ 아래로 이동, 로컬 저장 전용 */
+  /* 개인자료 (로컬 저장 전용) — 기본은 하단 */
   {
     key: 'personal',
     label: '개인자료',
@@ -175,7 +191,6 @@ export const CATEGORY_GROUPS = [
   },
 ];
 
-/* 유틸: children만 평탄화하여 value 목록 얻기 (필요 시 사용) */
 export function ALL_CATEGORY_VALUES() {
   return CATEGORY_GROUPS.flatMap(g => g.children.map(c => c.value));
 }
