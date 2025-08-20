@@ -28,9 +28,18 @@
         <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
       </a>
     </div>
-    <div class="right">
-      <a class="link" href="signup.html">Sign up</a>
-      <a class="link" href="signin.html">Sign in</a>
+    <div class="right" style="position:relative;">
+      <a id="signupLink" class="link" href="signup.html">Sign up</a>
+      <a id="signinLink" class="link" href="signin.html">Sign in</a>
+      <span id="welcome" class="welcome"></span>
+      <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
+
+      <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
+        <button id="btnAbout" class="menu-strong" type="button">CopyTube는..</button>
+        <button id="btnMyUploads" type="button">내영상관리</button>
+        <button id="btnSignOut" type="button">Sign out</button>
+        <button id="btnGoUpload" type="button">추천영상등록</button>
+      </div>
     </div>
   </header>
 
@@ -51,5 +60,74 @@
       <img src="image/copytube_logo_512.png" alt="CopyTube 로고"/>
     </div>
   </main>
+
+  <!-- 로그인 상태 반영 스크립트 -->
+  <script type="module" src="js/firebase-init.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module">
+    import { auth } from './js/firebase-init.js';
+    import { onAuthStateChanged, signOut as fbSignOut } from './js/auth.js';
+
+    const signupLink   = document.getElementById("signupLink");
+    const signinLink   = document.getElementById("signinLink");
+    const welcome      = document.getElementById("welcome");
+    const menuBtn      = document.getElementById("menuBtn");
+    const dropdown     = document.getElementById("dropdownMenu");
+
+    const btnAbout     = document.getElementById("btnAbout");
+    const btnMyUploads = document.getElementById("btnMyUploads");
+    const btnSignOut   = document.getElementById("btnSignOut");
+    const btnGoUpload  = document.getElementById("btnGoUpload");
+
+    let isMenuOpen = false;
+    function openDropdown(){
+      isMenuOpen = true;
+      dropdown.classList.remove("hidden");
+      requestAnimationFrame(()=> dropdown.classList.add("show"));
+    }
+    function closeDropdown(){
+      isMenuOpen = false;
+      dropdown.classList.remove("show");
+      setTimeout(()=> dropdown.classList.add("hidden"), 180);
+    }
+
+    onAuthStateChanged(auth, (user)=>{
+      const loggedIn = !!user;
+      signupLink.classList.toggle("hidden", loggedIn);
+      signinLink.classList.toggle("hidden", loggedIn);
+      menuBtn.classList.toggle("hidden", !loggedIn);
+      welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
+      closeDropdown();
+    });
+
+    menuBtn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown();
+    });
+    document.addEventListener('pointerdown', (e)=>{
+      if (dropdown.classList.contains('hidden')) return;
+      const inside = e.target.closest('#dropdownMenu, #menuBtn');
+      if (!inside) closeDropdown();
+    }, true);
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
+    dropdown.addEventListener("click", (e)=> e.stopPropagation());
+
+    btnAbout?.addEventListener("click", ()=>{
+      // 현재 페이지
+      closeDropdown();
+    });
+    btnMyUploads?.addEventListener("click", ()=>{
+      location.href = "manage-uploads.html";
+      closeDropdown();
+    });
+    btnGoUpload?.addEventListener("click", ()=>{
+      location.href = "upload.html";
+      closeDropdown();
+    });
+    btnSignOut?.addEventListener("click", async ()=>{
+      await fbSignOut(auth);
+      closeDropdown();
+    });
+  </script>
 </body>
 </html>
