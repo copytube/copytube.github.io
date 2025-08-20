@@ -7,7 +7,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 import { CATEGORY_GROUPS } from './categories.js';
 
-/* ===================== 기본 셋업 ===================== */
+/* ============== 기본 셋업 ============== */
 const $ = s => document.querySelector(s);
 
 /* ---------- 상단바 / 드롭다운 ---------- */
@@ -60,14 +60,14 @@ const pageInfo   = $('#pageInfo');
 const refreshBtn = $('#refreshBtn');
 
 /* ---------- 상태 ---------- */
-const PAGE_SIZE = 30;
+const PAGE_SIZE = 30; // 20~30 권장 → 30으로 유지
 let currentUser = null;
 let isAdmin     = false;
 let cursors     = [];   // 각 페이지 마지막 문서 스냅샷
 let page        = 1;
 let reachedEnd  = false;
 
-/* ===================== 유틸/헬퍼 ===================== */
+/* ============== 유틸/헬퍼 ============== */
 function escapeHTML(s){
   return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
@@ -76,7 +76,7 @@ function catChipsHTML(arr){
   return `<div class="cats">${arr.map(v=>`<span class="chip">${escapeHTML(labelOf(v))}</span>`).join('')}</div>`;
 }
 function buildSelect(name){
-  // personal 그룹은 제외
+  // personal 그룹 제외
   const opts = ['<option value="">선택안함</option>'];
   for (const g of CATEGORY_GROUPS){
     if (g.personal) continue;
@@ -90,100 +90,128 @@ function extractId(url){
   return m ? m[1] : '';
 }
 
-/* ===================== YouTube 제목 가져오기 ===================== */
-/** 필요시 프로젝트 API 키 사용 (동일 키 사용 가능). 
- *  YouTube Data API v3 가 GCP에서 활성화되어 있어야 합니다. */
-const YOUTUBE_API_KEY = 'AIzaSyBdZwzeAB91VnR0yqZK9qcW6LsOdCfHm8U'; // 제공해주신 키 사용
-
-/** 메모리 캐시 */
+/* ============== YouTube 제목 가져오기 ============== */
+/** 제공된 키 사용 (프로젝트에서 YouTube Data API v3 활성화 필요) */
+const YOUTUBE_API_KEY = 'AIzaSyBdZwzeAB91VnR0yqZK9qcW6LsOdCfHm8U';
 const TITLE_CACHE = new Map(); // id -> title
 
 async function fetchTitlesBatch(videoIds){
-  // 이미 있는 것 제외
   const need = videoIds.filter(id => id && !TITLE_CACHE.has(id));
   if (need.length === 0) return;
 
-  // 50개씩 배치
-  const chunks = [];
-  for (let i=0; i<need.length; i+=50) chunks.push(need.slice(i, i+50));
-
-  for (const ids of chunks){
+  // 50개씩 요청
+  for (let i=0; i<need.length; i+=50){
+    const ids = need.slice(i, i+50);
     const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${ids.join(',')}&key=${encodeURIComponent(YOUTUBE_API_KEY)}`;
     try{
       const res = await fetch(url);
       if (!res.ok) throw new Error(`YouTube API ${res.status}`);
       const json = await res.json();
       const items = Array.isArray(json.items) ? json.items : [];
-      // 매칭
       for (const it of items){
         const id = it?.id;
         const title = it?.snippet?.title || '';
-        if (id && title) TITLE_CACHE.set(id, title);
+        if (id) TITLE_CACHE.set(id, title);
       }
-      // 못 찾은 id는 빈 문자열 캐시(불필요 반복요청 방지)
+      // 응답에 없던 id들도 캐시해 반복 요청 방지
       ids.forEach(id => { if (!TITLE_CACHE.has(id)) TITLE_CACHE.set(id, ''); });
     }catch(e){
-      // 실패 시, 반복 요청 방지를 위해 임시 캐시
-      ids.forEach(id => { if (!TITLE_CACHE.has(id)) TITLE_CACHE.set(id, ''); });
       console.warn('YouTube title fetch failed:', e);
+      ids.forEach(id => { if (!TITLE_CACHE.has(id)) TITLE_CACHE.set(id, ''); });
     }
   }
 }
 
 function setRowTitle(row, title, fallbackUrl){
-  const titleEl = row.querySelector('.title');
-  titleEl.textContent = title?.trim() ? title : (fallbackUrl || '(제목 없음)');
+  const t = title?.trim();
+  row.querySelector('.title').textContent = t || fallbackUrl || '(제목 없음)';
 }
 
-/** row들에 대해 제목이 없으면 일괄 요청 후 DOM 업데이트 + Firestore 캐시 */
+/** 현재 페이지의 제목 일괄 보정 + Firestore 캐시(가능 시) */
 async function fillMissingTitlesForCurrentList(){
-  // 수집
   const rows = Array.from(listEl.querySelectorAll('.row'));
-  const tasks = [];
-  const idToRow = new Map();
-  const idToDoc = new Map();
+  const idsToFetch = [];
 
   for (const row of rows){
     if (row.dataset.titleResolved === '1') continue;
     const vid = row.dataset.vid;
-    const url = row.dataset.url;
-    const docId = row.dataset.id;
-
-    if (!vid) continue;
-    idToRow.set(vid, row);
-    idToDoc.set(vid, docId);
-    tasks.push(vid);
+    if (vid && !TITLE_CACHE.has(vid)){
+      idsToFetch.push(vid);
+    }
   }
+  if (idsToFetch.length) await fetchTitlesBatch(idsToFetch);
 
-  if (tasks.length === 0) return;
+  for (const row of rows){
+    if (row.dataset.titleResolved === '1') continue;
+    const vid = row.dataset.vid;
+    const docId = row.dataset.id;
+    const url = row.dataset.url;
+    const ownerUid = row.dataset.uid;
+    if (!vid) continue;
 
-  // 배치로 한 번에 가져오기
-  await fetchTitlesBatch(tasks);
-
-  // DOM 반영 + Firestore 캐시 (권한 있는 경우에만)
-  for (const vid of tasks){
-    const row = idToRow.get(vid);
-    if (!row) continue;
-    const docId = idToDoc.get(vid);
     const title = TITLE_CACHE.get(vid) || '';
-
-    setRowTitle(row, title, row.dataset.url);
+    setRowTitle(row, title, url);
     row.dataset.titleResolved = '1';
 
-    // 캐시 저장 (소유자 또는 관리자만)
-    const ownerUid = row.dataset.uid;
+    // 캐시(write) 시도: 소유자 또는 관리자만 허용 규칙
     if (title && (isAdmin || (currentUser && ownerUid === currentUser.uid))){
-      try{
-        await updateDoc(doc(db,'videos', docId), { title });
-      }catch(e){
-        // 권한/규칙으로 막히면 조용히 패스
-        console.debug('skip cache write', e?.message || e);
-      }
+      try{ await updateDoc(doc(db,'videos', docId), { title }); }
+      catch(e){ /* 권한/오프라인 등은 조용히 패스 */ }
     }
   }
 }
 
-/* ===================== 행 렌더 ===================== */
+/* ============== 관리자: 업로더 닉네임 표기 ============== */
+/** usernames 컬렉션: docId = nicknameLower, fields:{ uid, reserved, createdAt } */
+const UID_NAME_CACHE = new Map(); // uid -> nickname
+
+async function fetchNicknamesForUids(uids){
+  const need = uids.filter(u => u && !UID_NAME_CACHE.has(u));
+  if (!need.length) return;
+
+  // in 쿼리는 10개 제한 → 청크로
+  for (let i=0; i<need.length; i+=10){
+    const part = need.slice(i, i+10);
+    try{
+      const qUsernames = query(collection(db,'usernames'), where('uid','in', part));
+      const snap = await getDocs(qUsernames);
+      snap.forEach(d=>{
+        const nicknameLower = d.id || '';
+        const uid = d.data()?.uid;
+        if (uid) UID_NAME_CACHE.set(uid, nicknameLower); // lower로 저장
+      });
+      // 못 찾은 uid는 빈 값 캐시해 중복쿼리 방지
+      part.forEach(u => { if (!UID_NAME_CACHE.has(u)) UID_NAME_CACHE.set(u, ''); });
+    }catch(e){
+      // 권한/인덱스 문제 등: 일단 빈 캐시
+      part.forEach(u => { if (!UID_NAME_CACHE.has(u)) UID_NAME_CACHE.set(u, ''); });
+      console.debug('fetchNicknamesForUids fallback:', e?.message || e);
+    }
+  }
+}
+
+function nicknamePretty(n){ // 표시용(소문자로 저장되어 있으므로 그대로 표기 or 적당히 꾸미기)
+  return n || '';
+}
+
+async function resolveUploaderNamesIfAdmin(){
+  if (!isAdmin) return;
+  const rows = Array.from(listEl.querySelectorAll('.row'));
+  const uids = Array.from(new Set(rows.map(r => r.dataset.uid).filter(Boolean)));
+  if (!uids.length) return;
+
+  await fetchNicknamesForUids(uids);
+
+  rows.forEach(row=>{
+    const uid = row.dataset.uid;
+    const holder = row.querySelector('.__uploader');
+    if (!holder) return;
+    const nick = UID_NAME_CACHE.get(uid) || '';
+    holder.textContent = `업로더: ${nick ? nicknamePretty(nick) : uid.slice(0,8) + '…'}`;
+  });
+}
+
+/* ============== 1행 렌더 ============== */
 function renderRow(docId, data){
   const cats  = Array.isArray(data.categories) ? data.categories : [];
   const url   = data.url || '';
@@ -191,7 +219,6 @@ function renderRow(docId, data){
   const title = data.title || '';
   const vid   = extractId(url);
 
-  // 미리 메모리에 있으면 사용
   if (title) TITLE_CACHE.set(vid, title);
 
   const row = document.createElement('div');
@@ -205,9 +232,11 @@ function renderRow(docId, data){
   row.innerHTML = `
     <div class="meta">
       <div class="title">${escapeHTML(title || '제목 불러오는 중…')}</div>
-      <div class="sub">${escapeHTML(url)}</div>
+      <div class="sub">
+        <a href="${escapeHTML(url)}" target="_blank" rel="noopener">원본 URL 열기</a>
+      </div>
       ${catChipsHTML(cats)}
-      ${isAdmin ? `<div class="sub __uploader">업로더: ${escapeHTML(uid)}</div>` : ''}
+      ${isAdmin ? `<div class="sub __uploader">업로더: (로딩중)</div>` : ''}
     </div>
     <div class="right">
       <div class="cat-editor">
@@ -226,12 +255,11 @@ function renderRow(docId, data){
   const sels = Array.from(row.querySelectorAll('select.sel'));
   cats.slice(0,3).forEach((v, i) => { if (sels[i]) sels[i].value = v; });
 
-  // 적용 버튼
+  // 적용
   row.querySelector('.btn-apply').addEventListener('click', async ()=>{
     const chosen = Array.from(row.querySelectorAll('select.sel')).map(s=>s.value).filter(Boolean);
     const uniq = [...new Set(chosen)].slice(0,3);
     if (uniq.length === 0){ alert('최소 1개의 카테고리를 선택하세요.'); return; }
-
     try{
       await updateDoc(doc(db,'videos', docId), { categories: uniq });
       statusEl.textContent = '변경 완료';
@@ -245,7 +273,7 @@ function renderRow(docId, data){
     }
   });
 
-  // 삭제 버튼
+  // 삭제
   row.querySelector('.btn-del').addEventListener('click', async ()=>{
     if (!confirm('정말 삭제하시겠습니까?')) return;
     try{
@@ -259,18 +287,17 @@ function renderRow(docId, data){
   return row;
 }
 
-/* ===================== 관리자 여부 ===================== */
+/* ============== 관리자 여부 ============== */
 async function checkAdmin(uid){
   try{
     const s = await getDoc(doc(db,'admins', uid));
     return s.exists();
   }catch{
-    // 권한 거부(비관리자)는 false 처리
-    return false;
+    return false; // 비관리자면 권한 거부될 수 있음 → false
   }
 }
 
-/* ===================== 페이지 로드 ===================== */
+/* ============== 페이지 로드 ============== */
 function clearList(){ listEl.innerHTML = ''; }
 
 async function loadPage(p){
@@ -281,9 +308,7 @@ async function loadPage(p){
     const parts = [];
     const base  = collection(db,'videos');
 
-    // 🔒 비관리자는 자신의 것만
-    if (!isAdmin) parts.push(where('uid','==', currentUser.uid));
-
+    if (!isAdmin) parts.push(where('uid','==', currentUser.uid)); // 🔒 본인 것만
     parts.push(orderBy('createdAt','desc'));
     parts.push(limit(PAGE_SIZE));
     if (p > 1){
@@ -307,11 +332,12 @@ async function loadPage(p){
     pageInfo.textContent = String(p);
     statusEl.textContent = '';
 
-    // 🔎 제목 비어있는 것들 일괄 채우기
-    fillMissingTitlesForCurrentList();
+    // 보조 처리
+    await fillMissingTitlesForCurrentList(); // (5) 제목 보정
+    await resolveUploaderNamesIfAdmin();     // (4) 업로더 닉네임
 
   }catch(e){
-    // 인덱스/권한 문제 등 → 폴백: 전체 읽고 클라이언트 필터/정렬
+    // 폴백: 전체 가져와서 클라 필터/정렬 (초기 데이터량 가정)
     try{
       const all = await getDocs(collection(db,'videos'));
       let rows = all.docs.map(d => ({ id:d.id, ...d.data() }));
@@ -330,8 +356,8 @@ async function loadPage(p){
       pageInfo.textContent = String(p);
       statusEl.textContent = '(오프라인 정렬)';
 
-      // 폴백에서도 제목 채우기 시도
-      fillMissingTitlesForCurrentList();
+      await fillMissingTitlesForCurrentList();
+      await resolveUploaderNamesIfAdmin();
 
     }catch(e2){
       console.error(e, e2);
@@ -340,7 +366,7 @@ async function loadPage(p){
   }
 }
 
-/* ===================== 페이징 ===================== */
+/* ============== 페이징 ============== */
 prevBtn.addEventListener('click', ()=>{
   if (page <= 1) return;
   page -= 1;
@@ -356,7 +382,7 @@ refreshBtn.addEventListener('click', ()=>{
   loadPage(page);
 });
 
-/* ===================== 시작 ===================== */
+/* ============== 시작 ============== */
 onAuthStateChanged(auth, async (user)=>{
   const loggedIn = !!user;
   signupLink?.classList.toggle('hidden', loggedIn);
