@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>추천영상등록 - Copytube</title>
+  <title>Copytube - 추천영상 등록</title>
+  <!-- CSP (보안 강화) -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
-    img-src 'self' data: https://i.ytimg.com;
+    img-src 'self' data:;
     frame-src https://www.youtube.com;
     script-src 'self' https://www.gstatic.com 'unsafe-inline';
     style-src 'self' 'unsafe-inline';
@@ -15,82 +16,165 @@
     base-uri 'self';
   ">
   <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    /* ===== 업로드 상단 전용 레이아웃 ===== */
+    .upload-wrap{ max-width:1000px; margin:0 auto; padding:96px 16px 40px; }
+    .page-title{ font-size:28px; font-weight:800; margin:12px 0 8px; }
+    .desc{ color:#9aa0a6; margin:0 0 10px; }
+
+    textarea#urlInput{
+      width:100%; min-height:96px; resize:vertical;
+      background:#0e0e0e; border:1px solid #2a2a2a; color:#fff; border-radius:10px;
+      padding:12px 14px; font-size:14px; line-height:1.35;
+    }
+
+    /* 모바일: 라디오(세로) | 붙여넣기(2줄 높이) | 등록(2줄 높이) */
+    .upload-toolbar{
+      display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; align-items:stretch;
+      margin:14px 0 10px;
+    }
+    .orderBox{ display:flex; flex-direction:column; gap:10px; }
+    .radio-pill{
+      display:flex; align-items:center; justify-content:center; gap:8px;
+      background:#121212; border:1px solid #2a2a2a; color:#e6e6e6; border-radius:12px;
+      padding:10px 12px; white-space:nowrap; font-weight:700;
+    }
+    .radio-pill input{ transform:scale(1.1); accent-color:#4ea1ff; }
+    .btn-tall{
+      display:flex; align-items:center; justify-content:center; text-align:center;
+      height:86px; border-radius:16px; border:0; cursor:pointer;
+      font-size:18px; font-weight:900; line-height:1.15;
+      padding:0 10px; white-space:pre-line; /* 두 줄 허용 */
+    }
+    .btn-paste{ background:#1ec972; color:#0b0b0b; }
+    .btn-submit{ background:#4ea1ff; color:#fff; }
+
+    /* 데스크톱: 한 줄로 자연스럽게 */
+    @media (min-width: 768px){
+      .upload-toolbar{
+        grid-template-columns: auto 1fr auto; align-items:center;
+      }
+      .orderBox{ flex-direction:row; }
+      .btn-tall{ height:58px; border-radius:12px; font-size:17px; white-space:nowrap; }
+      .btn-paste{ padding:0 18px; }
+      .btn-submit{ padding:0 18px; }
+    }
+
+    /* 접이식 도움말 */
+    details.help{ margin:6px 0 14px; }
+    details.help > summary{
+      list-style:none; cursor:pointer; user-select:none; color:#cfd9e3; font-weight:700;
+      display:flex; align-items:center; gap:8px;
+    }
+    details.help > summary::before{
+      content:"▸"; transition:.15s transform ease; display:inline-block;
+    }
+    details.help[open] > summary::before{ transform:rotate(90deg); }
+    .help-body{ color:#aeb6bf; font-size:14px; padding:6px 2px 0; line-height:1.45; }
+
+    /* 카테고리 박스(인덱스와 동일 밀도) */
+    .group{
+      border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
+      padding:8px 8px 10px; margin:6px 0; text-align:left;
+    }
+    .group legend{
+      padding:0 4px; font-weight:800; font-size:15px; color:#eee;
+      margin-bottom:2px; line-height:1.05; display:inline-flex; gap:6px; align-items:center;
+    }
+    .group .subnote{ font-size:12px; color:#9aa0a6; margin-left:6px; }
+
+    .child-grid{
+      margin-top:2px; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px;
+    }
+    @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
+    .child-grid label{
+      background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px;
+      padding:6px 8px; font-size:14px; line-height:1.2;
+      display:flex; gap:6px; align-items:center; justify-content:space-between;
+    }
+    .child-left{ display:flex; align-items:center; gap:6px; }
+    .rename-btn{
+      background:#232323; color:#b9c2cc; border:1px solid #303030; border-radius:6px;
+      font-size:12px; padding:4px 6px; cursor:pointer;
+    }
+
+    .bottom-actions{ margin:16px 0 0; display:flex; justify-content:center; }
+    .btn-big{
+      padding:12px 18px; border-radius:10px; border:0; background:#4ea1ff; color:#fff; font-weight:800; cursor:pointer;
+      min-width:200px;
+    }
+    .note-top{ color:#aab2bb; margin:6px 2px 10px; }
+  </style>
 </head>
-<body class="uploader">
+<body>
+  <!-- 헤더 -->
   <header id="topbar">
     <div class="brand">
-      <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
+      <a id="brandHome" href="index.html" aria-label="CopyTube 카테고리로">
         <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
       </a>
     </div>
     <div class="right" style="position:relative;">
-      <a id="signupLink" class="link" href="signup.html">Sign up</a>
-      <a id="signinLink" class="link" href="signin.html">Sign in</a>
       <span id="welcome" class="welcome"></span>
-      <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
+      <button id="menuBtn" class="icon" aria-label="menu">三</button>
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
+        <button id="btnGoCategory" class="menu-strong" type="button">카테고리 선택</button>
         <button id="btnAbout"      type="button">CopyTube는..</button>
         <button id="btnMyUploads"  type="button">내영상관리</button>
         <button id="btnSignOut"    type="button">Sign out</button>
-        <button id="btnGoUpload"   class="menu-strong" type="button">추천영상등록</button>
       </div>
     </div>
   </header>
 
-  <main class="intro" style="align-items:flex-start; padding-top:96px;">
-    <div style="max-width:900px; width:100%; text-align:left; margin:0 auto;">
-      <h2 style="margin:0 0 8px;">추천영상 등록</h2>
+  <main class="upload-wrap">
+    <h1 class="page-title">추천영상 등록</h1>
+    <p class="desc">YouTube 공유 URL (여러 줄 가능)</p>
 
-      <!-- URL 입력 -->
-      <label style="display:block;margin-top:8px;">YouTube 공유 URL (여러 줄 가능)
-        <textarea id="url" rows="3" placeholder="https://youtu.be/... (한 줄에 1개씩)" style="width:100%;padding:10px;margin-top:6px;border-radius:8px;border:1px solid #333;background:#000;color:#fff;"></textarea>
-      </label>
+    <textarea id="urlInput" placeholder="https://youtu.be/aaa...  (한 줄에 1개씩)"></textarea>
 
-      <!-- 컨트롤 줄: 라디오(세로) + 붙여넣기 + 등록 -->
-      <div class="controls-row">
-        <div class="controls-col">
-          <div class="radio-stack">
-            <label><input type="radio" name="order" value="bottom" checked> 아래부터 등록</label>
-            <label><input type="radio" name="order" value="top"> 위부터 등록</label>
-          </div>
-        </div>
-        <button id="btnPaste" class="btn-clipboard" type="button">클립보드 붙여넣기</button>
-        <button id="btnSubmitTop" class="btn-submit" type="button">등록</button>
+    <!-- 모바일: 라디오(세로) | 붙여넣기 | 등록 -->
+    <div class="upload-toolbar">
+      <div class="orderBox">
+        <label class="radio-pill"><input type="radio" name="order" value="asc" checked/> 아래부터 등록</label>
+        <label class="radio-pill"><input type="radio" name="order" value="desc"/> 위부터 등록</label>
       </div>
 
-      <!-- 접히는 도움말(삼각형 토글 유지) -->
-      <details id="pasteHelp" style="margin:6px 0 12px;">
-        <summary>붙여넣기 도움말</summary>
-        <div class="help-body" style="font-size:13px; color:#cfcfcf; margin-top:6px; line-height:1.5;">
-          • <b>URL 입력칸</b>에 직접 붙여넣거나, <b>오른쪽 “클립보드 붙여넣기”</b> 버튼을 사용하세요. (브라우저/OS 허용 필요)<br/>
-          • <b>URL다중등록:</b> URL 입력칸에 <b>한 줄에 1개의 URL</b>을 붙여넣고, <b>카테고리 선택 후 “등록”</b>을 누르면 한 번에 모두 등록됩니다.<br/>
-          • 위의 <b>“아래부터/위부터 등록”</b> 옵션으로 등록 순서를 결정합니다. (피드가 최신순이라 시리즈는 보통 <b>아래부터 등록</b>해야 차례대로 보여집니다.)<br/><br/>
-          • <b>HTTPS</b> 환경에서만 동작합니다. (GitHub Pages OK)<br/>
-          • <b>iPhone/iPad (iOS 16+)</b>: 처음 붙여넣기 때 <i>“이 앱에서 붙여넣기 허용”</i> 팝업에서 <b>허용</b> 선택<br/>
-          • <b>안드로이드/데스크탑 Chrome</b>: <b>설정 → 사이트 설정 → 클립보드</b>에서 <code>https://copytube.github.io</code>를 <b>허용</b>으로 변경<br/>
-          • 또는 <b>길게 누르기 → 붙여넣기</b> 또는 <code>Ctrl/⌘+V</code> 사용<br/><br/>
-          • <b>개인자료</b>는 로컬저장소에만 저장되며 공유되지 않습니다. 이름 변경 가능, 카테고리 위치 상단으로 변경 가능(카테고리 선택 화면에서).
-        </div>
-      </details>
+      <button id="btnPaste" class="btn-tall btn-paste" type="button">
+        클립보드<br/>붙여넣기
+      </button>
 
-      <!-- 안내문: 카테고리 선택 위로 -->
-      <p id="maxNote" class="welcome" style="margin:2px 0 6px; color:#9aa0a6;">
-        카테고리는 <b>최대 3개</b>까지 선택 가능합니다.
-      </p>
+      <button id="btnSubmitTop" class="btn-tall btn-submit" type="button">
+        등록
+      </button>
+    </div>
 
-      <!-- 카테고리 그룹 -->
-      <div id="cats"><!-- JS 렌더 --></div>
-
-      <!-- 제출 하단 버튼/메시지 -->
-      <div style="display:flex; gap:8px; align-items:center; margin:10px 0 0;">
-        <button id="btnSubmit" class="btn-submit" type="button">등록</button>
-        <div id="msg" class="welcome" style="min-height:1.2em;"></div>
+    <details class="help">
+      <summary>붙여넣기 도움말</summary>
+      <div class="help-body">
+        • <b>URL 입력칸</b>에 직접 붙여넣거나, <b>오른쪽 “클립보드 붙여넣기”</b> 버튼을 사용하세요. (브라우저/OS 허용 필요)<br/>
+        • <b>URL 다중 등록:</b> URL 입력박스에 <b>한 줄에 1개의 URL</b>을 붙여넣고, <b>카테고리 선택 후 “등록”</b>을 누르면 한 번에 모두 등록됩니다.<br/>
+        • 위의 <b>“아래부터/위부터 등록”</b> 옵션으로 등록 순서를 결정합니다. (피드는 최신순이므로 시리즈는 보통 <b>아래부터 등록</b>을 권장)<br/><br/>
+        • <b>HTTPS</b> 환경에서만 동작합니다. (GitHub Pages OK)<br/>
+        • <b>iPhone/iPad</b>: 최초 붙여넣기 시 <i>“이 앱에서 붙여넣기 허용”</i> 팝업에서 <b>허용</b>을 선택하세요.<br/>
+        • <b>안드로이드/데스크탑 Chrome</b>: <b>설정 → 사이트 설정 → 클립보드</b>에서 <code>https://copytube.github.io</code>를 <b>허용</b>으로 변경하세요.<br/>
+        • 또는 <b>길게 누르기 → 붙여넣기</b> 또는 <code>Ctrl/⌘+V</code>를 사용하셔도 됩니다.<br/><br/>
+        • <b>개인자료1/2</b>는 로컬저장소에 저장되며 공유되지 않습니다. <b>이름 변경</b> 및 <b>상단 배치</b>도 가능합니다.
       </div>
+    </details>
+
+    <p class="note-top">카테고리는 <b>최대 3개</b>까지 선택 가능합니다.</p>
+
+    <!-- 카테고리(업로드/인덱스와 동일 밀도) -->
+    <div id="catMount"></div>
+
+    <div class="bottom-actions">
+      <button id="btnSubmitBottom" class="btn-big" type="button">등록</button>
     </div>
   </main>
 
+  <!-- 모듈 스크립트 -->
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/upload.js?v=20250821"></script>
+  <script type="module" src="js/upload.js?v=20250821c"></script>
 </body>
 </html>
