@@ -4,7 +4,7 @@ import {
   collection, getDocs, query, where, orderBy, limit, startAfter
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-/* ---------- 뷰포트 보정 ---------- */
+/* ---------- 뷰포트 높이 보정 ---------- */
 function updateVh(){ document.documentElement.style.setProperty('--app-vh', `${window.innerHeight}px`); }
 updateVh(); window.addEventListener('resize', updateVh); window.addEventListener('orientationchange', updateVh);
 
@@ -19,7 +19,7 @@ const btnAbout      = document.getElementById("btnAbout");
 const welcome       = document.getElementById("welcome");
 const videoContainer= document.getElementById("videoContainer");
 
-/* 로그인 표시(이 페이지는 보기만이므로 Sign in/out 컨트롤은 생략) */
+/* 로그인 표기 */
 onAuthStateChanged(auth, (user)=>{
   welcome.textContent = user ? `안녕하세요, ${user.displayName||'회원'}님` : '';
 });
@@ -28,7 +28,9 @@ onAuthStateChanged(auth, (user)=>{
 let isMenuOpen = false;
 function openDropdown(){ isMenuOpen = true; dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); }
 function closeDropdown(){ isMenuOpen = false; dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"), 180); }
+
 menuBtn.addEventListener("click",(e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden")?openDropdown():closeDropdown(); });
+// 바깥 클릭/터치로 닫기
 document.addEventListener('pointerdown',(e)=>{
   if (dropdown.classList.contains('hidden')) return;
   const inside = e.target.closest('#dropdownMenu, #menuBtn');
@@ -41,7 +43,7 @@ btnGoUpload?.addEventListener("click", ()=>{ location.href = "upload.html"; clos
 btnMyUploads?.addEventListener("click", ()=>{ location.href = "manage-uploads.html"; closeDropdown(); });
 btnAbout?.addEventListener("click", ()=>{ location.href = "about.html"; closeDropdown(); });
 
-/* ---------- 상단바 자동 숨김 (1초) ---------- */
+/* ---------- 상단바 자동 숨김 (1초) + 이동 시에도 잠깐 표시 ---------- */
 let hideTimer=null;
 function showTopbarTemp(){ topbar.classList.remove('hide'); scheduleHide(); }
 function scheduleHide(){ if(hideTimer) clearTimeout(hideTimer); hideTimer=setTimeout(()=> topbar.classList.add('hide'), 1000); }
@@ -49,12 +51,17 @@ function cancelHide(){ if(hideTimer) clearTimeout(hideTimer); }
 
 topbar.classList.add('autohide');
 showTopbarTemp();
+
+// 바깥(iframe 외부) 입력 시 표시
 ['scroll','wheel','touchstart','mousemove','keydown'].forEach(ev=>{
   const target = ev==='scroll' ? videoContainer : window;
   target.addEventListener(ev, ()=>{ if(!isMenuOpen){ showTopbarTemp(); } }, { passive:true });
 });
 
-/* ---------- 선택 카테고리 로드 ---------- */
+// 메뉴 버튼 누르면 실제로도 동의했다고 가정(사용성 개선)
+menuBtn.addEventListener('pointerdown', ()=> { userSoundConsent = true; });
+
+/* ---------- 선택 카테고리 ---------- */
 function getSelected(){
   try{ return JSON.parse(localStorage.getItem('selectedCats')||'"ALL"'); }
   catch{ return "ALL"; }
@@ -62,19 +69,30 @@ function getSelected(){
 
 /* ---------- YouTube 제어 & 무음 유지 ---------- */
 function ytCmd(iframe, func, args = []){ if(iframe?.contentWindow){ iframe.contentWindow.postMessage(JSON.stringify({ event:"command", func, args }), "*"); } }
+function ytListen(iframe, id){
+  try{
+    // infoDelivery/상태 이벤트 수신하도록 handshake
+    iframe.contentWindow.postMessage(JSON.stringify({ event:"listening", id }), "*");
+    ytCmd(iframe, "addEventListener", ["onStateChange"]);
+    ytCmd(iframe, "addEventListener", ["onApiChange"]);
+  }catch{}
+}
+
 let userSoundConsent=false;
 let currentActive=null;
 
-const grantOnce = ()=>{
-  userSoundConsent = true;
-  const iframe = currentActive?.querySelector('iframe');
-  if (iframe){ ytCmd(iframe,"unMute"); ytCmd(iframe,"playVideo"); }
-  ['click','touchstart','pointerdown','wheel','keydown'].forEach(ev=>{
-    window.removeEventListener(ev, grantOnce, {capture:false});
-  });
-};
-['click','touchstart','pointerdown','wheel','keydown'].forEach(ev=>{
-  window.addEventListener(ev, grantOnce, { once:true });
+// YouTube가 보내는 메시지를 수신하여 '언뮤트' 감지 → 동의 true 전환
+window.addEventListener('message', (ev)=>{
+  // 안전하게 파싱
+  let data;
+  try { data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data; }
+  catch { return; }
+  if (!data) return;
+  // infoDelivery에서 muted:false 또는 volume>0이면 동의 true
+  if (data.event === 'infoDelivery' && data.info){
+    if (data.info.muted === false) userSoundConsent = true;
+    if (typeof data.info.volume === 'number' && data.info.volume > 0) userSoundConsent = true;
+  }
 });
 
 /* ---------- 활성 영상 IO ---------- */
@@ -84,16 +102,27 @@ const activeIO = new IntersectionObserver((entries)=>{
     const iframe = card.querySelector('iframe');
 
     if(entry.isIntersecting && entry.intersectionRatio > 0.6){
+      // 이전 카드 정리
       if(currentActive && currentActive !== card){
         const prev = currentActive.querySelector('iframe');
         if(prev){ ytCmd(prev,"mute"); ytCmd(prev,"pauseVideo"); }
       }
+
       currentActive = card;
       ensureIframe(card);
+
+      // 이동할 때마다 상단바 잠깐 보여주기
+      showTopbarTemp();
+
       const ifr = card.querySelector('iframe');
       if (ifr){
         ytCmd(ifr,"playVideo");
-        userSoundConsent ? ytCmd(ifr,"unMute") : ytCmd(ifr,"mute"); // << 다음 카드도 언뮤트 유지
+        if (userSoundConsent){
+          ytCmd(ifr,"unMute");
+          ytCmd(ifr,"setVolume",[100]);
+        }else{
+          ytCmd(ifr,"mute");
+        }
       }
     } else {
       if (iframe){ ytCmd(iframe,"mute"); ytCmd(iframe,"pauseVideo"); }
@@ -103,6 +132,7 @@ const activeIO = new IntersectionObserver((entries)=>{
 
 /* ---------- 렌더 ---------- */
 function showHint(text){ videoContainer.innerHTML = `<div class="video"><p class="hint">${text}</p></div>`; }
+
 function makeCard(url, docId){
   const id = extractId(url);
   const card = document.createElement('div');
@@ -118,17 +148,20 @@ function makeCard(url, docId){
         위로 스와이프 • 탭/스크롤/키 입력 시 소리 허용
       </div>
     </div>`;
+
+  // 카드(썸네일) 클릭 시 동의 true + 바로 언뮤트
   card.addEventListener('click', ()=>{
     ensureIframe(card);
     const ifr = card.querySelector('iframe');
-    if(!userSoundConsent) userSoundConsent = true;
-    if (ifr){ ytCmd(ifr,"playVideo"); ytCmd(ifr,"unMute"); }
+    userSoundConsent = true;
+    if (ifr){ ytCmd(ifr,"playVideo"); ytCmd(ifr,"unMute"); ytCmd(ifr,"setVolume",[100]); }
     currentActive = card;
   });
 
   activeIO.observe(card);
   return card;
 }
+
 function ensureIframe(card){
   if(card.querySelector('iframe')) return;
   const id = card.dataset.vid;
@@ -138,9 +171,14 @@ function ensureIframe(card){
   iframe.allow = "autoplay; encrypted-media; picture-in-picture";
   iframe.allowFullscreen = true;
   Object.assign(iframe.style, { width:"100%", height:"100%", border:"0" });
+
   const thumb = card.querySelector('.thumb');
   if(thumb) card.replaceChild(iframe, thumb);
+
+  // 유튜브 메시지 수신 보장 위한 handshake
+  ytListen(iframe, card.dataset.docId || id);
 }
+
 function extractId(url){
   const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
   return m ? m[1] : url;
