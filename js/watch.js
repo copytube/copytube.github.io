@@ -1,10 +1,13 @@
-import { auth, db } from './firebase-init.js';
+// watch.js
+// 시청 페이지: 사운드 동의 유지 + iframe sandbox 적용
+import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import {
   collection, getDocs, query, where, orderBy, limit, startAfter
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+import { db } from './firebase-init.js';
 
-/* ---------- 뷰포트 보정 ---------- */
+/* ---------- 뷰포트 높이 보정 ---------- */
 function updateVh(){
   document.documentElement.style.setProperty('--app-vh', `${window.innerHeight}px`);
 }
@@ -12,7 +15,7 @@ updateVh();
 window.addEventListener('resize', updateVh);
 window.addEventListener('orientationchange', updateVh);
 
-/* ---------- DOM ---------- */
+/* ----------------- DOM ----------------- */
 const topbar       = document.getElementById("topbar");
 const signupLink   = document.getElementById("signupLink");
 const signinLink   = document.getElementById("signinLink");
@@ -23,15 +26,29 @@ const btnSignOut   = document.getElementById("btnSignOut");
 const btnGoUpload  = document.getElementById("btnGoUpload");
 const btnGoCategory= document.getElementById("btnGoCategory");
 const btnMyUploads = document.getElementById("btnMyUploads");
-const btnAbout     = document.getElementById("btnAbout");
+const brandHome    = document.getElementById("brandHome");
 
 const videoContainer  = document.getElementById("videoContainer");
 
-/* ---------- 드롭다운 ---------- */
+/* ----------------- 상태 ----------------- */
+const PAGE_SIZE = 12;
+let isLoading = false, hasMore = true, lastDoc = null;
+let loadedIds = new Set();
+
+let userSoundConsent = false;
+let currentActive    = null;
+
+// "ALL" | string[] | null
+let selected = null;
+try{
+  const raw = localStorage.getItem('selectedCats');
+  selected = raw ? JSON.parse(raw) : "ALL";
+}catch{ selected = "ALL"; }
+
+/* ----------------- 드롭다운 ----------------- */
 let isMenuOpen = false;
 function openDropdown(){
   isMenuOpen = true;
-  showTopbarTemp();
   dropdown.classList.remove("hidden");
   requestAnimationFrame(()=> dropdown.classList.add("show"));
 }
@@ -40,7 +57,6 @@ function closeDropdown(){
   dropdown.classList.remove("show");
   setTimeout(()=> dropdown.classList.add("hidden"), 180);
 }
-
 onAuthStateChanged(auth, (user)=>{
   const loggedIn = !!user;
   signupLink.classList.toggle("hidden", loggedIn);
@@ -49,7 +65,6 @@ onAuthStateChanged(auth, (user)=>{
   welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
   closeDropdown();
 });
-
 menuBtn.addEventListener("click", (e)=>{
   e.stopPropagation();
   dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown();
@@ -62,12 +77,8 @@ document.addEventListener('pointerdown', (e)=>{
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
 dropdown.addEventListener("click", (e)=> e.stopPropagation());
 
-btnAbout?.addEventListener("click", ()=>{
-  location.href = "about.html";
-  closeDropdown();
-});
 btnGoCategory?.addEventListener("click", ()=>{
-  location.href = "index.html";
+  location.href = "./";
   closeDropdown();
 });
 btnMyUploads?.addEventListener("click", ()=>{
@@ -82,31 +93,33 @@ btnGoUpload?.addEventListener("click", ()=>{
   location.href = "upload.html";
   closeDropdown();
 });
-
-/* ---------- 상단바 자동 숨김 ---------- */
-let isTopbarHideTimer = null;
-function showTopbarTemp(){
-  topbar.classList.remove('hide');
-  if (isTopbarHideTimer) clearTimeout(isTopbarHideTimer);
-  if(!isMenuOpen){
-    isTopbarHideTimer = setTimeout(()=> topbar.classList.add('hide'), 1000); // 1초
-  }
-}
-['scroll','wheel','touchstart','mousemove','keydown'].forEach(ev=>{
-  const target = ev==='scroll' ? videoContainer : window;
-  target.addEventListener(ev, ()=>{ if(!isMenuOpen){ showTopbarTemp(); } }, { passive:true });
+brandHome?.addEventListener("click", (e)=>{
+  e.preventDefault();
+  location.href = "./";
 });
 
-/* ---------- 시청 로직 (생략 없이 기존과 동일) ---------- */
-const PAGE_SIZE = 12;
-let isLoading = false, hasMore = true, lastDoc = null;
-let loadedIds = new Set();
+/* ----------------- YouTube 제어 (첫 제스처 후 언뮤트 유지) ----------------- */
+function ytCmd(iframe, func, args = []) {
+  if (!iframe || !iframe.contentWindow) return;
+  iframe.contentWindow.postMessage(JSON.stringify({ event:"command", func, args }), "*");
+}
+function grantSoundAndUnmuteCurrent(){
+  userSoundConsent = true;
+  const iframe = currentActive?.querySelector('iframe');
+  if (iframe){ ytCmd(iframe,"unMute"); ytCmd(iframe,"playVideo"); }
+}
+const grantOnce = ()=>{
+  grantSoundAndUnmuteCurrent();
+  ['click','touchstart','pointerdown','wheel','keydown'].forEach(ev=>{
+    window.removeEventListener(ev, grantOnce, opts(ev));
+  });
+};
+const opts = (ev)=> (ev==='touchstart' ? { once:true, passive:true } : { once:true });
+['click','touchstart','pointerdown','wheel','keydown'].forEach(ev=>{
+  window.addEventListener(ev, grantOnce, opts(ev));
+});
 
-let userSoundConsent = false;
-let currentActive    = null;
-
-let selected = "ALL";
-
+/* ----------------- 활성 영상 관리 ----------------- */
 const activeIO = new IntersectionObserver((entries)=>{
   entries.forEach(entry=>{
     const card = entry.target;
@@ -130,26 +143,7 @@ const activeIO = new IntersectionObserver((entries)=>{
   });
 }, { root: videoContainer, threshold:[0,0.6,1] });
 
-function ytCmd(iframe, func, args = []) {
-  if (!iframe || !iframe.contentWindow) return;
-  iframe.contentWindow.postMessage(JSON.stringify({ event:"command", func, args }), "*");
-}
-function grantSoundAndUnmuteCurrent(){
-  userSoundConsent = true;
-  const iframe = currentActive?.querySelector('iframe');
-  if (iframe){ ytCmd(iframe,"unMute"); ytCmd(iframe,"playVideo"); }
-}
-const grantOnce = ()=>{
-  grantSoundAndUnmuteCurrent();
-  ['click','touchstart','pointerdown','wheel','keydown'].forEach(ev=>{
-    window.removeEventListener(ev, grantOnce, opts(ev));
-  });
-};
-const opts = (ev)=> (ev==='touchstart' ? { once:true, passive:true } : { once:true });
-['click','touchstart','pointerdown','wheel','keydown'].forEach(ev=>{
-  window.addEventListener(ev, grantOnce, opts(ev));
-});
-
+/* ----------------- 렌더 ----------------- */
 function showHint(text){
   videoContainer.innerHTML = `<div class="video"><p class="hint">${text}</p></div>`;
 }
@@ -165,7 +159,7 @@ function makeCard(url, docId){
       <img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="thumbnail" loading="lazy"
            style="max-width:100%;max-height:100%;object-fit:contain;border:0;"/>
       <div class="playhint" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:6px 10px;background:rgba(0,0,0,.45);border-radius:6px;font-size:13px;color:#fff;">
-        위로 스와이프 • 탭/스크롤/키 입력 시 소리 허용
+        위로 스와이프 • 첫 제스처 후 소리 허용
       </div>
     </div>`;
   card.addEventListener('click', ()=>{
@@ -185,6 +179,8 @@ function ensureIframe(card){
   const origin = encodeURIComponent(location.origin);
   const iframe = document.createElement('iframe');
   iframe.src = `https://www.youtube.com/embed/${id}?enablejsapi=1&playsinline=1&rel=0&autoplay=1&mute=1&origin=${origin}`;
+  // 5) sandbox 적용 (보안 강화)
+  iframe.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
   iframe.allow = "autoplay; encrypted-media; picture-in-picture";
   iframe.allowFullscreen = true;
   Object.assign(iframe.style, { width:"100%", height:"100%", border:"0" });
@@ -196,24 +192,12 @@ function extractId(url){
   return m ? m[1] : url;
 }
 
+/* ----------------- 데이터 로드(무한 스크롤) ----------------- */
 function resetFeed(){
   document.querySelectorAll('#videoContainer .video').forEach(el=> activeIO.unobserve(el));
   videoContainer.innerHTML = "";
   isLoading = false; hasMore = true; lastDoc = null; loadedIds.clear(); currentActive = null;
 }
-
-videoContainer.addEventListener('scroll', ()=>{
-  const nearBottom = videoContainer.scrollTop + videoContainer.clientHeight >= videoContainer.scrollHeight - 200;
-  if(nearBottom) loadMore(false);
-});
-
-/* 선택 불러오기 */
-try{
-  const saved = JSON.parse(localStorage.getItem('selectedCats') || '"ALL"');
-  selected = saved;
-}catch{ selected = "ALL"; }
-
-const PAGE_SIZE = 12;
 async function loadMore(initial=false){
   if(isLoading || !hasMore) return;
 
@@ -230,7 +214,7 @@ async function loadMore(initial=false){
     if(selected === "ALL"){
       parts.push(orderBy("createdAt","desc"));
     }else if(Array.isArray(selected) && selected.length){
-      const cats = selected.length > 10 ? null : selected;
+      const cats = selected.length > 10 ? null : selected; // array-contains-any 최대 10
       if(cats){
         parts.push(where("categories","array-contains-any", cats));
         parts.push(orderBy("createdAt","desc"));
@@ -267,7 +251,11 @@ async function loadMore(initial=false){
     isLoading = false;
   }
 }
+videoContainer.addEventListener('scroll', ()=>{
+  const nearBottom = videoContainer.scrollTop + videoContainer.clientHeight >= videoContainer.scrollHeight - 200;
+  if(nearBottom) loadMore(false);
+});
 
-/* 시작 */
+// 시작
 resetFeed();
 loadMore(true);
