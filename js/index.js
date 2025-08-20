@@ -1,7 +1,9 @@
-// 캐시 무시를 위해 동일 버전 파라미터 사용
-import { CATEGORY_GROUPS } from './categories.js?v=20250818';
+// index.js
+// 카테고리 선택 화면 로직 (개인 라벨 escape/검증 적용)
+import { CATEGORY_GROUPS } from './categories.js?v=20250820';
 import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
+import { escapeHTML, safePersonalLabel } from './sanitize.js';
 
 /* ----------------- DOM ----------------- */
 const signupLink   = document.getElementById("signupLink");
@@ -12,7 +14,6 @@ const dropdown     = document.getElementById("dropdownMenu");
 const btnSignOut   = document.getElementById("btnSignOut");
 const btnGoUpload  = document.getElementById("btnGoUpload");
 const btnMyUploads = document.getElementById("btnMyUploads");
-const btnAbout     = document.getElementById("btnAbout");
 const brandHome    = document.getElementById("brandHome");
 
 const catsBox      = document.getElementById("cats");
@@ -51,10 +52,6 @@ document.addEventListener('pointerdown', (e)=>{
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
 dropdown.addEventListener("click", (e)=> e.stopPropagation());
 
-btnAbout?.addEventListener("click", ()=>{
-  location.href = "about.html";
-  closeDropdown();
-});
 btnMyUploads?.addEventListener("click", ()=>{
   location.href = "manage-uploads.html";
   closeDropdown();
@@ -99,10 +96,14 @@ function renderGroups(){
   const html = groups.map(g=>{
     const kids = g.children.map(c=>{
       const isPersonal = (g.key==='personal');
-      const defaultLabel = (c.value==='personal1') ? '자료1' : (c.value==='personal2' ? '자료2' : c.label);
-      const labelText = isPersonal && (localStorage.getItem('personalLabels') ? JSON.parse(localStorage.getItem('personalLabels'))[c.value] : '') 
-                        || defaultLabel;
-      return `<label><input type="checkbox" class="cat" value="${c.value}"> ${labelText}</label>`;
+      const defaultLabel =
+        (c.value==='personal1') ? '자료1' :
+        (c.value==='personal2') ? '자료2' : c.label;
+
+      const storedRaw = isPersonal ? (personalLabels[c.value] || '') : '';
+      const safeLabel = isPersonal ? (safePersonalLabel(storedRaw) || defaultLabel) : c.label;
+
+      return `<label><input type="checkbox" class="cat" value="${c.value}"> ${escapeHTML(safeLabel)}</label>`;
     }).join('');
 
     const legend = (g.key==='personal')
@@ -126,15 +127,13 @@ let allSelected = false;
 function selectAll(on){
   const boxes = Array.from(catsBox.querySelectorAll('.cat'));
   boxes.forEach(b=>{
-    if (b.value === 'personal1' || b.value === 'personal2') return;
+    if (b.value === 'personal1' || b.value === 'personal2') return; // 개인자료 제외
     b.checked = !!on;
   });
   allSelected = !!on;
   btnToggleAll.setAttribute('aria-pressed', on ? 'true':'false');
 }
-btnToggleAll.addEventListener('click', ()=>{
-  selectAll(!allSelected);
-});
+btnToggleAll.addEventListener('click', ()=> selectAll(!allSelected));
 
 /* ----------------- 저장 & 이동 ----------------- */
 btnWatch.addEventListener('click', ()=>{
