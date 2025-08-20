@@ -6,16 +6,19 @@
   <title>내영상관리 - Copytube</title>
   <link rel="stylesheet" href="css/style.css"/>
   <style>
-    main { max-width:980px; margin:96px auto 40px; padding:0 16px; }
-    .row { display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center;
-           background:#1b1b1b; border:1px solid #333; border-radius:10px; padding:10px; }
-    .meta { font-size:12px; color:#9aa0a6; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .cats { display:flex; flex-direction:column; gap:2px; font-size:12px; color:#e6e6e6; }
-    .actions { display:flex; gap:8px; }
-    .btn { padding:8px 12px; border:0; border-radius:8px; cursor:pointer; font-weight:800; }
-    .btn.del{ background:#dc2626; color:#fff; }
-    .pager { display:flex; gap:6px; justify-content:center; margin-top:12px; }
-    .pager button{ padding:6px 10px; border-radius:8px; border:1px solid #333; background:#111; color:#ddd; cursor:pointer; }
+    main { max-width:960px; margin:96px auto 40px; padding:0 16px; }
+    .row { display:flex; flex-direction:column; gap:8px; }
+    .card {
+      display:grid; grid-template-columns: 1fr auto; gap:8px;
+      background:#1b1b1b; border:1px solid #333; border-radius:8px; padding:10px;
+    }
+    .meta { font-size:12px; color:#9aa0a6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .cats { font-size:13px; color:#e6e6e6; display:flex; flex-direction:column; gap:2px; }
+    .title { font-weight:700; }
+    .actions { display:flex; align-items:flex-start; gap:8px; }
+    .btn { padding:8px 12px; border:0; border-radius:8px; cursor:pointer; font-weight:700; }
+    .btn.danger { background:#dc2626; color:#fff; }
+    .welcome { margin-left:8px; }
   </style>
 </head>
 <body>
@@ -31,7 +34,8 @@
       <span id="welcome" class="welcome"></span>
       <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
-        <button id="btnGoCategory" class="menu-strong" type="button">카테고리 선택</button>
+        <button id="btnAbout" type="button">CopyTube는..</button>
+        <button id="btnMyUploads" type="button">내영상관리</button>
         <button id="btnSignOut" type="button">Sign out</button>
         <button id="btnGoUpload" class="menu-strong" type="button">추천영상등록</button>
       </div>
@@ -39,14 +43,123 @@
   </header>
 
   <main>
-    <h2>내영상관리</h2>
-    <div id="msg" class="welcome" style="margin:6px 0 10px;"></div>
-    <div id="list" style="display:flex; flex-direction:column; gap:8px;"></div>
-    <div id="pager" class="pager"></div>
+    <h2>내 영상 관리</h2>
+    <div id="msg" class="welcome"></div>
+    <div id="list" class="row"></div>
   </main>
 
-  <script type="module" src="js/firebase-init.js"></script>
-  <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/manage-uploads.js?v=20250821"></script>
+  <script type="module">
+    import { auth, db } from './js/firebase-init.js';
+    import { onAuthStateChanged, signOut as fbSignOut } from './js/auth.js';
+    import { collection, query, where, getDocs, orderBy, doc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+    import { CATEGORY_GROUPS } from './js/categories.js';
+    import { escapeHTML } from './js/sanitize.js';
+
+    const signupLink = document.getElementById("signupLink");
+    const signinLink = document.getElementById("signinLink");
+    const welcome    = document.getElementById("welcome");
+    const menuBtn    = document.getElementById("menuBtn");
+    const dropdown   = document.getElementById("dropdownMenu");
+    const btnSignOut = document.getElementById("btnSignOut");
+    const btnGoUpload= document.getElementById("btnGoUpload");
+    const btnAbout   = document.getElementById("btnAbout");
+    const btnMyUploads = document.getElementById("btnMyUploads");
+
+    const list = document.getElementById('list');
+    const msg  = document.getElementById('msg');
+
+    /* 드롭다운 */
+    let isMenuOpen=false;
+    function openDropdown(){ isMenuOpen = true; dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); }
+    function closeDropdown(){ isMenuOpen = false; dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"), 180); }
+    onAuthStateChanged(auth, (user)=>{
+      const loggedIn = !!user;
+      signupLink.classList.toggle("hidden", loggedIn);
+      signinLink.classList.toggle("hidden", loggedIn);
+      menuBtn.classList.toggle("hidden", !loggedIn);
+      welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
+      closeDropdown();
+    });
+    menuBtn.addEventListener("click", (e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown(); });
+    document.addEventListener('pointerdown', (e)=>{
+      if (dropdown.classList.contains('hidden')) return;
+      const inside = e.target.closest('#dropdownMenu, #menuBtn');
+      if (!inside) closeDropdown();
+    }, true);
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
+    dropdown.addEventListener("click", (e)=> e.stopPropagation());
+    btnAbout?.addEventListener("click", ()=>{ location.href = "about.html"; closeDropdown(); });
+    btnMyUploads?.addEventListener("click", ()=>{ location.href = "manage-uploads.html"; closeDropdown(); });
+    btnSignOut?.addEventListener("click", async ()=>{ await fbSignOut(auth); closeDropdown(); });
+    btnGoUpload?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
+
+    function labelMap(){
+      const map = new Map();
+      CATEGORY_GROUPS.forEach(g => g.children.forEach(c => map.set(c.value, c.label)));
+      return map;
+    }
+    const lmap = labelMap();
+
+    async function isAdmin(uid){
+      try{ const s = await getDoc(doc(db,'admins', uid)); return s.exists(); }catch{ return false; }
+    }
+
+    async function ensureAuthReady(){
+      if (typeof auth.authStateReady === 'function'){ try{ await auth.authStateReady(); return; }catch{} }
+      await new Promise(res => { const unsub = onAuthStateChanged(auth, ()=>{ unsub(); res(); }); });
+    }
+
+    async function load(){
+      msg.textContent = '불러오는 중...';
+      await ensureAuthReady();
+      const user = auth.currentUser;
+      if(!user){ msg.textContent = '로그인 후 이용하세요.'; list.innerHTML=''; return; }
+
+      const admin = await isAdmin(user.uid);
+      let snap;
+      if (admin){
+        snap = await getDocs(query(collection(db,'videos'), orderBy('createdAt','desc')));
+      }else{
+        snap = await getDocs(query(collection(db,'videos'), where('uid','==',user.uid), orderBy('createdAt','desc')));
+      }
+      const rows = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+      if (!rows.length){ msg.textContent = '영상이 없습니다.'; list.innerHTML=''; return; }
+
+      msg.textContent = '';
+      list.innerHTML = rows.map(v=>{
+        const cats = Array.isArray(v.categories) ? v.categories : [];
+        const catsHtml = cats.map(c => `<span>${escapeHTML(lmap.get(c) || `(${c})`)}</span>`).join('');
+        const title = escapeHTML(v.title || v.url || '');
+        const url   = escapeHTML(v.url || '');
+        return `
+          <div class="card" data-id="${v.id}">
+            <div>
+              <div class="title">${title}</div>
+              <div class="meta">${url}${v.uid ? ' • 업로더: '+escapeHTML(v.uid) : ''}</div>
+              <div class="cats">${catsHtml}</div>
+            </div>
+            <div class="actions">
+              <button class="btn danger btnDel">삭제</button>
+            </div>
+          </div>`;
+      }).join('');
+
+      list.querySelectorAll('.btnDel').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          const id = btn.closest('.card')?.dataset?.id;
+          if(!id) return;
+          if(!confirm('정말 삭제하시겠습니까?')) return;
+          try{
+            await deleteDoc(doc(db,'videos', id));
+            btn.closest('.card').remove();
+          }catch(e){
+            alert('삭제 실패: ' + (e.message||e));
+          }
+        });
+      });
+    }
+
+    load();
+  </script>
 </body>
 </html>
