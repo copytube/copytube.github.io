@@ -3,51 +3,52 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Copytube - 영상보기</title>
-  <link rel="stylesheet" href="css/style.css"/>
-  <!-- CSP (보안 강화) -->
+  <title>Copytube - 시청</title>
+
+  <!-- CSP -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
+    connect-src 'self'
+      https://firestore.googleapis.com
+      https://identitytoolkit.googleapis.com
+      https://securetoken.googleapis.com
+      https://firebaseinstallations.googleapis.com
+      https://www.googleapis.com
+      https://www.gstatic.com;
     img-src 'self' data: https://i.ytimg.com;
-    frame-src https://www.youtube.com;
+    frame-src https://www.youtube.com https://www.youtube-nocookie.com;
     script-src 'self' https://www.gstatic.com 'unsafe-inline';
     style-src 'self' 'unsafe-inline';
     object-src 'none';
     base-uri 'self';
   ">
+
+  <link rel="stylesheet" href="css/style.css"/>
 </head>
 <body>
-  <!-- 상단바 -->
-  <header id="topbar">
+  <header id="topbar" class="autohide">
     <div class="brand">
       <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
         <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
       </a>
     </div>
-
-    <div class="right" style="position:relative;">
+    <div class="right">
       <a id="signupLink" class="link" href="signup.html">Sign up</a>
       <a id="signinLink" class="link" href="signin.html">Sign in</a>
       <span id="welcome" class="welcome"></span>
       <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
-
-      <!-- 로그인 시 메뉴 -->
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
         <button id="btnGoCategory" class="menu-strong" type="button">카테고리 선택</button>
         <button id="btnMyUploads" type="button">내영상관리</button>
         <button id="btnSignOut" type="button">Sign out</button>
         <button id="btnGoUpload" class="menu-strong" type="button">추천영상등록</button>
+        <button id="btnAbout" type="button">CopyTube는…</button>
       </div>
     </div>
   </header>
 
-  <!-- 영상 컨테이너(세로 스와이프) -->
-  <main id="videoContainer">
-    <!-- watch.js가 카드/iframe을 동적으로 렌더링합니다 -->
-  </main>
+  <main id="videoContainer"></main>
 
-  <!-- 스크립트 -->
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
   <script type="module" src="js/watch.js?v=20250820"></script>
