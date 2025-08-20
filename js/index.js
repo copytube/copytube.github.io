@@ -1,5 +1,5 @@
-// index.js
-// 카테고리 선택 화면 로직 (개인 라벨 escape/검증 적용)
+// js/index.js
+// 카테고리 선택 화면 로직: 기본 전체선택 + 이전 선택 복원 + 올바른 이동 경로
 import { CATEGORY_GROUPS } from './categories.js?v=20250820';
 import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
@@ -14,6 +14,7 @@ const dropdown     = document.getElementById("dropdownMenu");
 const btnSignOut   = document.getElementById("btnSignOut");
 const btnGoUpload  = document.getElementById("btnGoUpload");
 const btnMyUploads = document.getElementById("btnMyUploads");
+const btnAbout     = document.getElementById("btnAbout");
 const brandHome    = document.getElementById("brandHome");
 
 const catsBox      = document.getElementById("cats");
@@ -52,6 +53,10 @@ document.addEventListener('pointerdown', (e)=>{
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
 dropdown.addEventListener("click", (e)=> e.stopPropagation());
 
+btnAbout?.addEventListener("click", ()=>{
+  location.href = "about.html";
+  closeDropdown();
+});
 btnMyUploads?.addEventListener("click", ()=>{
   location.href = "manage-uploads.html";
   closeDropdown();
@@ -122,24 +127,67 @@ function renderGroups(){
 }
 renderGroups();
 
-/* ----------------- 전체보기 토글 ----------------- */
+/* ----------------- 선택 상태 복원 / 전체선택 ----------------- */
 let allSelected = false;
+
+function getStoredSelectedCats(){
+  try{
+    const raw = localStorage.getItem('selectedCats');
+    return raw ? JSON.parse(raw) : null; // "ALL" | string[] | null
+  }catch{ return null; }
+}
+
 function selectAll(on){
   const boxes = Array.from(catsBox.querySelectorAll('.cat'));
   boxes.forEach(b=>{
-    if (b.value === 'personal1' || b.value === 'personal2') return; // 개인자료 제외
+    // 개인자료(personal1/2)는 전체보기에서 제외
+    if (b.value === 'personal1' || b.value === 'personal2') return;
     b.checked = !!on;
   });
   allSelected = !!on;
   btnToggleAll.setAttribute('aria-pressed', on ? 'true':'false');
 }
+
+function applyStoredSelection(){
+  const stored = getStoredSelectedCats();
+  const boxes = Array.from(catsBox.querySelectorAll('.cat'));
+
+  if (!stored || stored === "ALL"){
+    // 기본: 전체선택
+    selectAll(true);
+    return;
+  }
+  if (Array.isArray(stored) && stored.length){
+    // 먼저 모두 해제
+    selectAll(false);
+    // 존재하는 값만 체크
+    const set = new Set(stored);
+    boxes.forEach(b=>{
+      if (set.has(b.value)) b.checked = true;
+    });
+    allSelected = false;
+    btnToggleAll.setAttribute('aria-pressed','false');
+  }else{
+    // 방어적으로 전체선택
+    selectAll(true);
+  }
+}
+applyStoredSelection();
+
+/* 전체보기 버튼 */
 btnToggleAll.addEventListener('click', ()=> selectAll(!allSelected));
 
 /* ----------------- 저장 & 이동 ----------------- */
 btnWatch.addEventListener('click', ()=>{
   const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
+
+  // 개인자료(personal1/2)는 시청 페이지에는 의미 없음 → 제외
   const filtered = selected.filter(v => v !== 'personal1' && v !== 'personal2');
+
+  // 아무것도 선택 안 했거나 전체보기 토글 켠 상태라면 ALL 저장
   const valueToSave = (filtered.length === 0 || allSelected) ? "ALL" : filtered;
+
   localStorage.setItem('selectedCats', JSON.stringify(valueToSave));
+  // ✅ 반드시 watch.html로 이동
   location.href = 'watch.html';
 });
