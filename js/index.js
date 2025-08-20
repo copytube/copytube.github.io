@@ -1,8 +1,6 @@
-// js/index.js
 import { CATEGORY_GROUPS } from './categories.js?v=20250821';
 import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
-import { safePersonalLabel } from './sanitize.js';
 
 /* DOM */
 const signupLink   = document.getElementById("signupLink");
@@ -20,7 +18,7 @@ const catsBox      = document.getElementById("cats");
 const btnWatch     = document.getElementById("btnWatch");
 const btnToggleAll = document.getElementById("btnToggleAll");
 
-/* 드롭다운 공통 */
+/* 드롭다운 */
 let isMenuOpen = false;
 function openDropdown(){
   isMenuOpen = true;
@@ -51,24 +49,28 @@ document.addEventListener('pointerdown', (e)=>{
 }, true);
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
 dropdown.addEventListener("click", (e)=> e.stopPropagation());
+
 btnMyUploads?.addEventListener("click", ()=>{ location.href = "manage-uploads.html"; closeDropdown(); });
 btnSignOut?.addEventListener("click", async ()=>{ await fbSignOut(auth); closeDropdown(); });
 btnGoUpload?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
 btnAbout?.addEventListener("click", ()=>{ location.href = "about.html"; closeDropdown(); });
-brandHome?.addEventListener("click", (e)=>{ e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); });
 
-/* 개인자료 라벨/위치 */
+brandHome?.addEventListener("click", (e)=>{
+  e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
+/* 개인자료 표시 관련 (개인자료 위치/라벨은 index에도 반영) */
 function getPersonalLabels(){
   try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }
   catch{ return {}; }
 }
 function getPersonalPosition(){
   const v = localStorage.getItem('personalPosition');
-  return v === 'top' ? 'top' : 'bottom'; // 기본 하단
+  return v === 'top' ? 'top' : 'bottom';
 }
 
 /* 카테고리 렌더 */
-function renderGroups(prechecked=null){
+function renderGroups(){
   const personalLabels = getPersonalLabels();
   const pos = getPersonalPosition();
 
@@ -86,8 +88,7 @@ function renderGroups(prechecked=null){
       const isPersonal = (g.key==='personal');
       const defaultLabel = (c.value==='personal1') ? '자료1' : (c.value==='personal2' ? '자료2' : c.label);
       const labelText = isPersonal && personalLabels[c.value] ? personalLabels[c.value] : defaultLabel;
-      const checked = prechecked?.has(c.value) ? 'checked' : '';
-      return `<label><input type="checkbox" class="cat" value="${c.value}" ${checked}> ${labelText}</label>`;
+      return `<label><input type="checkbox" class="cat" value="${c.value}"> ${labelText}</label>`;
     }).join('');
 
     const legend = (g.key==='personal')
@@ -104,46 +105,23 @@ function renderGroups(prechecked=null){
 
   catsBox.innerHTML = html;
 }
+renderGroups();
 
-/* 전체보기 토글 */
+/* 전체보기 토글 — 개인자료도 시각적으로 체크되도록 변경 */
 let allSelected = false;
 function selectAll(on){
   const boxes = Array.from(catsBox.querySelectorAll('.cat'));
-  boxes.forEach(b=>{ b.checked = !!on; }); // 개인자료 포함해서 UI 일관
+  boxes.forEach(b=>{ b.checked = !!on; });
   allSelected = !!on;
   btnToggleAll.setAttribute('aria-pressed', on ? 'true':'false');
 }
-
-/* 초기 선택값: 저장된 값이 없으면 전체선택 ON */
-function initSelection(){
-  const raw = localStorage.getItem('selectedCats');
-  let preset = null;
-  if (raw){
-    try{
-      const parsed = JSON.parse(raw);
-      if (parsed === "ALL"){ selectAll(true); return; }
-      if (Array.isArray(parsed) && parsed.length){
-        preset = new Set(parsed);
-      }
-    }catch{}
-  }
-  renderGroups(preset);
-  if (!raw){ selectAll(true); } // 최초 진입은 전체선택
-}
-renderGroups(new Set()); // 일단 렌더
-initSelection();
-
-/* 전체보기 버튼 */
 btnToggleAll.addEventListener('click', ()=>{ selectAll(!allSelected); });
 
-/* 저장 & 이동 */
+/* 저장 & 이동 (시청 시 personal은 제외하여 저장) */
 btnWatch.addEventListener('click', ()=>{
   const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
-
-  // 개인자료는 시청 페이지에서는 의미 없음 → 제외하여 저장
   const filtered = selected.filter(v => v !== 'personal1' && v !== 'personal2');
   const valueToSave = (filtered.length === 0 || allSelected) ? "ALL" : filtered;
-
   localStorage.setItem('selectedCats', JSON.stringify(valueToSave));
   location.href = 'watch.html';
 });
