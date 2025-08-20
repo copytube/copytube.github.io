@@ -4,109 +4,68 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>추천영상 등록 - Copytube</title>
+
+  <!-- CSP -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    connect-src 'self'
+      https://firestore.googleapis.com
+      https://identitytoolkit.googleapis.com
+      https://securetoken.googleapis.com
+      https://firebaseinstallations.googleapis.com
+      https://www.googleapis.com
+      https://www.gstatic.com;
+    img-src 'self' data: https://i.ytimg.com;
+    frame-src https://www.youtube.com https://www.youtube-nocookie.com;
+    script-src 'self' https://www.gstatic.com 'unsafe-inline';
+    style-src 'self' 'unsafe-inline';
+    object-src 'none';
+    base-uri 'self';
+  ">
+
   <link rel="stylesheet" href="css/style.css"/>
   <style>
-    main { max-width:900px; margin:96px auto 40px; padding:0 16px; }
-    h2 { margin:0 0 10px; }
-
-    .url-wrap { display:flex; flex-direction:column; gap:8px; }
-    #urlBox {
-      width:100%; min-height:6.5em; /* 기본 3줄 */
-      padding:10px; border-radius:8px; border:1px solid #333; background:#000; color:#fff;
-      font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-      resize: vertical;
-    }
-
-    /* 상단 도구 줄: 라디오(세로) + 옆에 버튼 2개(클립보드: 두줄높이, 등록) */
-    .tools-grid {
-      display:grid; grid-template-columns: 1fr auto auto; gap:8px; align-items:stretch;
-    }
-    @media (max-width:520px){
-      .tools-grid { grid-template-columns: 1fr auto auto; }
-    }
-
-    .radios {
-      display:flex; flex-direction:column; gap:6px;
-      border:1px solid #2a2a2a; border-radius:10px; padding:6px 8px;
-    }
-    .radios label { display:flex; align-items:center; gap:6px; font-size:14px; white-space:nowrap; }
-
-    .btn { padding:10px 14px; border:0; border-radius:10px; cursor:pointer; font-weight:800; white-space:nowrap; }
-    .btn.clip { background:#14b8a6; color:#00110f; }
-    .btn.primary{ background:#4ea1ff; color:#fff; }
-
-    /* 버튼 크기 조절: 모바일에서 과도한 폭 방지 */
-    .btn.clip, .btn.primary { min-width:120px; max-width:160px; }
-    /* 클립보드 버튼: 두 줄 높이 느낌 */
-    .btn.clip.tall { padding:18px 14px; }
-
-    /* 도움말 (summary 기본 마커 그대로 유지) */
-    details.help { margin-top:6px; border:1px solid #2a2a2a; border-radius:10px; background:#111; }
-    details.help > summary { cursor:pointer; padding:8px 12px; font-weight:800; }
-    details.help[open] > summary { border-bottom:1px solid #2a2a2a; }
-    .help-body { padding:10px 12px; color:#cfcfcf; font-size:13px; line-height:1.6; }
-
-    /* 카테고리 밀도(=index와 동일) */
-    .group{
-      border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
-      padding:8px 8px 10px; margin:6px 0;
-      text-align:left;
-    }
-    .group legend{
-      padding:0 4px; font-weight:800; font-size:15px; color:#eee;
-      margin-bottom:2px; line-height:1.05; display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap;
-    }
-    .group .subnote{ font-size:12px; color:#9aa0a6; margin-left:6px; }
-
-    .child-grid{
-      margin-top:2px; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px;
-    }
-    @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
-    .child-grid label{
-      background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px;
-      padding:6px 8px; font-size:14px; line-height:1.2;
-      display:flex; gap:6px; align-items:center; justify-content:flex-start;
-      position:relative;
-    }
-    .rename-inline{
-      margin-left:auto; font-size:12px; padding:3px 6px; border-radius:6px;
-      background:#1b1b1b; color:#ddd; border:1px solid #2a2a2a; cursor:pointer;
-    }
-
-    .actions-bottom{ display:flex; gap:8px; align-items:center; margin-top:10px; }
+    main { max-width:900px; margin:96px auto 40px; padding:0 16px; text-align:left; }
+    textarea#url{ width:100%; min-height:3lh; resize:vertical; border:1px solid #333; border-radius:10px; background:#000; color:#fff; padding:10px; }
+    .title-line{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .tools-grid .btn{ min-width:110px; max-width:150px; }
+    .btn.clip.tall{ padding:18px 14px; }
+    /* 개인자료 이름변경 버튼 */
+    .rename-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+    .rename-row input{ width:160px; padding:6px 8px; border:1px solid #2a2a2a; border-radius:8px; background:#0f0f0f; color:#fff; }
+    .compact-note{ font-size:12px; color:#9aa0a6; margin:6px 0 2px; }
   </style>
 </head>
 <body>
   <header id="topbar">
     <div class="brand">
-      <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
-        <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
-      </a>
+      <a href="./"><img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/></a>
     </div>
-    <div class="right" style="position:relative;">
+    <div class="right">
       <a id="signupLink" class="link" href="signup.html">Sign up</a>
       <a id="signinLink" class="link" href="signin.html">Sign in</a>
       <span id="welcome" class="welcome"></span>
       <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
-
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
-        <button id="btnAbout" type="button">CopyTube는..</button>
         <button id="btnMyUploads" type="button">내영상관리</button>
         <button id="btnSignOut" type="button">Sign out</button>
-        <button id="btnGoUpload" class="menu-strong" type="button">추천영상등록</button>
+        <button id="btnGoUpload" class="menu-strong" type="button" disabled>추천영상등록</button>
+        <button id="btnAbout" type="button">CopyTube는…</button>
       </div>
     </div>
   </header>
 
-  <main>
-    <h2>추천영상 등록</h2>
+  <main class="intro" style="align-items:flex-start;">
+    <div style="width:100%;">
+      <div class="title-line">
+        <h2>추천영상 등록</h2>
+      </div>
 
-    <section class="url-wrap">
-      <label for="urlBox" style="font-weight:700;">YouTube URL (여러 줄 가능)</label>
-      <textarea id="urlBox" placeholder="한 줄에 1개씩 URL을 붙여넣으세요. 예)\nhttps://youtu.be/xxxxxx\nhttps://youtube.com/shorts/yyyyyy"></textarea>
+      <label style="display:block;margin:12px 0 6px;">YouTube URL (여러 줄 가능)
+        <textarea id="url" placeholder="https://youtu.be/... 한 줄에 1개씩 붙여넣기" rows="3"></textarea>
+      </label>
 
-      <!-- 상단 도구 줄 -->
-      <div class="tools-grid">
+      <div class="tools-grid" style="margin:8px 0 12px;">
         <div class="radios" role="radiogroup" aria-label="등록 순서">
           <label><input type="radio" name="order" value="bottom" checked> 아래부터 등록</label>
           <label><input type="radio" name="order" value="top"> 위부터 등록</label>
@@ -115,52 +74,55 @@
         <button id="btnSubmitTop" class="btn primary" type="button">등록</button>
       </div>
 
-      <!-- 도움말: 기본 접힘, summary 기본 삼각형 표기 유지 -->
-      <details class="help">
+      <details class="help" id="help" style="margin:8px 0;" open>
         <summary>붙여넣기 도움말</summary>
         <div class="help-body">
           • <b>URL 입력칸</b>에 직접 붙여넣거나, <b>오른쪽 “클립보드 붙여넣기”</b> 버튼을 사용하세요. (브라우저/OS 허용 필요)<br/>
-          • <b>URL다중등록:</b> URL입력박스에 <b>한 줄에 1개의 URL</b>을 붙여넣고, <b>카테고리 선택 후 “등록”</b>을 누르면 한 번에 모두 등록됩니다.<br/>
-          • 위의 <b>“아래부터/위부터 등록”</b> 옵션으로 등록 순서를 결정합니다. (피드가 최신순이라 시리즈는 보통 <b>아래부터 등록</b>해야 차례대로 보여집니다.)<br/><br/>
+          • <b>URL 다중 등록:</b> 입력박스에 <b>한 줄에 1개의 URL</b>을 넣고, <b>카테고리 선택 후 “등록”</b>을 누르면 모두 한 번에 등록됩니다.<br/>
+          • 위의 <b>“아래부터/위부터 등록”</b> 옵션으로 등록 순서를 결정합니다. (피드는 최신순이라 시리즈는 보통 <b>아래부터 등록</b>이 자연스럽습니다.)<br/><br/>
           • <b>HTTPS</b> 환경에서만 동작합니다. (GitHub Pages OK)<br/>
-          • <b>iPhone/iPad (iOS 16+)</b>: 처음 붙여넣기 때 <i>“이 앱에서 붙여넣기 허용”</i> 팝업에서 <b>허용</b>을 선택하세요.<br/>
-          • <b>안드로이드/데스크탑 Chrome</b>: <b>설정 → 사이트 설정 → 클립보드</b>에서 <code>https://copytube.github.io</code>를 <b>허용</b>으로 변경하세요.<br/>
-          • 또는 그냥, <b>길게 누르기 → 붙여넣기</b> 또는 <code>Ctrl/⌘+V</code>를 사용하면 됩니다.<br/><br/>
-          • <b>개인자료1/2</b>는 <b>로컬저장소</b>에 저장되며 공유되지 않습니다. 이름 변경 가능하며 카테고리 위치(상단/하단)도 변경 가능합니다.
+          • <b>iPhone/iPad</b>: 처음 붙여넣기 때 <i>“이 앱에서 붙여넣기 허용”</i>을 눌러 주세요.<br/>
+          • <b>안드로이드/데스크탑 Chrome</b>: <b>설정 → 사이트 설정 → 클립보드</b>에서 <code>https://copytube.github.io</code> 허용.<br/><br/>
+          • <b>개인자료1/2</b>는 <b>로컬저장소</b>에 저장되며 공유되지 않습니다. 이름 변경 가능하며 카테고리 위치도 상단으로 변경 가능합니다.<br/>
+          • 인덱스 화면은 <b>처음 카테고리 선택 화면</b>을 뜻합니다.
         </div>
       </details>
-    </section>
 
-    <!-- 카테고리 -->
-    <section style="margin-top:12px;">
-      <h3 style="margin:0 0 6px;">카테고리(최대 3개)</h3>
-      <div id="cats"><!-- JS로 렌더링 --></div>
-    </section>
+      <!-- 카테고리 -->
+      <div id="cats"><!-- JS 렌더 --></div>
+      <div class="compact-note">* 카테고리는 최대 3개까지 선택 가능합니다.</div>
 
-    <div class="actions-bottom">
-      <button id="btnSubmit" class="btn primary">등록</button>
-      <span id="msg" class="welcome"></span>
+      <div class="rename-row" id="renameRow" hidden>
+        <span class="compact-note">개인자료 이름 변경:</span>
+        <label>자료1 → <input id="nameP1" placeholder="자료1"/></label>
+        <label>자료2 → <input id="nameP2" placeholder="자료2"/></label>
+        <button id="btnSaveNames" class="btn" type="button">이름변경</button>
+      </div>
+
+      <div style="display:flex; gap:8px; margin:12px 0;">
+        <button id="btnSubmitBottom" class="btn primary" type="button">등록</button>
+        <a href="./" class="link" style="align-self:center;">← 카테고리로 돌아가기</a>
+      </div>
+
+      <div id="msg" class="welcome" style="margin-top:6px;"></div>
     </div>
   </main>
 
-  <script type="module" src="js/firebase-init.js"></script>
-  <script type="module" src="js/auth.js"></script>
   <script type="module">
     import { auth, db } from './js/firebase-init.js';
-    import { onAuthStateChanged, signOut as fbSignOut } from './js/auth.js';
-    import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
-    import { CATEGORY_GROUPS, ALL_CATEGORY_VALUES } from './js/categories.js?v=20250820';
-    import { escapeHTML, safePersonalLabel, isAllowedYouTubeUrl, extractYouTubeId } from './js/sanitize.js';
+    import { onAuthStateChanged, addDoc, collection, serverTimestamp, signOut as fbSignOut } from './js/auth.js';
+    import { CATEGORY_GROUPS } from './js/categories.js';
+    import { escapeHTML, safePersonalLabel, isAllowedYouTubeUrl, extractYouTubeId, sanitizeUrlList } from './js/sanitize.js';
 
-    /* 드롭다운 */
+    /* 헤더 드롭다운 */
     const signupLink   = document.getElementById("signupLink");
     const signinLink   = document.getElementById("signinLink");
     const welcome      = document.getElementById("welcome");
     const menuBtn      = document.getElementById("menuBtn");
     const dropdown     = document.getElementById("dropdownMenu");
     const btnSignOut   = document.getElementById("btnSignOut");
-    const btnGoUpload  = document.getElementById("btnGoUpload");
     const btnMyUploads = document.getElementById("btnMyUploads");
+    const btnGoUpload  = document.getElementById("btnGoUpload");
     const btnAbout     = document.getElementById("btnAbout");
 
     let isMenuOpen=false;
@@ -173,68 +135,40 @@
       menuBtn.classList.toggle("hidden", !loggedIn);
       welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
       closeDropdown();
+      if(!user){ document.getElementById('msg').textContent = '로그인 후 등록 가능합니다.'; }
     });
     menuBtn.addEventListener("click", (e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown(); });
-    document.addEventListener('pointerdown', (e)=>{
-      if (dropdown.classList.contains('hidden')) return;
-      const inside = e.target.closest('#dropdownMenu, #menuBtn');
-      if (!inside) closeDropdown();
-    }, true);
+    document.addEventListener('pointerdown', (e)=>{ if (dropdown.classList.contains('hidden')) return; const inside = e.target.closest('#dropdownMenu, #menuBtn'); if (!inside) closeDropdown(); }, true);
     document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
     dropdown.addEventListener("click", (e)=> e.stopPropagation());
-    btnAbout?.addEventListener("click", ()=>{ location.href = "about.html"; closeDropdown(); });
-    btnMyUploads?.addEventListener("click", ()=>{ location.href = "manage-uploads.html"; closeDropdown(); });
+    btnMyUploads?.addEventListener("click", ()=>{ location.href="manage-uploads.html"; closeDropdown(); });
     btnSignOut?.addEventListener("click", async ()=>{ await fbSignOut(auth); closeDropdown(); });
-    btnGoUpload?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
+    btnGoUpload?.addEventListener("click", ()=>{ /* 현재 페이지 */ closeDropdown(); });
+    btnAbout?.addEventListener("click", ()=>{ location.href="about.html"; closeDropdown(); });
 
-    const $ = (s)=>document.querySelector(s);
-    const urlBox  = $('#urlBox');
-    const msg     = $('#msg');
-    const submit  = $('#btnSubmit');
-    const submitTop = $('#btnSubmitTop');
-    const btnPaste= $('#btnPaste');
+    /* 개인자료 라벨/위치 */
+    function getPersonalLabels(){
+      try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }
+      catch{ return {}; }
+    }
+    function savePersonalLabels(map){
+      localStorage.setItem('personalLabels', JSON.stringify(map||{}));
+    }
 
-    btnPaste.addEventListener('click', async ()=>{
-      try{
-        const text = await navigator.clipboard.readText();
-        if (!text){ alert('클립보드가 비어있습니다.'); return; }
-        if (!urlBox.value) urlBox.value = text;
-        else urlBox.value += (urlBox.value.endsWith('\n')? '' : '\n') + text;
-      }catch(e){
-        alert('붙여넣기를 사용할 수 없습니다. 브라우저/OS 권한을 허용해 주세요.');
-      }
-    });
-
+    /* 카테고리 렌더(업로드: 자식만 체크 가능, 그룹 제목엔 체크 없음) */
     const catsRoot = document.getElementById('cats');
-
-    function getPersonalLabels(){ try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); } catch{ return {}; } }
-
-    function renderGroups(){
+    function renderCategories(){
       const personalLabels = getPersonalLabels();
-
       const html = CATEGORY_GROUPS.map(g=>{
-        const legend = (g.key==='personal')
-          ? `${g.label} <span class="subnote">(로컬저장소)</span>`
-          : g.label;
-
         const kids = g.children.map(c=>{
           const isPersonal = (g.key==='personal');
           const defaultLabel = (c.value==='personal1') ? '자료1' : (c.value==='personal2' ? '자료2' : c.label);
-          const raw = isPersonal ? (personalLabels[c.value] || '') : '';
-          const labelText = isPersonal ? (safePersonalLabel(raw) || defaultLabel) : c.label;
-
-          // ✅ 개인자료 항목 옆에 개별 이름변경 버튼(원래 위치로 복귀)
-          const renameBtn = isPersonal
-            ? `<button class="rename-inline" data-target="${c.value}" type="button">이름변경</button>`
-            : '';
-
-          return `<label data-val="${c.value}">
-                    <input type="checkbox" class="cat" value="${c.value}">
-                    <span>${escapeHTML(labelText)}</span>
-                    ${renameBtn}
-                  </label>`;
+          const labelText = isPersonal && personalLabels[c.value] ? personalLabels[c.value] : defaultLabel;
+          return `<label><input type="checkbox" class="cat" value="${c.value}"> ${labelText}</label>`;
         }).join('');
-
+        const legend = (g.key==='personal')
+          ? `${g.label} <span class="subnote">(로컬저장소)</span>`
+          : g.label;
         return `
           <fieldset class="group" data-key="${g.key}">
             <legend>${legend}</legend>
@@ -242,68 +176,96 @@
           </fieldset>
         `;
       }).join('');
-
       catsRoot.innerHTML = html;
 
-      // 이름변경 핸들러(버튼 클릭이 체크박스 토글에 간섭하지 않도록)
-      catsRoot.querySelectorAll('.rename-inline').forEach(btn=>{
-        btn.addEventListener('click', (ev)=>{
-          ev.stopPropagation();
-          const key = btn.getAttribute('data-target');
-          const labels = getPersonalLabels();
-          const cur = labels[key] || (key==='personal1' ? '자료1' : '자료2');
-          const next = prompt('새 이름을 입력하세요', cur);
-          if (!next) return;
-          labels[key] = safePersonalLabel(next);
-          localStorage.setItem('personalLabels', JSON.stringify(labels));
-          renderGroups();
-        });
-      });
-    }
-    renderGroups();
-
-    async function fetchYTTitle(url){
-      try{ const r = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
-           if (!r.ok) return ''; const j = await r.json(); return j.title || ''; }catch{ return ''; }
-    }
-    function pickOrder(){ return (document.querySelector('input[name="order"]:checked')?.value) || 'bottom'; }
-
-    const allowedSet = new Set(ALL_CATEGORY_VALUES());
-    async function doSubmit(which){
-      const user = auth.currentUser;
-      const setMsg = (t)=> (which==='top' ? /* reuse top? here just lower */ (msg.textContent=t) : (msg.textContent=t));
-      setMsg('등록 중...');
-      if (!user){ setMsg('로그인 후 이용하세요.'); return; }
-
-      const lines = urlBox.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-      if (!lines.length){ setMsg('URL을 입력하세요.'); return; }
-
-      const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
-      const nonPersonal = selected.filter(v => v!=='personal1' && v!=='personal2');
-      let cats = nonPersonal.length ? nonPersonal : ['etc'];
-      if(cats.length > 3){ setMsg('카테고리는 최대 3개까지 선택 가능합니다.'); return; }
-      if(cats.some(v => !allowedSet.has(v))){ setMsg('알 수 없는 카테고리 코드가 포함되어 있습니다.'); return; }
-
-      const order = pickOrder();
-      const items = order === 'bottom' ? [...lines].reverse() : lines;
-
-      let ok=0, fail=0;
-      for (const raw of items){
-        const url = raw;
-        if (!isAllowedYouTubeUrl(url)){ fail++; continue; }
-        const vid = extractYouTubeId(url); if(!vid){ fail++; continue; }
-        const title = (await fetchYTTitle(url)) || url;
-        try{
-          await addDoc(collection(db,'videos'), { url, title, categories: cats, uid: user.uid, createdAt: serverTimestamp() });
-          ok++;
-        }catch{ fail++; }
+      // 개인자료 이름변경 UI 노출
+      const hasPersonal = CATEGORY_GROUPS.some(g=>g.key==='personal');
+      document.getElementById('renameRow').hidden = !hasPersonal;
+      if (hasPersonal){
+        const labels = getPersonalLabels();
+        document.getElementById('nameP1').value = labels.personal1 || '자료1';
+        document.getElementById('nameP2').value = labels.personal2 || '자료2';
       }
-      setMsg(`완료: ${ok}건 등록${fail?`, 실패 ${fail}건 있음`:''}`);
-      if (ok && fail===0) urlBox.value = '';
+    }
+    renderCategories();
+
+    /* 이름변경 */
+    document.getElementById('btnSaveNames').addEventListener('click', ()=>{
+      const p1 = safePersonalLabel(document.getElementById('nameP1').value) || '자료1';
+      const p2 = safePersonalLabel(document.getElementById('nameP2').value) || '자료2';
+      const next = { personal1:p1, personal2:p2 };
+      savePersonalLabels(next);
+      renderCategories(); // 즉시 반영
+    });
+
+    /* 붙여넣기 버튼 */
+    document.getElementById('btnPaste').addEventListener('click', async ()=>{
+      const msg = document.getElementById('msg');
+      try{
+        const txt = await navigator.clipboard.readText();
+        if (!txt){ msg.textContent = '클립보드가 비었습니다.'; return; }
+        const ta = document.getElementById('url');
+        const add = txt.endsWith('\n') ? txt : (txt + '\n');
+        ta.value = (ta.value || '') + add;
+        msg.textContent = '붙여넣기 완료.';
+      }catch(e){
+        msg.textContent = '브라우저가 클립보드 접근을 허용하지 않았습니다. (도움말 참고)';
+      }
+    });
+
+    /* 유효성: 카테고리 3개 제한 */
+    function getSelectedCats(){
+      const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
+      if (selected.includes('personal1') || selected.includes('personal2')){
+        // 업로드 대상 아님
+        return { ok:false, message:'개인자료는 서버로 업로드되지 않습니다. 개인자료는 로컬 전용입니다.' };
+      }
+      if (selected.length === 0) return { ok:false, message:'카테고리를 1개 이상 선택해 주세요.' };
+      if (selected.length > 3)   return { ok:false, message:'카테고리는 최대 3개까지 선택 가능합니다.' };
+      return { ok:true, cats:selected };
     }
 
-    document.getElementById('btnSubmit').addEventListener('click', ()=> doSubmit('bottom'));
-    document.getElementById('btnSubmitTop').addEventListener('click', ()=> doSubmit('top'));
+    /* 등록 */
+    async function registerAll(){
+      const msg = document.getElementById('msg');
+      msg.textContent = '검사 중...';
+
+      const order = (document.querySelector('input[name="order"]:checked')?.value || 'bottom');
+      const list = sanitizeUrlList(document.getElementById('url').value);
+      if (!list.length){ msg.textContent = 'URL을 1개 이상 입력해 주세요.'; return; }
+
+      // URL 검사
+      const bad = list.filter(u => !isAllowedYouTubeUrl(u));
+      if (bad.length){
+        msg.textContent = `유효하지 않은 YouTube URL이 있습니다. 첫 번째: ${bad[0]}`;
+        return;
+      }
+
+      // 카테고리 검사
+      const catCheck = getSelectedCats();
+      if (!catCheck.ok){ msg.textContent = catCheck.message; return; }
+      const cats = catCheck.cats;
+
+      const user = auth.currentUser;
+      if (!user){ msg.textContent='로그인 후 이용하세요.'; return; }
+
+      msg.textContent = '등록 중...';
+      const urls = (order==='bottom') ? list : list.slice().reverse();
+
+      try{
+        for(const url of urls){
+          await addDoc(collection(db,'videos'), {
+            url, title: url, categories: cats, uid: user.uid, createdAt: serverTimestamp()
+          });
+        }
+        msg.textContent = `등록 완료! (${urls.length}개)`;
+        // 입력은 비우지 않음(요청 시 바꿀 수 있음)
+      }catch(e){
+        msg.textContent = `오류: ${e.message||e}`;
+      }
+    }
+    document.getElementById('btnSubmitTop').addEventListener('click', registerAll);
+    document.getElementById('btnSubmitBottom').addEventListener('click', registerAll);
   </script>
 </body>
 </html>
