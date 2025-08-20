@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Copytube - 영상 보기</title>
 
-  <!-- CSP (보안 강화) -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
@@ -19,7 +18,6 @@
 
   <link rel="stylesheet" href="css/style.css"/>
   <style>
-    /* ===== 쇼츠형 레이아웃 ===== */
     :root { --app-vh: 100vh; }
     @supports (height: 100svh) { :root { --app-vh: 100svh; } }
 
@@ -40,32 +38,13 @@
     }
     .video iframe{ width:100%; height:100%; border:0; }
 
-    .thumb{
-      width:100%; height:100%;
-      display:flex; align-items:center; justify-content:center;
-      position:relative; background:#000;
-    }
-    .thumb img{
-      max-width:100%; max-height:100%;
-      object-fit: contain; border:0;
-    }
-    .playhint{
-      position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
-      padding:6px 10px; border-radius:6px;
-      background:rgba(0,0,0,.45); color:#fff; font-size:13px;
-    }
-    .mute-tip{
-      position:absolute; top:14px; right:12px;
-      background:rgba(0,0,0,.55); color:#fff; font-size:12px;
-      padding:6px 10px; border-radius:999px;
-      pointer-events:none; opacity:.9;
-    }
+    .thumb{ width:100%; height:100%; display:flex; align-items:center; justify-content:center; position:relative; background:#000; }
+    .thumb img{ max-width:100%; max-height:100%; object-fit: contain; border:0; }
+    .playhint{ position:absolute; bottom:16px; left:50%; transform:translateX(-50%); padding:6px 10px; border-radius:6px; background:rgba(0,0,0,.45); color:#fff; font-size:13px; }
+    .mute-tip{ position:absolute; top:14px; right:12px; background:rgba(0,0,0,.55); color:#fff; font-size:12px; padding:6px 10px; border-radius:999px; pointer-events:none; opacity:.9; }
 
-    /* 상단바 1초 후 자동 숨김 (fallback 포함) */
     #topbar{ transition: transform .25s ease; will-change: transform; }
     #topbar.hide{ transform: translateY(-100%); }
-
-    /* 드롭다운 가시성 안전장치 */
     #dropdownMenu.show{ pointer-events:auto; }
   </style>
 </head>
@@ -81,9 +60,9 @@
       <a id="signupLink" class="link" href="signup.html">Sign up</a>
       <a id="signinLink" class="link" href="signin.html">Sign in</a>
       <span id="welcome" class="welcome"></span>
-      <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
+      <!-- ▼ 로그인 여부와 무관하게 메뉴 버튼 표시 -->
+      <button id="menuBtn" class="icon" aria-label="menu">三</button>
 
-      <!-- 드롭다운 -->
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
         <button id="btnAbout" type="button">CopyTube는…</button>
         <button id="btnGoCategory" class="menu-strong" type="button">카테고리 선택</button>
@@ -94,10 +73,10 @@
     </div>
   </header>
 
-  <main id="videoContainer"><!-- JS로 카드 렌더링 --></main>
+  <main id="videoContainer"></main>
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/watch.js?v=20250821a"></script>
+  <script type="module" src="js/watch.js?v=20250821-public"></script>
 </body>
 </html>
