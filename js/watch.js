@@ -36,7 +36,6 @@ onAuthStateChanged(auth, (user)=>{
   signupLink?.classList.toggle("hidden", loggedIn);
   signinLink?.classList.toggle("hidden", loggedIn);
   welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
-  // 메뉴 버튼은 항상 표시
   closeDropdown();
 });
 
@@ -44,7 +43,6 @@ menuBtn?.addEventListener("click", (e)=>{ e.stopPropagation(); dropdown.classLis
 document.addEventListener('pointerdown', (e)=>{ if (dropdown.classList.contains('hidden')) return; if (!e.target.closest('#dropdownMenu, #menuBtn')) closeDropdown(); }, true);
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
 dropdown?.addEventListener("click", (e)=> e.stopPropagation());
-
 ["scroll","wheel","keydown","touchmove"].forEach(ev=>{
   window.addEventListener(ev, ()=>{ if(!dropdown.classList.contains('hidden')) closeDropdown(); }, {passive:true});
 });
@@ -82,20 +80,34 @@ function getSelectedCats(){ try { return JSON.parse(localStorage.getItem('select
 const AUTO_NEXT = localStorage.getItem('autonext') === 'on';
 
 /* ----------------- YouTube 제어 ----------------- */
-let userSoundConsent = false;
+let userSoundConsent = false;   // 한 번 허용되면 이후 카드도 소리 재생
 let currentActive    = null;
-let isLoadingMore    = false;
-let hasMore          = true;
 
+// ▶ postMessage 유틸
 function ytCmd(iframe, func, args = []) {
   if (!iframe || !iframe.contentWindow) return;
   iframe.contentWindow.postMessage(JSON.stringify({ event:"command", func, args }), "*");
 }
+// ▶ 현재 정책을 iframe에 적용
+function applyAudioPolicy(iframe){
+  if (!iframe) return;
+  if (userSoundConsent){
+    ytCmd(iframe, "setVolume", [100]);
+    ytCmd(iframe, "unMute");
+  } else {
+    ytCmd(iframe, "mute");
+  }
+}
 
+/* ----- 최초 사용자 제스처로 전역 허용 ----- */
 function grantSoundAndUnmuteCurrent(){
   userSoundConsent = true;
   const iframe = currentActive?.querySelector('iframe');
-  if (iframe){ ytCmd(iframe,"unMute"); ytCmd(iframe,"playVideo"); }
+  if (iframe){
+    ytCmd(iframe, "setVolume", [100]);
+    ytCmd(iframe, "unMute");
+    ytCmd(iframe, "playVideo");
+  }
 }
 const onceOpts = (ev)=> (ev==='touchstart' ? { once:true, passive:true } : { once:true });
 const grantOnce = ()=>{
@@ -108,14 +120,38 @@ const grantOnce = ()=>{
   window.addEventListener(ev, grantOnce, onceOpts(ev));
 });
 
+/* ----- 각 플레이어 onReady 보장 처리 ----- */
+// iframe.contentWindow -> card 매핑
+const winToCard = new Map();
+
 window.addEventListener('message', (e)=>{
   if (typeof e.data !== 'string') return;
   let data; try{ data = JSON.parse(e.data); }catch{ return; }
   if (!data || !data.event) return;
+
+  // 동영상 종료 → 자동 다음
   if (data.event === 'onStateChange' && data.info === 0){
+    const card = winToCard.get(e.source);
+    if (!card) return;
     const activeIframe = currentActive?.querySelector('iframe');
     if (!activeIframe || e.source !== activeIframe.contentWindow) return;
     if (AUTO_NEXT){ goToNextCard(); }
+    return;
+  }
+
+  // 플레이어 준비 완료 → 현재 활성 카드면 정책 적용
+  if (data.event === 'onReady'){
+    const card = winToCard.get(e.source);
+    if (!card) return;
+    const iframe = card.querySelector('iframe');
+    if (card === currentActive){
+      applyAudioPolicy(iframe);
+      ytCmd(iframe, "playVideo"); // 준비 직후 보장
+    }else{
+      // 프리로드 카드는 항상 음소거 유지
+      ytCmd(iframe, "mute");
+    }
+    return;
   }
 }, false);
 
@@ -136,10 +172,10 @@ const activeIO = new IntersectionObserver((entries)=>{
       const ifr = card.querySelector('iframe');
       if (ifr){
         ytCmd(ifr,"playVideo");
-        userSoundConsent ? ytCmd(ifr,"unMute") : ytCmd(ifr,"mute");
+        applyAudioPolicy(ifr);      // ✅ 준비 전이라도 시도, onReady에서 한 번 더 보장
       }
       const next = card.nextElementSibling;
-      if (next && next.classList.contains('video')) ensureIframe(next);
+      if (next && next.classList.contains('video')) ensureIframe(next); // 프리로드(음소거 유지)
       showTopbarTemp();
     } else {
       if (iframe){ ytCmd(iframe,"mute"); ytCmd(iframe,"pauseVideo"); }
@@ -167,8 +203,12 @@ function makeCard(url, docId){
   card.addEventListener('click', ()=>{
     ensureIframe(card);
     const ifr = card.querySelector('iframe');
-    if(!userSoundConsent) userSoundConsent = true;
-    if (ifr){ ytCmd(ifr,"playVideo"); ytCmd(ifr,"unMute"); }
+    if(!userSoundConsent) userSoundConsent = true; // 카드 탭으로도 허용
+    if (ifr){
+      ytCmd(ifr,"setVolume",[100]);
+      ytCmd(ifr,"unMute");
+      ytCmd(ifr,"playVideo");
+    }
     currentActive = card;
   });
 
@@ -189,9 +229,12 @@ function ensureIframe(card){
   Object.assign(iframe.style, { width:"100%", height:"100%", border:"0" });
   iframe.addEventListener('load', ()=>{
     try{
+      // onReady, onStateChange 구독
       iframe.contentWindow.postMessage(JSON.stringify({ event:'listening', id: playerId }), '*');
       ytCmd(iframe, "addEventListener", ["onStateChange"]);
       ytCmd(iframe, "addEventListener", ["onReady"]);
+      // 매핑 등록
+      winToCard.set(iframe.contentWindow, card);
     }catch{}
   });
   const thumb = card.querySelector('.thumb');
@@ -207,6 +250,8 @@ function extractId(url){
 const PAGE_SIZE = 12;
 let isLoading = false, lastDoc = null;
 let loadedIds = new Set();
+let hasMore = true;
+let isLoadingMore = false;
 
 function resetFeed(){
   document.querySelectorAll('#videoContainer .video').forEach(el=> activeIO.unobserve(el));
