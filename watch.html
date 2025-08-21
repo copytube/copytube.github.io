@@ -19,21 +19,24 @@
 
   <link rel="stylesheet" href="css/style.css"/>
   <style>
-    /* 상단바 자동 숨김 */
+    :root{ --app-vh: 100vh; }
+
+    /* 상단바: 화면 위에 겹치도록 고정 */
     #topbar{
-      position:sticky; top:0; z-index:1000; background:var(--bg-1, #0b0b0b);
+      position:fixed; inset:0 0 auto 0; z-index:1000;
+      background:var(--bg-1, #0b0b0b);
       transition: transform .25s ease;
+      will-change: transform;
     }
     #topbar.hide{ transform: translateY(-100%); }
 
-    /* 전체 화면 스크롤 스냅 (쇼츠형) */
-    :root{ --app-vh: 100vh; }
+    /* 전 화면 스냅 */
     #videoContainer{
       height: var(--app-vh);
       overflow-y: scroll;
       scroll-snap-type: y mandatory;
       overscroll-behavior-y: contain;
-      background: #000;
+      background:#000;
     }
     @supports (height: 100svh){
       #videoContainer{ height: 100svh; }
@@ -43,21 +46,19 @@
       height: var(--app-vh);
       scroll-snap-align: start;
       scroll-snap-stop: always;
-      display:flex; align-items:center; justify-content:center;
-      position:relative; background:#000;
+      position:relative; display:flex; align-items:center; justify-content:center;
+      background:#000;
     }
     @supports (height: 100svh){
       .video{ height: 100svh; }
     }
 
-    /* 썸네일 자리(프리로드) */
+    /* 썸네일/힌트 */
     .thumb{
       width:100%; height:100%; display:flex; align-items:center; justify-content:center;
-      background:#000; position:relative;
+      position:relative; background:#000;
     }
-    .thumb img{
-      max-width:100%; max-height:100%; object-fit:contain; border:0;
-    }
+    .thumb img{ max-width:100%; max-height:100%; object-fit:contain; border:0; }
     .playhint{
       position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
       padding:6px 10px; background:rgba(0,0,0,.45); border-radius:6px;
@@ -67,11 +68,22 @@
       position:absolute; top:12px; left:50%; transform:translateX(-50%);
       padding:6px 10px; background:rgba(0,0,0,.45); border-radius:6px; color:#fff; font-size:12px;
     }
-
     .video iframe{ width:100%; height:100%; border:0; }
 
-    /* 접근성: 스크롤 시 상단바 잠깐 노출되도록(요구 충족) */
-    body{ background:#000; }
+    /* 첫 소리 허용을 위한 제스처 캡처 오버레이 */
+    .gesture-capture{
+      position:absolute; inset:0; z-index:20;
+      display:flex; align-items:center; justify-content:center;
+      background:transparent; cursor:pointer;
+    }
+    .gesture-capture.hidden{ display:none; }
+
+    /* 드롭다운 백드롭(아이프레임 위에서도 터치 감지) */
+    #menuBackdrop{
+      position:fixed; inset:0; background:transparent; z-index:900;
+      display:none;
+    }
+    #menuBackdrop.show{ display:block; }
   </style>
 </head>
 <body>
@@ -99,10 +111,13 @@
     </div>
   </header>
 
-  <main id="videoContainer"><!-- JS로 영상 카드 렌더링 --></main>
+  <!-- 드롭다운 바깥 클릭용 백드롭 -->
+  <div id="menuBackdrop"></div>
+
+  <main id="videoContainer"><!-- JS가 카드 렌더링 --></main>
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/watch.js?v=20250821-new"></script>
+  <script type="module" src="js/watch.js?v=20250821-fresh"></script>
 </body>
 </html>
