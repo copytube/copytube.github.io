@@ -36,7 +36,8 @@ onAuthStateChanged(auth, (user)=>{
   const loggedIn = !!user;
   signupLink?.classList.toggle('hidden', loggedIn);
   signinLink?.classList.toggle('hidden', loggedIn);
-  menuBtn?.classList.toggle('hidden', !loggedIn);
+  // 메뉴 버튼은 항상 보이게
+  menuBtn?.classList.remove('hidden');
   welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : '';
   closeDropdown();
 });
