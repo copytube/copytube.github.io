@@ -36,11 +36,14 @@ onAuthStateChanged(auth, (user)=>{
   const loggedIn = !!user;
   signupLink?.classList.toggle('hidden', loggedIn);
   signinLink?.classList.toggle('hidden', loggedIn);
-  // 메뉴 버튼은 항상 보이게
-  menuBtn?.classList.remove('hidden');
+
+  // ✅ 로그인 시 보이게, 로그아웃 시 숨김
+  menuBtn?.classList.toggle('hidden', !loggedIn);
+
   welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : '';
   closeDropdown();
 });
+
 
 menuBtn?.addEventListener('click', (e)=>{
   e.stopPropagation();
