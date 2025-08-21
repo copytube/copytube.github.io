@@ -23,14 +23,15 @@ const btnAbout     = $('#btnAbout');
 let isMenuOpen = false;
 function openDropdown(){
   isMenuOpen = true;
-  dropdown?.classList.remove('hidden');
-  requestAnimationFrame(()=> dropdown?.classList.add('show'));
+  dropdown.classList.remove('hidden');
+  requestAnimationFrame(()=> dropdown.classList.add('show'));
 }
 function closeDropdown(){
   isMenuOpen = false;
-  dropdown?.classList.remove('show');
-  setTimeout(()=> dropdown?.classList.add('hidden'), 180);
+  dropdown.classList.remove('show');
+  setTimeout(()=> dropdown.classList.add('hidden'), 180);
 }
+
 onAuthStateChanged(auth, (user)=>{
   const loggedIn = !!user;
   signupLink?.classList.toggle('hidden', loggedIn);
@@ -39,9 +40,13 @@ onAuthStateChanged(auth, (user)=>{
   welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : '';
   closeDropdown();
 });
-menuBtn?.addEventListener('click', (e)=>{ e.stopPropagation(); dropdown.classList.contains('hidden') ? openDropdown() : closeDropdown(); });
+
+menuBtn?.addEventListener('click', (e)=>{
+  e.stopPropagation();
+  dropdown.classList.contains('hidden') ? openDropdown() : closeDropdown();
+});
 document.addEventListener('pointerdown', (e)=>{
-  if (dropdown?.classList.contains('hidden')) return;
+  if (dropdown.classList.contains('hidden')) return;
   const inside = e.target.closest('#dropdownMenu, #menuBtn');
   if (!inside) closeDropdown();
 }, true);
@@ -53,7 +58,7 @@ btnMyUploads?.addEventListener('click', ()=>{ location.href = 'manage-uploads.ht
 btnAbout?.addEventListener('click', ()=>{ location.href = 'about.html'; closeDropdown(); });
 btnSignOut?.addEventListener('click', async ()=>{ await fbSignOut(auth); closeDropdown(); });
 
-/* ---------- 카테고리 라벨 ---------- */
+/* ---------- 카테고리 라벨 맵 ---------- */
 const labelMap = new Map(CATEGORY_GROUPS.flatMap(g => g.children.map(c => [c.value, c.label])));
 const labelOf  = (v) => labelMap.get(v) || `(${String(v)})`;
 
@@ -70,7 +75,7 @@ const refreshBtn = $('#refreshBtn');
 const PAGE_SIZE = 30;
 let currentUser = null;
 let isAdmin     = false;
-let cursors     = [];
+let cursors     = [];   // 각 페이지 마지막 문서 스냅샷
 let page        = 1;
 let reachedEnd  = false;
 
@@ -83,6 +88,7 @@ function catChipsHTML(arr){
   return `<div class="cats">${arr.map(v=>`<span class="chip">${escapeHTML(labelOf(v))}</span>`).join('')}</div>`;
 }
 function buildSelect(name){
+  // personal 그룹(로컬 전용)은 제외
   const opts = ['<option value="">선택안함</option>'];
   for (const g of CATEGORY_GROUPS){
     if (g.personal) continue;
@@ -91,151 +97,56 @@ function buildSelect(name){
   }
   return `<select class="sel" data-name="${name}">${opts.join('')}</select>`;
 }
-function extractId(url){
-  const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
-  return m ? m[1] : '';
-}
 
-/* ---------- 제목: oEmbed로 가져오기 (API 키 불필요) ---------- */
-const TITLE_CACHE = new Map(); // url(or id) -> title
-const CONCURRENCY = 8;
+/* ---------- 닉네임 조회 (admin 전용) ---------- */
+// usernames: 문서 ID = 닉네임(소문자), 필드 uid = 사용자 uid
+const nickCache = new Map();
 
-async function fetchTitleOEmbed(rawUrl){
-  const url = `https://www.youtube.com/oembed?url=${encodeURIComponent(rawUrl)}&format=json`;
-  try{
-    const res = await fetch(url, { credentials:'omit' });
-    if (!res.ok) throw new Error(`oEmbed ${res.status}`);
-    const json = await res.json();
-    // json.title 존재 시 사용
-    return (json && json.title) ? String(json.title) : '';
-  }catch(e){
-    // 실패 시 빈 문자열 → 나중에 URL을 대체 표시
-    return '';
-  }
-}
-
-async function fillMissingTitlesForCurrentList(){
-  const rows = Array.from(listEl.querySelectorAll('.row'));
-  const tasks = [];
-  let running = 0;
-
-  async function runTask(fn){
-    running++;
-    try{ await fn(); } finally { running--; }
-  }
-
-  // 생성기: 각 행에 대한 작업 예약
-  for (const row of rows){
-    if (row.dataset.titleResolved === '1') continue;
-    const url = row.dataset.url;
-    if (!url) { row.dataset.titleResolved = '1'; continue; }
-
-    tasks.push(async ()=>{
-      // 캐시 확인
-      if (!TITLE_CACHE.has(url)){
-        const title = await fetchTitleOEmbed(url);
-        TITLE_CACHE.set(url, title);
-      }
-      const title = TITLE_CACHE.get(url) || '';
-      setRowTitle(row, title, url);
-      row.dataset.titleResolved = '1';
-
-      // Firestore 캐시: 본인/관리자만 시도
-      const ownerUid = row.dataset.uid;
-      const docId = row.dataset.id;
-      if (title && (isAdmin || (currentUser && ownerUid === currentUser.uid))){
-        try{ await updateDoc(doc(db,'videos', docId), { title }); }catch{}
-      }
-    });
-  }
-
-  // 간단한 동시성 제어
-  let i = 0;
-  await new Promise((resolve)=>{
-    function pump(){
-      while (running < CONCURRENCY && i < tasks.length){
-        runTask(tasks[i++]()).then(()=> pump());
-      }
-      if (i >= tasks.length && running === 0) resolve();
-    }
-    pump();
-  });
-}
-
-function setRowTitle(row, title, fallbackUrl){
-  const t = (title || '').trim();
-  row.querySelector('.title').textContent = t || fallbackUrl || '(제목 없음)';
-}
-
-/* ---------- 관리자: 업로더 닉네임 표기 ---------- */
-const UID_NAME_CACHE = new Map(); // uid -> nickname(lower)
-
-async function fetchNicknamesForUids(uids){
-  const need = uids.filter(u => u && !UID_NAME_CACHE.has(u));
-  if (!need.length) return;
-
-  for (let i=0; i<need.length; i+=10){
-    const part = need.slice(i, i+10);
+async function preloadNicknames(uids){
+  const unique = [...new Set(uids.filter(Boolean))];
+  const CHUNK = 10;
+  for (let i=0; i<unique.length; i+=CHUNK){
+    const slice = unique.slice(i, i+CHUNK).filter(uid => !nickCache.has(uid));
+    if (!slice.length) continue;
     try{
-      const qUsernames = query(collection(db,'usernames'), where('uid','in', part));
-      const snap = await getDocs(qUsernames);
-      snap.forEach(d=>{
+      const qs = await getDocs(query(collection(db,'usernames'), where('uid','in', slice)));
+      qs.docs.forEach(d => {
         const uid = d.data()?.uid;
-        const nickLower = d.id || '';
-        if (uid) UID_NAME_CACHE.set(uid, nickLower);
+        const nick = d.id || '';
+        if (uid) nickCache.set(uid, nick);
       });
-      part.forEach(u => { if (!UID_NAME_CACHE.has(u)) UID_NAME_CACHE.set(u, ''); });
+      // 쿼리에서 못 찾은 uid는 캐시에 빈값으로 기록(다음에 재조회 방지)
+      slice.forEach(uid => { if (!nickCache.has(uid)) nickCache.set(uid, ''); });
     }catch(e){
-      part.forEach(u => { if (!UID_NAME_CACHE.has(u)) UID_NAME_CACHE.set(u, ''); });
+      // in 쿼리 실패 시 개별조회 폴백
+      for (const uid of slice){
+        try{
+          const qs1 = await getDocs(query(collection(db,'usernames'), where('uid','==', uid), limit(1)));
+          const nick = qs1.empty ? '' : (qs1.docs[0].id || '');
+          nickCache.set(uid, nick);
+        }catch(_){ nickCache.set(uid, ''); }
+      }
     }
   }
 }
-
-function nicknamePretty(n){ return n || ''; }
-
-async function resolveUploaderNamesIfAdmin(){
-  if (!isAdmin) return;
-  const rows = Array.from(listEl.querySelectorAll('.row'));
-  const uids = Array.from(new Set(rows.map(r => r.dataset.uid).filter(Boolean)));
-  if (!uids.length) return;
-
-  await fetchNicknamesForUids(uids);
-
-  rows.forEach(row=>{
-    const uid = row.dataset.uid;
-    const holder = row.querySelector('.__uploader');
-    if (!holder) return;
-    const nick = UID_NAME_CACHE.get(uid) || '';
-    holder.textContent = `업로더: ${nick ? nicknamePretty(nick) : uid.slice(0,8) + '…'}`;
-  });
-}
+function nicknameOf(uid){ return nickCache.get(uid) || ''; }
 
 /* ---------- 1행 렌더 ---------- */
 function renderRow(docId, data){
   const cats  = Array.isArray(data.categories) ? data.categories : [];
   const url   = data.url || '';
   const uid   = data.uid || '';
-  const title = data.title || '';
-  const vid   = extractId(url);
-
-  if (title) TITLE_CACHE.set(url, title);
+  const title = (data.title || data.ytTitle || '').trim();
 
   const row = document.createElement('div');
   row.className = 'row';
-  row.dataset.id   = docId;
-  row.dataset.url  = url;
-  row.dataset.uid  = uid;
-  row.dataset.vid  = vid;
-  row.dataset.titleResolved = title ? '1' : '0';
-
+  row.dataset.id = docId;
   row.innerHTML = `
     <div class="meta">
-      <div class="title">${escapeHTML(title || '제목 불러오는 중…')}</div>
-      <div class="sub">
-        <a href="${escapeHTML(url)}" target="_blank" rel="noopener">${escapeHTML(url)}</a>
-      </div>
+      <div class="title">${escapeHTML(title || url)}</div>
+      <div class="sub"><a href="${escapeHTML(url)}" target="_blank" rel="noopener">${escapeHTML(url)}</a></div>
       ${catChipsHTML(cats)}
-      ${isAdmin ? `<div class="sub __uploader">업로더: (로딩중)</div>` : ''}
+      ${isAdmin ? `<div class="sub __uploader" data-uid="${escapeHTML(uid)}">업로더: <span class="__name">불러오는 중…</span></div>` : ''}
     </div>
     <div class="right">
       <div class="cat-editor">
@@ -250,11 +161,13 @@ function renderRow(docId, data){
     </div>
   `;
 
-  // 현재 카테고리 프리셀렉트
+  // 현재 카테고리로 프리셀렉트
   const sels = Array.from(row.querySelectorAll('select.sel'));
-  cats.slice(0,3).forEach((v, i) => { if (sels[i]) sels[i].value = v; });
+  cats.slice(0,3).forEach((v, i) => {
+    if (sels[i]) sels[i].value = v;
+  });
 
-  // 적용
+  // 적용 버튼
   row.querySelector('.btn-apply').addEventListener('click', async ()=>{
     const chosen = Array.from(row.querySelectorAll('select.sel')).map(s=>s.value).filter(Boolean);
     const uniq = [...new Set(chosen)].slice(0,3);
@@ -272,7 +185,7 @@ function renderRow(docId, data){
     }
   });
 
-  // 삭제
+  // 삭제 버튼
   row.querySelector('.btn-del').addEventListener('click', async ()=>{
     if (!confirm('정말 삭제하시겠습니까?')) return;
     try{
@@ -286,6 +199,9 @@ function renderRow(docId, data){
   return row;
 }
 
+/* ---------- 리스트 렌더 ---------- */
+function clearList(){ listEl.innerHTML = ''; }
+
 /* ---------- 관리자 여부 ---------- */
 async function checkAdmin(uid){
   try{
@@ -297,8 +213,6 @@ async function checkAdmin(uid){
 }
 
 /* ---------- 페이지 로드 ---------- */
-function clearList(){ listEl.innerHTML = ''; }
-
 async function loadPage(p){
   if (!currentUser) return;
   statusEl.textContent = '읽는 중...';
@@ -323,7 +237,32 @@ async function loadPage(p){
       listEl.innerHTML = '<div class="sub">목록이 없습니다.</div>';
       reachedEnd = true;
     }else{
-      snap.docs.forEach(d => listEl.appendChild(renderRow(d.id, d.data())));
+      const rows = [];
+      const uids = [];
+      snap.docs.forEach(d => {
+        const data = d.data();
+        rows.push({ id:d.id, data });
+        if (isAdmin && data?.uid) uids.push(data.uid);
+      });
+
+      // 관리자라면 닉네임 미리 당겨오기
+      if (isAdmin && uids.length){
+        await preloadNicknames(uids);
+      }
+
+      rows.forEach(({id, data}) => listEl.appendChild(renderRow(id, data)));
+
+      // 관리자: 업로더명 채우기
+      if (isAdmin){
+        listEl.querySelectorAll('.__uploader').forEach(el => {
+          const uid = el.getAttribute('data-uid') || '';
+          const nameEl = el.querySelector('.__name');
+          if (!nameEl) return;
+          const nick = nicknameOf(uid);
+          nameEl.textContent = nick || (uid ? uid.slice(0,6)+'…' : '(알 수 없음)');
+        });
+      }
+
       cursors[p-1] = snap.docs[snap.docs.length - 1];
       reachedEnd = (snap.size < PAGE_SIZE);
     }
@@ -331,12 +270,8 @@ async function loadPage(p){
     pageInfo.textContent = String(p);
     statusEl.textContent = '';
 
-    // 제목(oEmbed) 보정 & 업로더 닉네임(관리자)
-    await fillMissingTitlesForCurrentList();
-    await resolveUploaderNamesIfAdmin();
-
   }catch(e){
-    // 폴백: 전체 가져와 필터/정렬
+    // 인덱스/권한 문제 등으로 실패하면 사용자 범위 전체 가져와 정렬 후 슬라이스 (초기 데이터량 가정)
     try{
       const all = await getDocs(collection(db,'videos'));
       let rows = all.docs.map(d => ({ id:d.id, ...d.data() }));
@@ -350,13 +285,23 @@ async function loadPage(p){
       const slice = rows.slice(start, start+PAGE_SIZE);
 
       clearList();
+      if (isAdmin){
+        await preloadNicknames(slice.map(r=>r.uid).filter(Boolean));
+      }
       slice.forEach(v => listEl.appendChild(renderRow(v.id, v)));
+      if (isAdmin){
+        listEl.querySelectorAll('.__uploader').forEach(el => {
+          const uid = el.getAttribute('data-uid') || '';
+          const nameEl = el.querySelector('.__name');
+          if (!nameEl) return;
+          const nick = nicknameOf(uid);
+          nameEl.textContent = nick || (uid ? uid.slice(0,6)+'…' : '(알 수 없음)');
+        });
+      }
+
       reachedEnd = (start + PAGE_SIZE >= rows.length);
       pageInfo.textContent = String(p);
       statusEl.textContent = '(오프라인 정렬)';
-
-      await fillMissingTitlesForCurrentList();
-      await resolveUploaderNamesIfAdmin();
 
     }catch(e2){
       console.error(e, e2);
