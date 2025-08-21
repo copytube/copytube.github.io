@@ -39,8 +39,17 @@
     .inline-check{
       display:inline-flex; align-items:center; gap:8px;
       font-size:13px; color:#ddd; user-select:none;
+      line-height:1;                 /* ← 체크박스와 텍스트 높이 정규화 */
     }
-    .inline-check input{ transform:scale(1.05); accent-color:#4ea1ff; }
+    /* 체크박스의 실제 크기/여백 고정 (색상 유지) */
+.inline-check input{
+  width:16px; height:16px;       /* ← OS/브라우저 차이를 없앰 */
+  margin:0;                      /* ← 위아래 들뜸 방지 */
+  accent-color:#4ea1ff;          /* ← 기존 색상 유지 */
+  appearance:auto;               /* ← 기본 체크박스 모양 유지 */
+  vertical-align:middle;
+  /* transform:scale(1.05);  ← 있으면 지워주세요 (정렬 깨뜨리는 주범) */
+}
     /* 균형용 유령 라벨(시각/포인터 비활성, 폭은 유지) */
     .inline-check.ghost{ visibility:hidden; pointer-events:none; }
 
