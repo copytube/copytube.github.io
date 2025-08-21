@@ -2,39 +2,47 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8"/>
-  <meta http-equiv="Content-Security-Policy" content="
-  default-src 'self';
-  connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
-  img-src 'self' data: https://i.ytimg.com;
-  frame-src https://www.youtube.com;
-  script-src 'self' https://www.gstatic.com 'unsafe-inline';
-  style-src 'self' 'unsafe-inline';
-  object-src 'none';
-  base-uri 'self';
-">
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>CopyTube는..</title>
+  <title>CopyTube는…</title>
+
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
+    img-src 'self' data: https://i.ytimg.com;
+    frame-src https://www.youtube.com;
+    script-src 'self' https://www.gstatic.com 'unsafe-inline';
+    style-src 'self' 'unsafe-inline';
+    object-src 'none';
+    base-uri 'self';
+  ">
+
   <link rel="stylesheet" href="css/style.css"/>
   <style>
-    main { max-width: 880px; margin: 96px auto 40px; padding: 0 16px; }
-    h1 { margin: 0 0 12px; }
-    p  { margin: 8px 0; color:#ddd; line-height:1.6; }
-    .muted { color:#9aa0a6; }
-    .logo-wrap { display:flex; justify-content:center; margin: 18px 0 8px; }
-    .logo-wrap img {
-      width: min(60vw, 420px);
-      height: auto;
-      object-fit: contain;
+    body{ padding-top:72px; }
+    main{ max-width:900px; margin:0 auto; padding:16px; }
+    h2{ margin:8px 0 12px; }
+    .admin-bar{
+      display:flex; gap:8px; align-items:center; margin:6px 0 12px;
+      justify-content:flex-start; /* admin 버튼 좌측 정렬 */
     }
-    @media (max-width:480px){
-      .logo-wrap img { width: 80vw; }
+    .admin-bar .btn{ padding:8px 12px; border-radius:8px; border:1px solid #2a2a2a; background:#111; color:#fff; cursor:pointer; }
+    .card{
+      border:1px solid var(--border); background:#101010; border-radius:10px; padding:12px; margin:12px 0;
     }
+    .field{ display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+    textarea{
+      width:100%; min-height:120px; resize:vertical; padding:10px; border-radius:8px;
+      border:1px solid #333; background:#000; color:#fff; box-sizing:border-box;
+    }
+    .row-right{ display:flex; justify-content:flex-end; margin-top:8px; }
+    .btn-primary{ background:#4ea1ff; color:#fff; font-weight:800; border:0; border-radius:8px; padding:10px 14px; cursor:pointer; }
+    .msg{ margin-top:8px; font-size:13px; color:#ccc; min-height:1.2em; white-space:pre-line; }
   </style>
 </head>
 <body>
   <header id="topbar">
     <div class="brand">
-      <a href="./" aria-label="CopyTube 홈으로">
+      <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
         <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
       </a>
     </div>
@@ -42,102 +50,45 @@
       <a id="signupLink" class="link" href="signup.html">Sign up</a>
       <a id="signinLink" class="link" href="signin.html">Sign in</a>
       <span id="welcome" class="welcome"></span>
-      <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
-
+      <button id="menuBtn" class="icon" aria-label="menu">三</button>
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
-        <button id="btnAbout" class="menu-strong" type="button">CopyTube는..</button>
+        <button id="btnAbout" class="menu-strong" type="button">CopyTube는…</button>
         <button id="btnMyUploads" type="button">내영상관리</button>
         <button id="btnSignOut" type="button">Sign out</button>
-        <button id="btnGoUpload" type="button">추천영상등록</button>
+        <button id="btnGoUpload" class="menu-strong" type="button">추천영상등록</button>
       </div>
     </div>
   </header>
 
   <main>
-    <h1>CopyTube는..</h1>
+    <h2>CopyTube는…</h2>
+    <div class="card">
+      <p>간단 소개 텍스트… (원하시는 내용으로 수정)</p>
+    </div>
 
-    <p>CopyTube는 YouTube 알고리즘이 아닌 <strong>개인이 추천한 영상</strong>으로 만들어집니다.</p>
-    <p>다른 사람의 알고리즘이 궁금하지 않으세요? CopyTube에서 볼 수 있습니다.</p>
-    <p>다른 사람에게 공유되지 않는 <strong>개인자료 카테고리</strong>도 존재합니다. (개인자료 이름 변경 가능)</p>
-    <p>회원가입은 <strong>영상 등록</strong>을 위한 절차로, <strong>보기만 한다면 회원가입은 필요 없습니다.</strong></p>
-    <p>회원가입은 <strong>아이디와 비밀번호</strong>만 필요합니다.</p>
-    <p>CopyTube의 시작은 아이들에게 보여줄 영상을 정리하기 위해서입니다.</p>
-    <p><strong>폭력, 공포, 혐오, 자극적인 영상은 올리지 말아주세요.</strong> 부적절한 영상은 관리자 마음대로 삭제 예정입니다.</p>
-    <p>다만 ‘개인자료’ 카테고리는 <strong>로컬 저장</strong>이기 때문에 공유가 되지 않고 관리자도 접근 불가능하오니 알아서 활용하시기 바랍니다. <span class="muted">(예: 개인1을 ‘뽀로로’로 이름을 바꾸고 뽀로로 영상만 모아 보기)</span></p>
-    <p>이용해주셔서 감사합니다.</p>
+    <!-- 관리자 전용 버튼(좌측 정렬) -->
+    <div class="admin-bar">
+      <button id="btnAdminMsgs" class="btn" style="display:none;">메시지 확인</button>
+      <button id="btnAdminMembers" class="btn" style="display:none;">회원관리</button>
+    </div>
 
-    <div class="logo-wrap">
-      <img src="image/copytube_logo_512.png" alt="CopyTube 로고"/>
+    <!-- 의견함 -->
+    <div class="card">
+      <h3 style="margin:0 0 6px;">의견 보내기</h3>
+      <p style="margin:0 0 6px; color:#9aa0a6; font-size:13px;">로그인 후 전송할 수 있어요. 버그 신고/기능 제안/카테고리 추가 요청 등 무엇이든 환영합니다.</p>
+      <div class="field">
+        <textarea id="feedback" maxlength="2000" placeholder="최대 2,000자까지 입력"></textarea>
+      </div>
+      <div class="row-right">
+        <button id="btnSend" class="btn-primary">전송</button>
+      </div>
+      <div id="msg" class="msg"></div>
     </div>
   </main>
 
-  <!-- 로그인 상태 반영 스크립트 -->
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module">
-    import { auth } from './js/firebase-init.js';
-    import { onAuthStateChanged, signOut as fbSignOut } from './js/auth.js';
-
-    const signupLink   = document.getElementById("signupLink");
-    const signinLink   = document.getElementById("signinLink");
-    const welcome      = document.getElementById("welcome");
-    const menuBtn      = document.getElementById("menuBtn");
-    const dropdown     = document.getElementById("dropdownMenu");
-
-    const btnAbout     = document.getElementById("btnAbout");
-    const btnMyUploads = document.getElementById("btnMyUploads");
-    const btnSignOut   = document.getElementById("btnSignOut");
-    const btnGoUpload  = document.getElementById("btnGoUpload");
-
-    let isMenuOpen = false;
-    function openDropdown(){
-      isMenuOpen = true;
-      dropdown.classList.remove("hidden");
-      requestAnimationFrame(()=> dropdown.classList.add("show"));
-    }
-    function closeDropdown(){
-      isMenuOpen = false;
-      dropdown.classList.remove("show");
-      setTimeout(()=> dropdown.classList.add("hidden"), 180);
-    }
-
-    onAuthStateChanged(auth, (user)=>{
-      const loggedIn = !!user;
-      signupLink.classList.toggle("hidden", loggedIn);
-      signinLink.classList.toggle("hidden", loggedIn);
-      menuBtn.classList.toggle("hidden", !loggedIn);
-      welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "";
-      closeDropdown();
-    });
-
-    menuBtn.addEventListener("click", (e)=>{
-      e.stopPropagation();
-      dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown();
-    });
-    document.addEventListener('pointerdown', (e)=>{
-      if (dropdown.classList.contains('hidden')) return;
-      const inside = e.target.closest('#dropdownMenu, #menuBtn');
-      if (!inside) closeDropdown();
-    }, true);
-    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
-    dropdown.addEventListener("click", (e)=> e.stopPropagation());
-
-    btnAbout?.addEventListener("click", ()=>{
-      // 현재 페이지
-      closeDropdown();
-    });
-    btnMyUploads?.addEventListener("click", ()=>{
-      location.href = "manage-uploads.html";
-      closeDropdown();
-    });
-    btnGoUpload?.addEventListener("click", ()=>{
-      location.href = "upload.html";
-      closeDropdown();
-    });
-    btnSignOut?.addEventListener("click", async ()=>{
-      await fbSignOut(auth);
-      closeDropdown();
-    });
-  </script>
+  <script type="module" src="js/admin-common.js"></script>
+  <script type="module" src="js/about.js?v=20250822"></script>
 </body>
 </html>
