@@ -19,6 +19,7 @@
 
   <link rel="stylesheet" href="css/style.css"/>
   <style>
+    /* 선택 화면 */
     .intro{
       min-height:100vh; display:flex; align-items:center; justify-content:center; text-align:center;
       padding:96px 24px 24px; background:var(--bg-2); border-bottom:1px solid var(--border);
@@ -26,23 +27,24 @@
     .lead{ font-size:20px; color:#e6e6e6; margin:0 0 6px; }
     .sublead{ font-size:14px; color:#9aa0a6; margin:0 0 12px; }
 
-    /* 상단 CTA: [빈칸 | 버튼 | 연속재생 | 빈칸] → 버튼이 정확히 중앙 */
+    /* 버튼 중앙 + 연속재생 오른쪽(작은 글씨) */
     .cta-row{
-      display:grid; grid-template-columns: 1fr auto auto 1fr;
-      gap:10px; align-items:center; margin:8px 0 10px;
+      display:flex; justify-content:center; align-items:center; gap:10px;
+      margin:8px 0 10px;
     }
     .btn-primary{
       padding:10px 16px; border:0; border-radius:10px; background:#4ea1ff;
-      color:#fff; font-weight:800; cursor:pointer;
+      color:#fff; font-weight:800; cursor:pointer; font-size:16px; /* ▶ 글씨 크기 복원 */
     }
-    /* 인라인 체크(박스 없는 스타일) */
     .inline-check{
       display:inline-flex; align-items:center; gap:8px;
       font-size:13px; color:#ddd; user-select:none;
     }
     .inline-check input{ transform:scale(1.05); accent-color:#4ea1ff; }
+    /* 균형용 유령 라벨(시각/포인터 비활성, 폭은 유지) */
+    .inline-check.ghost{ visibility:hidden; pointer-events:none; }
 
-    /* 카테고리 헤더: 가운데 제목 + 오른쪽 전체선택 */
+    /* 카테고리 헤더: 중앙 제목 + 오른쪽 전체선택 체크박스 */
     .cat-head{ position:relative; margin:10px 0 8px; }
     .cat-title{ margin:0; font-size:22px; font-weight:900; text-align:center; color:#e6e6e6; }
     .cat-right{ position:absolute; right:0; top:50%; transform:translateY(-50%); }
@@ -50,12 +52,13 @@
     /* 그룹(대분류 + 세부) */
     .group{
       border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
-      padding:8px; margin:8px 0; text-align:left; max-width:900px; margin-left:auto; margin-right:auto;
+      padding:8px; margin:8px 0;
+      text-align:left; max-width:900px; margin-left:auto; margin-right:auto;
     }
     .group legend{
       display:flex; align-items:center; gap:8px;
       padding:0 4px; font-weight:800; font-size:15px; color:#eee;
-      margin-bottom:0; /* ✅ 기억값 유지 */
+      margin-bottom:0; /* ✅ 기억값 */
       line-height:1.05;
     }
     .group .group-toggle{
@@ -67,7 +70,7 @@
     .group .subnote{ font-size:12px; color:#9aa0a6; margin-left:6px; font-weight:600; }
 
     .child-grid{
-      margin-top:0; /* ✅ 기억값 유지 */
+      margin-top:0; /* ✅ 기억값 */
       display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px;
     }
     @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
@@ -106,24 +109,20 @@
       <p class="lead">영상보기를 눌러 선택된 카테고리의 영상을 시청하세요.</p>
       <p class="sublead">첫 시청 시 화면 상단 <strong>음소거를 해제</strong>해 주세요. (모바일: 첫 스와이프/탭, PC: 스크롤/키 입력/클릭)</p>
 
-      <!-- 버튼 중앙 + 연속재생 오른쪽 -->
-      <!-- 기존 cta-row 블록을 이걸로 교체 -->
-<div class="cta-row">
-  <!-- 왼쪽 유령 라벨: 버튼을 정확히 중앙에 고정하기 위한 균형추 -->
-  <label class="inline-check ghost" aria-hidden="true">
-    <input type="checkbox" disabled /> 연속재생
-  </label>
+      <!-- 버튼 중앙 + 오른쪽에 연속재생 -->
+      <div class="cta-row">
+        <label class="inline-check ghost" aria-hidden="true">
+          <input type="checkbox" disabled/> 연속재생
+        </label>
 
-  <button id="btnWatch" class="btn-primary">▶ 영상보기</button>
+        <button id="btnWatch" class="btn-primary">▶ 영상보기</button>
 
-  <!-- 실제 연속재생 체크 -->
-  <label class="inline-check" id="autoNextWrap" title="영상 종료 시 자동으로 다음 영상으로 이동">
-    <input type="checkbox" id="cbAutoNext"/> 연속재생
-  </label>
-</div>
+        <label class="inline-check" id="autoNextWrap" title="영상 종료 시 자동으로 다음 영상으로 이동">
+          <input type="checkbox" id="cbAutoNext"/> 연속재생
+        </label>
+      </div>
 
-
-      <!-- 카테고리 타이틀 중앙 + 전체선택 오른쪽 -->
+      <!-- 카테고리 헤드: 중앙 제목 + 오른쪽 전체선택 체크박스 -->
       <div class="cat-head">
         <h3 class="cat-title">카테고리</h3>
         <div class="cat-right">
