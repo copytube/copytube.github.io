@@ -53,6 +53,8 @@
       scroll-snap-type: y mandatory;
       overscroll-behavior-y: contain;
       background:#000;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y; 
     }
 
     .video{
@@ -60,6 +62,10 @@
       scroll-snap-stop: always;
       position:relative; display:flex; align-items:center; justify-content:center;
       background:#000;
+      touch-action: pan-y;
+    }
+    .video iframe{
+      pointer-events: none;   /* ← 추가 */
     }
 
     /* 썸네일/힌트 */
