@@ -5,6 +5,7 @@ import { isAdminCurrentUser, escapeHTML, fmtDate } from './admin-common.js';
 import {
   collection, getDocs, query, orderBy, limit, doc, getDoc, setDoc, deleteDoc
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
+import { isAdminCurrentUser, escapeHTML, fmtDate, requireAdminUI } from './admin-common.js';
 
 /* 드롭다운 */
 const menuBtn = document.getElementById('menuBtn');
@@ -20,6 +21,9 @@ const usersBox = document.getElementById('users');
 const usersMsg = document.getElementById('usersMsg');
 const logsMsg  = document.getElementById('logsMsg');
 const logsTbody= document.querySelector('#logsTbl tbody');
+const btnAdminHome = document.getElementById('btnAdminHome'); // ✅
+requireAdminUI([btnAdminHome]);                                // ✅
+btnAdminHome?.addEventListener('click', ()=> location.href='./'); // ✅
 
 onAuthStateChanged(auth, async (user)=>{
   if (!user || !(await isAdminCurrentUser())){ location.href='about.html'; return; }
