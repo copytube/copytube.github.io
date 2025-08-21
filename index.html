@@ -19,7 +19,12 @@
 
   <link rel="stylesheet" href="css/style.css"/>
   <style>
-/* 선택 화면 전체 레이아웃 */
+:root{
+  /* 버튼/제목 공통 폭: 필요시 숫자만 바꿔도 두 줄이 같이 움직임 */
+  --cta-width: 148px;
+}
+
+/* 선택 화면 */
 .intro{
   min-height:100vh; display:flex; align-items:center; justify-content:center; text-align:center;
   padding:96px 24px 24px; background:var(--bg-2); border-bottom:1px solid var(--border);
@@ -27,51 +32,65 @@
 .lead{ font-size:20px; color:#e6e6e6; margin:0 0 6px; }
 .sublead{ font-size:14px; color:#9aa0a6; margin:0 0 12px; }
 
-/* 버튼 중앙 + 오른쪽에 연속재생(작은 글씨) */
+/* =========================
+   상단 CTA 줄 (버튼 + 연속재생)
+   ========================= */
 .cta-row{
-  display:flex; justify-content:center; align-items:center; gap:10px;
+  display:grid;
+  grid-template-columns: 1fr var(--cta-width) auto 1fr; /* 왼여백 | 버튼 | 체크박스 | 오른여백 */
+  align-items:center; column-gap:10px;
   margin:8px 0 10px;
 }
-/* ▶ 글씨 크기는 기존 16px 유지 + 너비 고정(제목과 동일) */
 .btn-primary{
+  grid-column: 2;
   padding:10px 16px; border:0; border-radius:10px; background:#4ea1ff;
   color:#fff; font-weight:800; cursor:pointer; font-size:16px;
-  width:148px;               /* ← 고정 폭 (제목과 동일) */
-  text-align:center;
+  width:var(--cta-width); text-align:center;
 }
-
-/* 체크박스 라벨: 색상 유지, 정렬 보정 */
 .inline-check{
   display:inline-flex; align-items:center; gap:8px;
   font-size:13px; color:#ddd; user-select:none;
-  line-height:1;              /* 높이 오차 제거 */
+  line-height:1;                     /* 높이 오차 제거 */
 }
 .inline-check input{
-  width:16px; height:16px;    /* OS별 크기 차 제거 */
-  margin:0;                   /* 위아래 들뜸 방지 */
-  accent-color:#4ea1ff;       /* 기존 색 유지 */
-  appearance:auto;
-  vertical-align:middle;
+  width:16px; height:16px;
+  margin:0; accent-color:#4ea1ff;
+  appearance:auto; vertical-align:middle;
 }
-/* 균형용 유령 라벨(시각/포인터 비활성, 폭은 유지) */
-.inline-check.ghost{ visibility:hidden; pointer-events:none; }
+.cta-row .inline-check:not(.ghost){ grid-column: 3; justify-self:flex-start; }
+.cta-row .inline-check.ghost{ display:none; } /* 유령 라벨 무력화(HTML 안 건드려도 됨) */
 
-/* 카테고리 헤더: 중앙 제목 + 오른쪽에 전체선택(오른쪽 끝 고정 X) */
+/* =========================
+   카테고리 헤더 줄 (검은 버튼형 제목 + 전체선택)
+   ========================= */
 .cat-head{
-  display:flex; justify-content:center; align-items:center; gap:10px;
+  display:grid;
+  grid-template-columns: 1fr var(--cta-width) auto 1fr; /* 상단과 동일한 3열 + 여백 */
+  align-items:center; column-gap:10px;
   margin:10px 0 8px;
 }
 .cat-title{
-  margin:0; font-size:22px; font-weight:900; color:#e6e6e6;
-  width:148px;               /* ← 버튼과 같은 폭으로 통일 */
-  text-align:center;
+  grid-column: 2;
+  /* h3를 "검은 버튼"처럼 */
+  display:inline-block;
+  width:var(--cta-width);
+  margin:0;
+  padding:10px 16px;
+  background:#0f0f0f; border:1px solid #2a2a2a; border-radius:10px;
+  color:#a9b0b7; font-weight:800; font-size:16px; text-align:center;
+  pointer-events:none; user-select:none; /* 비활성 느낌 */
 }
-/* 기존 absolute 해제 → 제목 옆에 자연스럽게 배치 */
 .cat-right{
-  position:static;
+  grid-column: 3;
+}
+.cat-right .inline-check{ /* 동일한 체크 라벨 스타일 재사용 */
+  display:inline-flex; align-items:center; gap:8px;
+  font-size:13px; color:#ddd; line-height:1;
 }
 
-/* 그룹(대분류 + 세부) */
+/* =========================
+   그룹(대분류 + 세부)
+   ========================= */
 .group{
   border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
   padding:8px; margin:8px 0;
@@ -80,7 +99,7 @@
 .group legend{
   display:flex; align-items:center; gap:8px;
   padding:0 4px; font-weight:800; font-size:15px; color:#eee;
-  margin-bottom:0;            /* ✅ 기억값 유지 */
+  margin-bottom:0;           /* (기억값) */
   line-height:1.05;
 }
 .group .group-toggle{
@@ -89,10 +108,8 @@
   background:#101010; border:1px solid #2a2a2a; color:#e5e7eb; cursor:pointer; font-weight:800;
 }
 .group .group-toggle input{ accent-color:#4ea1ff; }
-
-/* 세부 항목 그리드 */
 .child-grid{
-  margin-top:0;               /* ✅ 기억값 유지 */
+  margin-top:0;              /* (기억값) */
   display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px;
 }
 @media (min-width:900px){
