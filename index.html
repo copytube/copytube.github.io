@@ -66,8 +66,8 @@
 .cat-head{
   display:grid;
   grid-template-columns: 1fr var(--cta-width) auto 1fr; /* 상단과 동일한 3열 + 여백 */
-  align-items:center; column-gap:10px;
-  margin:10px 0 8px;
+  align-items:center; column-gap:0;
+  margin:0;
 }
 .cat-title{
   grid-column: 2;
@@ -76,8 +76,8 @@
   width:var(--cta-width);
   margin:0;
   padding:10px 16px;
-  background:#0f0f0f; border:1px solid #2a2a2a; border-radius:10px;
-  color:#a9b0b7; font-weight:800; font-size:16px; text-align:center;
+  background:#0f0f0f; border:none; border-radius:10px;
+  color:#fff; font-weight:800; font-size:20px; text-align:center;
   pointer-events:none; user-select:none; /* 비활성 느낌 */
 }
 .cat-right{
