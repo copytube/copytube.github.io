@@ -20,10 +20,19 @@
   <link rel="stylesheet" href="css/style.css"/>
 
   <style>
+    /* 레이아웃 */
     body { padding-top: 72px; }
     main { max-width: 1000px; margin: 0 auto; padding: 0 16px 40px; }
     h2 { display:flex; align-items:center; gap:10px; }
     .badge { font-size:12px; color:#9ef01a; font-weight:700; }
+
+    /* 헤더 오른쪽 영역은 항상 가로 정렬 유지 (모바일 안전망 포함) */
+    #topbar .right{
+      display:flex;
+      flex-direction:row;
+      align-items:center;
+      gap:8px;
+    }
 
     .toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:10px 0 14px; }
     .toolbar .msg { color:#9aa0a6; font-size:13px; min-height:1.2em; }
@@ -44,23 +53,24 @@
       display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
     }
     .sub { font-size:12px; color:#9aa0a6; word-break:break-all; }
-    .sub a { color:#9aa0a6; text-decoration:underline; }
     .cats { display:flex; flex-direction:column; gap:4px; font-size:12px; }
     .cats .chip {
       display:inline-block; background:#0f0f0f; border:1px solid #2a2a2a; border-radius:6px;
       padding:4px 6px; width:max-content;
     }
+
     .right {
       display:flex; flex-direction:column; gap:6px; align-items:flex-end; justify-content:space-between;
       min-width:260px;
     }
 
-    /* PC: 드롭다운 세로 스택 */
+    /* 카테고리 에디터 (기본: PC = 세로 배치) */
     .cat-editor { display:flex; flex-direction:column; gap:6px; }
     .cat-editor select {
-      background:#0f0f0f; color:#fff; border:1px solid #2a2a2a; border-radius:8px; padding:6px 8px; min-width:220px;
+      background:#0f0f0f; color:#fff; border:1px solid #2a2a2a; border-radius:8px; padding:6px 8px; min-width:150px;
     }
 
+    /* 버튼 영역은 항상 오른쪽 정렬 */
     .actions { display:flex; gap:6px; justify-content:flex-end; }
     .btn {
       padding:8px 10px; border:0; border-radius:8px; cursor:pointer; font-weight:700;
@@ -73,32 +83,28 @@
     .pager button { padding:6px 10px; border-radius:8px; border:1px solid #2a2a2a; background:#111; color:#ddd; cursor:pointer; }
     .pager .now { font-weight:800; color:#fff; }
 
-    /* 모바일: 행 단일 컬럼 + 드롭다운 3개 가로 한 줄 */
-@media (max-width:720px){
-  .row { grid-template-columns: 1fr; }
-  .row .right { align-items:flex-end; min-width:0; } /* ★ 목록 내부만 적용 */
-  .actions { justify-content:flex-end; width:100%; }
+    /* 모바일 최적화 */
+    @media (max-width:720px){
+      .row { grid-template-columns: 1fr; }
 
-  .cat-editor{
-    display:grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap:6px;
-    width:100%;
-  }
-  .cat-editor select{
-    width:100%;
-    min-width:0;
-  }
+      /* 목록 행 내부의 오른쪽 패널만 조정 (헤더 영향 방지) */
+      .row .right { align-items:flex-end; min-width:0; }
 
-  /* 안전망: 헤더는 항상 가로 정렬 유지 */
-  #topbar .right{
-    display:flex;
-    flex-direction:row;
-    align-items:center;
-    gap:8px;
-  }
-}
+      /* 버튼 묶음도 오른쪽 정렬 유지 */
+      .actions { justify-content:flex-end; width:100%; }
 
+      /* 모바일: 카테고리 선택 3개를 가로 3열로 */
+      .cat-editor{
+        display:grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap:6px;
+        width:100%;
+      }
+      .cat-editor select{
+        width:100%;
+        min-width:0; /* 넘침 방지 */
+      }
+    }
   </style>
 </head>
 <body>
@@ -113,7 +119,8 @@
       <a id="signupLink" class="link" href="signup.html">Sign up</a>
       <a id="signinLink" class="link" href="signin.html">Sign in</a>
       <span id="welcome" class="welcome"></span>
-      <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
+      <!-- 초기 hidden 제거: 로그인 상태에 따라 JS가 토글 -->
+      <button id="menuBtn" class="icon" aria-label="menu">三</button>
 
       <!-- 드롭다운 -->
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
@@ -148,6 +155,6 @@
   <!-- 모듈 스크립트 -->
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/manage-uploads.js?v=20250821e"></script>
+  <script type="module" src="js/manage-uploads.js?v=20250821-admin-nick"></script>
 </body>
 </html>
