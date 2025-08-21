@@ -76,10 +76,9 @@
     /* 모바일: 행 단일 컬럼 + 드롭다운 3개 가로 한 줄 */
 @media (max-width:720px){
   .row { grid-template-columns: 1fr; }
-  .right { align-items:flex-end; min-width:0; }
+  .row .right { align-items:flex-end; min-width:0; } /* ★ 목록 내부만 적용 */
   .actions { justify-content:flex-end; width:100%; }
 
-  /* ★ 모바일에서 3열 가로 배치 */
   .cat-editor{
     display:grid;
     grid-template-columns: repeat(3, 1fr);
@@ -88,7 +87,15 @@
   }
   .cat-editor select{
     width:100%;
-    min-width:0; /* 넘침 방지 */
+    min-width:0;
+  }
+
+  /* 안전망: 헤더는 항상 가로 정렬 유지 */
+  #topbar .right{
+    display:flex;
+    flex-direction:row;
+    align-items:center;
+    gap:8px;
   }
 }
 
