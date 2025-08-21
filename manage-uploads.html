@@ -76,9 +76,20 @@
     /* 모바일: 행 단일 컬럼 + 드롭다운 3개 가로 한 줄 */
 @media (max-width:720px){
   .row { grid-template-columns: 1fr; }
-  .right { align-items:flex-end; min-width:0; }  /* ★ 항상 오른쪽 정렬 유지 */
-  .actions { justify-content:flex-end; width:100%; } /* 버튼 묶음도 오른쪽으로 */
-  .cat-editor select { flex:1 1 100%; min-width:0; }
+  .right { align-items:flex-end; min-width:0; }
+  .actions { justify-content:flex-end; width:100%; }
+
+  /* ★ 모바일에서 3열 가로 배치 */
+  .cat-editor{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:6px;
+    width:100%;
+  }
+  .cat-editor select{
+    width:100%;
+    min-width:0; /* 넘침 방지 */
+  }
 }
 
   </style>
