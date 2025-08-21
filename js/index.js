@@ -16,9 +16,9 @@ const brandHome    = document.getElementById("brandHome");
 
 const catsBox      = document.getElementById("cats");
 const btnWatch     = document.getElementById("btnWatch");
-const btnToggleAll = document.getElementById("btnToggleAll");
 const cbAutoNext   = document.getElementById("cbAutoNext");
 const autoNextWrap = document.getElementById("autoNextWrap");
+const cbToggleAll  = document.getElementById("cbToggleAll"); // ✅ 새 전체선택 체크박스
 
 /* ---------- 드롭다운 ---------- */
 let isMenuOpen = false;
@@ -90,18 +90,17 @@ function renderGroups(){
 
   catsBox.innerHTML = html;
 
-  // 이벤트 바인딩
   bindGroupInteractions();
 }
 renderGroups();
 
-/* ---------- 선택 상태 동기화 ---------- */
+/* ---------- 부모/자식 동기화 ---------- */
 function setParentStateByChildren(groupEl){
   const children = Array.from(groupEl.querySelectorAll('input.cat'));
   const parent   = groupEl.querySelector('.group-check');
   if (!parent) return;
 
-  const total = children.length;
+  const total   = children.length;
   const checked = children.filter(c => c.checked).length;
 
   if (checked === 0){
@@ -112,26 +111,21 @@ function setParentStateByChildren(groupEl){
     parent.indeterminate = false;
   } else {
     parent.checked = false;
-    parent.indeterminate = true; // 일부만
+    parent.indeterminate = true; // 일부 선택 시 indeterminate
   }
 }
 function setChildrenByParent(groupEl, on){
   const children = Array.from(groupEl.querySelectorAll('input.cat'));
   children.forEach(c => { c.checked = !!on; });
 }
-
-/* 모든 그룹의 부모 상태 갱신 */
 function refreshAllParentStates(){
   catsBox.querySelectorAll('.group').forEach(setParentStateByChildren);
 }
-
-/* 전체 선택 여부 계산(개인자료 제외) */
 function computeAllSelected(){
   const realChildren = Array.from(catsBox.querySelectorAll('.group:not([data-key="personal"]) input.cat'));
   return realChildren.length > 0 && realChildren.every(c => c.checked);
 }
 
-/* ---------- 바인딩 ---------- */
 let allSelected = false;
 
 function bindGroupInteractions(){
@@ -142,7 +136,7 @@ function bindGroupInteractions(){
       setChildrenByParent(groupEl, parent.checked);
       setParentStateByChildren(groupEl);
       allSelected = computeAllSelected();
-      btnToggleAll?.setAttribute('aria-pressed', allSelected ? 'true' : 'false');
+      if (cbToggleAll) cbToggleAll.checked = allSelected;
     });
   });
 
@@ -152,22 +146,20 @@ function bindGroupInteractions(){
       const groupEl = child.closest('.group');
       setParentStateByChildren(groupEl);
       allSelected = computeAllSelected();
-      btnToggleAll?.setAttribute('aria-pressed', allSelected ? 'true' : 'false');
+      if (cbToggleAll) cbToggleAll.checked = allSelected;
     });
   });
 }
 
-/* ---------- 전체보기 토글 + 저장 복원 ---------- */
+/* ---------- 전체선택 / 저장 복원 ---------- */
 function selectAll(on){
-  // 모든 자식 체크박스에 적용 (개인자료 포함)
   catsBox.querySelectorAll('input.cat').forEach(b => { b.checked = !!on; });
   refreshAllParentStates();
   allSelected = !!on;
-  btnToggleAll?.setAttribute('aria-pressed', on ? 'true':'false');
+  if (cbToggleAll) cbToggleAll.checked = allSelected;
 }
 
 function applySavedSelection(){
-  // 카테고리 선택 복원 (없으면 전체)
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem('selectedCats') || 'null'); } catch {}
 
@@ -179,29 +171,21 @@ function applySavedSelection(){
     catsBox.querySelectorAll('.cat').forEach(ch=>{ if (set.has(ch.value)) ch.checked = true; });
     refreshAllParentStates();
     allSelected = computeAllSelected();
-    btnToggleAll?.setAttribute('aria-pressed', allSelected ? 'true' : 'false');
+    if (cbToggleAll) cbToggleAll.checked = allSelected;
   }
 
-  // 연속재생 복원
   const auto = localStorage.getItem('autonext') === 'on';
-  if (cbAutoNext){ cbAutoNext.checked = auto; autoNextWrap?.setAttribute('aria-pressed', auto ? 'true' : 'false'); }
+  if (cbAutoNext){ cbAutoNext.checked = auto; }
 }
 applySavedSelection();
 
-btnToggleAll?.addEventListener('click', ()=>{
-  selectAll(!allSelected);
-});
-
-cbAutoNext?.addEventListener('change', ()=>{
-  autoNextWrap?.setAttribute('aria-pressed', cbAutoNext.checked ? 'true' : 'false');
-});
+cbAutoNext?.addEventListener('change', ()=>{ /* UI만, 저장은 btnWatch에서 */ });
+cbToggleAll?.addEventListener('change', ()=>{ selectAll(!!cbToggleAll.checked); });
 
 // 시청으로 이동 (선택 저장)
 btnWatch?.addEventListener('click', ()=>{
   const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
-  // 개인자료 제외
   const filtered = selected.filter(v => v!=='personal1' && v!=='personal2');
-  // 전체 판단은 실제 카테고리 기준으로 재계산
   const isAll = computeAllSelected();
   const valueToSave = (filtered.length === 0 || isAll) ? "ALL" : filtered;
   localStorage.setItem('selectedCats', JSON.stringify(valueToSave));
