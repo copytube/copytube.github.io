@@ -1,4 +1,4 @@
-// js/watch.js — tap-to-pause 지원 + 사용자일시정지 유지 + iOS 슬리버 방지
+// js/watch.js — iOS Safari 최적화: 현재 카드 최우선 로딩 + 프리로드 1개 제한 + 탭 일시정지 유지
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import {
@@ -6,20 +6,14 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 /* =========================
-   뷰포트 보정 + 카드 높이 강제 동기화
+   뷰포트 보정 + 카드 높이 동기화
    ========================= */
 let lastVhPx = 0;
-function calcVhPx(){
-  return Math.max(1, Math.floor(window.innerHeight || document.documentElement.clientHeight || 0));
-}
+const vh = () => Math.max(1, Math.floor(window.innerHeight || document.documentElement.clientHeight || 0));
 function updateVh(){
-  lastVhPx = calcVhPx();
+  lastVhPx = vh();
   document.documentElement.style.setProperty('--app-vh', `${lastVhPx}px`);
-  enforceItemHeights();
-}
-function enforceItemHeights(){
-  const h = `${lastVhPx}px`;
-  document.querySelectorAll('#videoContainer .video').forEach(el => { el.style.height = h; });
+  document.querySelectorAll('#videoContainer .video').forEach(el => { el.style.height = `${lastVhPx}px`; });
 }
 updateVh();
 addEventListener('resize', updateVh, { passive:true });
@@ -78,10 +72,7 @@ function goOrSignIn(path){ auth.currentUser ? (location.href = path) : (location
 btnGoCategory?.addEventListener("click", ()=>{ location.href = "index.html"; closeDropdown(); });
 btnMyUploads ?.addEventListener("click", ()=>{ goOrSignIn("manage-uploads.html"); closeDropdown(); });
 btnAbout     ?.addEventListener("click", ()=>{ location.href = "about.html"; closeDropdown(); });
-btnSignOut   ?.addEventListener("click", async ()=>{
-  if (!auth.currentUser){ location.href = 'signin.html'; return; }
-  await fbSignOut(auth); closeDropdown();
-});
+btnSignOut   ?.addEventListener("click", async ()=>{ if (!auth.currentUser){ location.href = 'signin.html'; return; } await fbSignOut(auth); closeDropdown(); });
 brandHome    ?.addEventListener("click", (e)=>{ e.preventDefault(); location.href = "index.html"; });
 
 /* =========================
@@ -114,11 +105,11 @@ const AUTO_NEXT = localStorage.getItem('autonext') === 'on';
 /* =========================
    YouTube 제어(언뮤트 지속 + 사용자 일시정지 유지)
    ========================= */
-let userSoundConsent = false;        // 오디오 전역 허용 여부
-let currentActive    = null;         // 활성 카드
-const winToCard      = new Map();    // player window → card
-const lastState      = new WeakMap();// card → 최근 state(-1,0,1,2,3,5…)
-const userPaused     = new WeakMap();// card → 사용자가 일시정지했는가(boolean)
+let userSoundConsent = false;
+let currentActive    = null;
+const winToCard      = new Map();
+const lastState      = new WeakMap(); // card → YT state
+const userPaused     = new WeakMap(); // card → 사용자가 일시정지했는가
 
 function ytCmd(iframe, func, args = []) {
   if (!iframe || !iframe.contentWindow) return;
@@ -137,17 +128,17 @@ function togglePlay(card){
   const ifr = card?.querySelector('iframe');
   if (!ifr) return;
   const st = lastState.get(card);
-  if (st === 1 || st === 3){ // playing/buffering → pause
+  if (st === 1 || st === 3){ // playing/buffering
     ytCmd(ifr, 'pauseVideo');
     userPaused.set(card, true);
-  } else { // paused/unstarted → play
+  } else {
     ytCmd(ifr, 'playVideo');
     if (userSoundConsent) ytCmd(ifr, 'unMute');
     userPaused.set(card, false);
   }
 }
 
-/* ----- 플레이어 이벤트 수신(onReady / onStateChange) ----- */
+/* ----- 플레이어 이벤트 수신 ----- */
 addEventListener('message', (e)=>{
   if (typeof e.data !== 'string') return;
   let data; try{ data = JSON.parse(e.data); }catch{ return; }
@@ -157,12 +148,11 @@ addEventListener('message', (e)=>{
     const card = winToCard.get(e.source);
     if (!card) return;
     const iframe = card.querySelector('iframe');
-    // 현재 활성 카드면 정책 적용 + 필요 시 재생
     if (card === currentActive){
       applyAudioPolicy(iframe);
       if (!userPaused.get(card)) ytCmd(iframe,"playVideo");
     } else {
-      ytCmd(iframe,"mute"); // 프리로드 카드는 항상 음소거
+      ytCmd(iframe,"mute");
     }
     return;
   }
@@ -171,21 +161,20 @@ addEventListener('message', (e)=>{
     const card = winToCard.get(e.source);
     if (!card) return;
     lastState.set(card, data.info);
-    if (data.info === 1) userPaused.set(card, false); // playing
-    if (data.info === 2) userPaused.set(card, true);  // paused (사용자/우리 쪽)
-
-    // 종료 시 자동다음 (현재 활성 플레이어만)
-    if (data.info === 0){
+    if (data.info === 1) userPaused.set(card, false);
+    if (data.info === 2) userPaused.set(card, true);
+    if (data.info === 0 && AUTO_NEXT){
       const activeIframe = currentActive?.querySelector('iframe');
-      if (activeIframe && e.source === activeIframe.contentWindow && AUTO_NEXT){
+      if (activeIframe && e.source === activeIframe.contentWindow){
         goToNextCard();
       }
     }
-    return;
   }
 }, false);
 
-/* ----- 소리 허용: 카드 위 탭(클릭)으로만, 스와이프 방해 금지 ----- */
+/* =========================
+   소리 허용 오버레이
+   ========================= */
 function grantSoundFromCard(){
   userSoundConsent = true;
   document.querySelectorAll('.gesture-capture').forEach(el => el.classList.add('hidden'));
@@ -194,13 +183,79 @@ function grantSoundFromCard(){
 }
 
 /* =========================
-   카드/플레이어 관리
+   ★ 플레이어 생성 우선순위 큐 (동시 1개)
+   ========================= */
+const BuildQueue = (() => {
+  let busy = false;
+  let epoch = 0;         // 스크롤/활성 변경 시 증가 → 이전 작업 무효화
+  const q = [];          // {card, preload, tag, epoch}
+
+  function hasIframe(card){ return !!card.querySelector('iframe'); }
+
+  function insertIframe(card, preload){
+    if (hasIframe(card)) return Promise.resolve();
+    return new Promise((resolve)=>{
+      const id      = card.dataset.vid;
+      const origin  = encodeURIComponent(location.origin);
+      const playerId= `yt-${id}-${Math.random().toString(36).slice(2,8)}`;
+      const iframe  = document.createElement('iframe');
+      iframe.id     = playerId;
+      iframe.src =
+        `https://www.youtube.com/embed/${id}` +
+        `?enablejsapi=1&playsinline=1&autoplay=1&mute=1&rel=0` +
+        `&origin=${origin}&widget_referrer=${encodeURIComponent(location.href)}` +
+        `&playerapiid=${encodeURIComponent(playerId)}`;
+      iframe.allow = "autoplay; encrypted-media; picture-in-picture";
+      iframe.allowFullscreen = true;
+      iframe.setAttribute('loading', preload ? 'lazy' : 'eager'); // 사파리 일부 버전 무시해도 무해
+      Object.assign(iframe.style, { width:"100%", height:"100%", border:"0" });
+
+      iframe.addEventListener('load', ()=>{
+        try{
+          iframe.contentWindow.postMessage(JSON.stringify({ event:'listening', id: playerId }), '*');
+          ytCmd(iframe, "addEventListener", ["onReady"]);
+          ytCmd(iframe, "addEventListener", ["onStateChange"]);
+          winToCard.set(iframe.contentWindow, card);
+          if (preload) ytCmd(iframe, "mute");
+        }catch{}
+        resolve();
+      });
+
+      const thumb = card.querySelector('.thumb');
+      if (thumb) card.replaceChild(iframe, thumb); else card.appendChild(iframe);
+    });
+  }
+
+  async function pump(){
+    if (busy) return;
+    busy = true;
+    while(q.length){
+      const { card, preload, e } = q.shift();
+      if (e !== epoch) continue;              // 무효화된 작업 스킵
+      if (!document.body.contains(card)) continue;
+      if (hasIframe(card)) continue;
+      try{
+        await insertIframe(card, preload);
+      }catch(_){}
+      // 한 번에 1개만 만들고 살짝 양보 (iOS 디코더/네트워크 보호)
+      await new Promise(r=> setTimeout(r, 50));
+    }
+    busy = false;
+  }
+
+  return {
+    bumpEpoch(){ epoch++; q.length = 0; }, // 모두 취소
+    ensureNow(card){ if (!hasIframe(card)){ q.unshift({ card, preload:false, e:++epoch }); pump(); } }, // 최우선
+    preloadNext(card){ if (!hasIframe(card)){ q.push({ card, preload:true, e:epoch }); pump(); } },
+  };
+})();
+
+/* =========================
+   카드/플레이어 관리 (IO)
    ========================= */
 const activeIO = new IntersectionObserver((entries)=>{
   entries.forEach(entry=>{
     const card = entry.target;
-    const iframe = card.querySelector('iframe');
-
     if (entry.isIntersecting && entry.intersectionRatio >= 0.6){
       if (currentActive && currentActive !== card){
         const prev = currentActive.querySelector('iframe');
@@ -208,24 +263,23 @@ const activeIO = new IntersectionObserver((entries)=>{
       }
       currentActive = card;
 
-      ensureIframe(card);               // 필요 시 플레이어 생성
-      const ifr = card.querySelector('iframe');
-      if (ifr){
-        applyAudioPolicy(ifr);
-        if (!userPaused.get(card)) ytCmd(ifr,"playVideo"); // 사용자 일시정지면 자동 재생 금지
-      }
+      // ★ 현재 카드 즉시 생성 (큐 무시) + 이전 프리로드 모두 취소
+      BuildQueue.bumpEpoch();
+      BuildQueue.ensureNow(card);
 
-      // 다음 카드 1장 프리로드(항상 mute)
+      // 다음 카드 1개만 프리로드 (큐에 천천히)
       const next = card.nextElementSibling;
-      if (next && next.classList.contains('video')) ensureIframe(next, true);
+      if (next && next.classList.contains('video')) BuildQueue.preloadNext(next);
 
+      // 탭-토글/오디오 정책 적용은 onReady 이벤트에서 처리
       showTopbar();
-    } else {
-      if (iframe){ ytCmd(iframe,"mute"); ytCmd(iframe,"pauseVideo"); }
     }
   });
 }, { root: videoContainer, threshold:[0,0.6,1] });
 
+/* =========================
+   카드 DOM 생성
+   ========================= */
 function extractId(url){
   const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
   return m ? m[1] : url;
@@ -239,73 +293,32 @@ function makeCard(url, docId){
   card.dataset.docId = docId;
   card.style.height = `${lastVhPx}px`;
 
-  // 썸네일(초기 표시)
   card.innerHTML = `
     <div class="thumb" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;position:relative;background:#000;">
       <img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="thumbnail" loading="lazy" style="max-width:100%;max-height:100%;object-fit:contain;border:0;"/>
       <div class="playhint" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:6px 10px;background:rgba(0,0,0,.45);border-radius:6px;font-size:13px;color:#fff;text-align:center;">
-        위로 스와이프 · 탭하여 소리 허용 / 탭으로 일시정지
+        위로 스와이프 · 탭(재생/일시정지) · 탭하여 소리 허용
       </div>
       ${userSoundConsent ? '' : '<div class="mute-tip" style="position:absolute;top:12px;left:50%;transform:translateX(-50%);padding:6px 10px;background:rgba(0,0,0,.45);border-radius:6px;color:#fff;font-size:12px;">🔇 현재 음소거 • 한 번만 허용하면 계속 소리 재생</div>'}
     </div>
   `;
 
-  // 1) 소리 허용용 오버레이(최초 1회): 스와이프는 통과, 탭만 사용
+  // 소리 허용 오버레이(한 번만) — 스와이프는 통과
   const overlay = document.createElement('div');
   overlay.className = `gesture-capture ${userSoundConsent ? 'hidden':''}`;
-  Object.assign(overlay.style, {
-    position:'absolute', inset:'0', zIndex:'20',
-    display:'flex', alignItems:'center', justifyContent:'center',
-    background:'transparent', cursor:'pointer', touchAction:'pan-y'
-  });
+  Object.assign(overlay.style, { position:'absolute', inset:'0', zIndex:'20', background:'transparent', touchAction:'pan-y', cursor:'pointer' });
   overlay.addEventListener('click', (e)=>{ e.stopPropagation(); grantSoundFromCard(); }, { passive:true });
   card.appendChild(overlay);
 
-  // 2) 탭-토글(재생/일시정지) 오버레이: 항상 존재, 스와이프는 통과
+  // 탭-토글(재생/일시정지) — 스와이프는 통과
   const tap = document.createElement('div');
   tap.className = 'tap-toggle';
-  Object.assign(tap.style, {
-    position:'absolute', inset:'0', zIndex:'10',
-    background:'transparent', touchAction:'pan-y'
-  });
-  tap.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    togglePlay(card);
-  }, { passive:true });
+  Object.assign(tap.style, { position:'absolute', inset:'0', zIndex:'10', background:'transparent', touchAction:'pan-y' });
+  tap.addEventListener('click', (e)=>{ e.stopPropagation(); togglePlay(card); }, { passive:true });
   card.appendChild(tap);
 
   activeIO.observe(card);
   return card;
-}
-
-function ensureIframe(card, preload=false){
-  if (card.querySelector('iframe')) return;
-  const id = card.dataset.vid;
-  const origin   = encodeURIComponent(location.origin);
-  const playerId = `yt-${id}-${Math.random().toString(36).slice(2,8)}`;
-  const iframe = document.createElement('iframe');
-  iframe.id = playerId;
-  iframe.src =
-    `https://www.youtube.com/embed/${id}` +
-    `?enablejsapi=1&playsinline=1&autoplay=1&mute=1&rel=0` +
-    `&origin=${origin}&widget_referrer=${encodeURIComponent(location.href)}` +
-    `&playerapiid=${encodeURIComponent(playerId)}`;
-  iframe.allow = "autoplay; encrypted-media; picture-in-picture";
-  iframe.allowFullscreen = true;
-  Object.assign(iframe.style, { width:"100%", height:"100%", border:"0" });
-
-  iframe.addEventListener('load', ()=>{
-    try{
-      iframe.contentWindow.postMessage(JSON.stringify({ event:'listening', id: playerId }), '*');
-      ytCmd(iframe, "addEventListener", ["onReady"]);
-      ytCmd(iframe, "addEventListener", ["onStateChange"]);
-      winToCard.set(iframe.contentWindow, card);
-      if (preload) ytCmd(iframe, "mute");
-    }catch{}
-  });
-
-  const thumb = card.querySelector('.thumb');
-  thumb ? card.replaceChild(iframe, thumb) : card.appendChild(iframe);
 }
 
 /* =========================
@@ -327,6 +340,7 @@ function resetFeed(){
   videoContainer.innerHTML = "";
   isLoading = false; hasMore = true; lastDoc = null; loadedIds.clear(); currentActive = null;
 }
+
 function appendCardsFromSnap(snap){
   snap.docs.forEach(d=>{
     if (loadedIds.has(d.id)) return;
@@ -334,8 +348,9 @@ function appendCardsFromSnap(snap){
     const data = d.data();
     videoContainer.appendChild(makeCard(data.url, d.id));
   });
-  enforceItemHeights();
+  updateVh();
 }
+
 async function loadMore(initial=false, pageSize = PAGE_SIZE){
   if (isLoading || !hasMore) return;
   isLoading = true;
@@ -381,4 +396,51 @@ async function loadMore(initial=false, pageSize = PAGE_SIZE){
       const err = document.createElement('div');
       err.className = 'video';
       err.style.height = `${lastVhPx}px`;
-      err.innerHTML = `<p class="playhint" sty
+      err.innerHTML = `<p class="playhint" style="position:static;margin:0 auto;color:#cfcfcf;">목록을 불러오지 못했습니다.</p>`;
+      videoContainer.appendChild(err);
+    }
+  }finally{
+    isLoading = false;
+  }
+}
+
+videoContainer.addEventListener('scroll', ()=>{
+  // iOS에서 스크롤 중에 뷰포트가 바뀌는 현상 보정
+  if (!updateVh._t){
+    updateVh._t = setTimeout(()=>{ updateVh._t = null; updateVh(); }, 120);
+  }
+  const nearBottom = videoContainer.scrollTop + videoContainer.clientHeight >= videoContainer.scrollHeight - 200;
+  if (nearBottom) loadMore(false);
+});
+
+/* =========================
+   자동 다음
+   ========================= */
+async function goToNextCard(){
+  const next = currentActive?.nextElementSibling;
+  if (next && next.classList.contains('video')){
+    next.scrollIntoView({ behavior:'smooth', block:'start' });
+    return;
+  }
+  if (!hasMore) { showTopbar(); return; }
+  const before = videoContainer.querySelectorAll('.video').length;
+  await loadMore(false);
+  const after  = videoContainer.querySelectorAll('.video').length;
+  if (after > before){
+    videoContainer.querySelectorAll('.video')[before]?.scrollIntoView({ behavior:'smooth', block:'start' });
+  }else{
+    showTopbar();
+  }
+}
+
+/* =========================
+   시작
+   ========================= */
+resetFeed();
+// 처음엔 소량만 DOM에 그려서 첫 카드가 빨리 보이게
+loadMore(true, INITIAL_PAGE_SIZE).then(() => {
+  // 첫 카드가 IO로 활성화되면 BuildQueue가 즉시 플레이어 생성
+  // 그 다음에 나머지는 천천히 추가
+  setTimeout(() => loadMore(false, PAGE_SIZE), 60);
+});
+showTopbar();
