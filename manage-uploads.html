@@ -61,7 +61,7 @@
       background:#0f0f0f; color:#fff; border:1px solid #2a2a2a; border-radius:8px; padding:6px 8px; min-width:220px;
     }
 
-    .actions { display:flex; gap:6px; }
+    .actions { display:flex; gap:6px; justify-content:flex-end; }
     .btn {
       padding:8px 10px; border:0; border-radius:8px; cursor:pointer; font-weight:700;
     }
@@ -74,13 +74,13 @@
     .pager .now { font-weight:800; color:#fff; }
 
     /* 모바일: 행 단일 컬럼 + 드롭다운 3개 가로 한 줄 */
-    @media (max-width:720px){
-      .row { grid-template-columns: 1fr; }
-      .right { align-items:stretch; min-width:0; }
+@media (max-width:720px){
+  .row { grid-template-columns: 1fr; }
+  .right { align-items:flex-end; min-width:0; }  /* ★ 항상 오른쪽 정렬 유지 */
+  .actions { justify-content:flex-end; width:100%; } /* 버튼 묶음도 오른쪽으로 */
+  .cat-editor select { flex:1 1 100%; min-width:0; }
+}
 
-      .cat-editor { flex-direction:row; }
-      .cat-editor select { flex:1 1 0; min-width:0; }
-    }
   </style>
 </head>
 <body>
