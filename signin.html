@@ -118,5 +118,49 @@
     // 클릭으로도 동작 (중복 방지용으로 handleSubmit 재사용)
     btn.addEventListener('click', handleSubmit);
   </script>
+  <!-- (signin.html 맨 아래 스크립트 내부) -->
+<script type="module">
+  import { auth, signInWithEmailAndPassword, db } from './js/auth.js'; /* 만약 auth.js가 db를 export하지 않으면 아래처럼: */
+  // import { auth } from './js/auth.js';
+  // import { db } from './js/firebase-init.js';
+  import { normalizeLoginId } from './js/auth.js';
+  import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
+  ...
+  async function handleSubmit(e){
+    ...
+    try {
+      const { emailLike } = normalizeLoginId(rawId);
+      await signInWithEmailAndPassword(auth, emailLike, password);
+
+      // ✅ 로그인 기록
+      try{
+        await addDoc(collection(db,'login_logs'), {
+          uid: auth.currentUser.uid,
+          displayName: auth.currentUser.displayName || '',
+          at: serverTimestamp(),
+          ua: navigator.userAgent || ''
+        });
+      }catch(_) {}
+
+      // ✅ users 프로필 보정(없으면 생성/갱신)
+      try{
+        const { doc, getDoc, setDoc, updateDoc } = await import('https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js');
+        const ref = doc(db,'users', auth.currentUser.uid);
+        const snap = await getDoc(ref);
+        if (snap.exists()){
+          await updateDoc(ref, { displayName: auth.currentUser.displayName || '', lastLoginAt: serverTimestamp() });
+        }else{
+          await setDoc(ref, { displayName: auth.currentUser.displayName || '', createdAt: serverTimestamp(), lastLoginAt: serverTimestamp() });
+        }
+      }catch(_){}
+
+      location.href = './';
+    } catch (e) {
+      ...
+    }
+  }
+  ...
+</script>
+
 </body>
 </html>
