@@ -19,75 +19,91 @@
 
   <link rel="stylesheet" href="css/style.css"/>
   <style>
-    /* 선택 화면 */
-    .intro{
-      min-height:100vh; display:flex; align-items:center; justify-content:center; text-align:center;
-      padding:96px 24px 24px; background:var(--bg-2); border-bottom:1px solid var(--border);
-    }
-    .lead{ font-size:20px; color:#e6e6e6; margin:0 0 6px; }
-    .sublead{ font-size:14px; color:#9aa0a6; margin:0 0 12px; }
-
-    /* 버튼 중앙 + 연속재생 오른쪽(작은 글씨) */
-    .cta-row{
-      display:flex; justify-content:center; align-items:center; gap:10px;
-      margin:8px 0 10px;
-    }
-    .btn-primary{
-      padding:10px 16px; border:0; border-radius:10px; background:#4ea1ff;
-      color:#fff; font-weight:800; cursor:pointer; font-size:16px; /* ▶ 글씨 크기 복원 */
-    }
-    .inline-check{
-      display:inline-flex; align-items:center; gap:8px;
-      font-size:13px; color:#ddd; user-select:none;
-      line-height:1;                 /* ← 체크박스와 텍스트 높이 정규화 */
-    }
-    /* 체크박스의 실제 크기/여백 고정 (색상 유지) */
-.inline-check input{
-  width:16px; height:16px;       /* ← OS/브라우저 차이를 없앰 */
-  margin:0;                      /* ← 위아래 들뜸 방지 */
-  accent-color:#4ea1ff;          /* ← 기존 색상 유지 */
-  appearance:auto;               /* ← 기본 체크박스 모양 유지 */
-  vertical-align:middle;
-  /* transform:scale(1.05);  ← 있으면 지워주세요 (정렬 깨뜨리는 주범) */
+/* 선택 화면 전체 레이아웃 */
+.intro{
+  min-height:100vh; display:flex; align-items:center; justify-content:center; text-align:center;
+  padding:96px 24px 24px; background:var(--bg-2); border-bottom:1px solid var(--border);
 }
-    /* 균형용 유령 라벨(시각/포인터 비활성, 폭은 유지) */
-    .inline-check.ghost{ visibility:hidden; pointer-events:none; }
+.lead{ font-size:20px; color:#e6e6e6; margin:0 0 6px; }
+.sublead{ font-size:14px; color:#9aa0a6; margin:0 0 12px; }
 
-    /* 카테고리 헤더: 중앙 제목 + 오른쪽 전체선택 체크박스 */
-    .cat-head{ position:relative; margin:10px 0 8px; }
-    .cat-title{ margin:0; font-size:22px; font-weight:900; text-align:center; color:#e6e6e6; }
-    .cat-right{ position:absolute; right:0; top:50%; transform:translateY(-50%); }
+/* 버튼 중앙 + 오른쪽에 연속재생(작은 글씨) */
+.cta-row{
+  display:flex; justify-content:center; align-items:center; gap:10px;
+  margin:8px 0 10px;
+}
+/* ▶ 글씨 크기는 기존 16px 유지 + 너비 고정(제목과 동일) */
+.btn-primary{
+  padding:10px 16px; border:0; border-radius:10px; background:#4ea1ff;
+  color:#fff; font-weight:800; cursor:pointer; font-size:16px;
+  width:148px;               /* ← 고정 폭 (제목과 동일) */
+  text-align:center;
+}
 
-    /* 그룹(대분류 + 세부) */
-    .group{
-      border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
-      padding:8px; margin:8px 0;
-      text-align:left; max-width:900px; margin-left:auto; margin-right:auto;
-    }
-    .group legend{
-      display:flex; align-items:center; gap:8px;
-      padding:0 4px; font-weight:800; font-size:15px; color:#eee;
-      margin-bottom:0; /* ✅ 기억값 */
-      line-height:1.05;
-    }
-    .group .group-toggle{
-      display:inline-flex; align-items:center; gap:8px;
-      padding:6px 8px; border-radius:8px;
-      background:#101010; border:1px solid #2a2a2a; color:#e5e7eb; cursor:pointer; font-weight:800;
-    }
-    .group .group-toggle input{ accent-color:#4ea1ff; transform:scale(1.05); }
-    .group .subnote{ font-size:12px; color:#9aa0a6; margin-left:6px; font-weight:600; }
+/* 체크박스 라벨: 색상 유지, 정렬 보정 */
+.inline-check{
+  display:inline-flex; align-items:center; gap:8px;
+  font-size:13px; color:#ddd; user-select:none;
+  line-height:1;              /* 높이 오차 제거 */
+}
+.inline-check input{
+  width:16px; height:16px;    /* OS별 크기 차 제거 */
+  margin:0;                   /* 위아래 들뜸 방지 */
+  accent-color:#4ea1ff;       /* 기존 색 유지 */
+  appearance:auto;
+  vertical-align:middle;
+}
+/* 균형용 유령 라벨(시각/포인터 비활성, 폭은 유지) */
+.inline-check.ghost{ visibility:hidden; pointer-events:none; }
 
-    .child-grid{
-      margin-top:0; /* ✅ 기억값 */
-      display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px;
-    }
-    @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
-    .child-grid label{
-      background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px;
-      padding:6px 8px; font-size:14px; line-height:1.2;
-      display:flex; gap:6px; align-items:center; justify-content:flex-start;
-    }
+/* 카테고리 헤더: 중앙 제목 + 오른쪽에 전체선택(오른쪽 끝 고정 X) */
+.cat-head{
+  display:flex; justify-content:center; align-items:center; gap:10px;
+  margin:10px 0 8px;
+}
+.cat-title{
+  margin:0; font-size:22px; font-weight:900; color:#e6e6e6;
+  width:148px;               /* ← 버튼과 같은 폭으로 통일 */
+  text-align:center;
+}
+/* 기존 absolute 해제 → 제목 옆에 자연스럽게 배치 */
+.cat-right{
+  position:static;
+}
+
+/* 그룹(대분류 + 세부) */
+.group{
+  border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
+  padding:8px; margin:8px 0;
+  text-align:left; max-width:900px; margin-left:auto; margin-right:auto;
+}
+.group legend{
+  display:flex; align-items:center; gap:8px;
+  padding:0 4px; font-weight:800; font-size:15px; color:#eee;
+  margin-bottom:0;            /* ✅ 기억값 유지 */
+  line-height:1.05;
+}
+.group .group-toggle{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:6px 8px; border-radius:8px;
+  background:#101010; border:1px solid #2a2a2a; color:#e5e7eb; cursor:pointer; font-weight:800;
+}
+.group .group-toggle input{ accent-color:#4ea1ff; }
+
+/* 세부 항목 그리드 */
+.child-grid{
+  margin-top:0;               /* ✅ 기억값 유지 */
+  display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px;
+}
+@media (min-width:900px){
+  .child-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); }
+}
+.child-grid label{
+  background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px;
+  padding:6px 8px; font-size:14px; line-height:1.2;
+  display:flex; gap:6px; align-items:center; justify-content:flex-start;
+}
+
   </style>
 </head>
 <body>
