@@ -3,8 +3,7 @@ import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { requireAdminUI, escapeHTML, fmtDate, isAdminCurrentUser } from './admin-common.js';
 import { collection, query, orderBy, getDocs, deleteDoc, doc } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
-import { requireAdminUI, escapeHTML, fmtDate, isAdminCurrentUser } from './admin-common.js';
-        
+
 const msg   = document.getElementById('msg');
 const list  = document.getElementById('list');
 
@@ -58,6 +57,3 @@ async function load(){
     msg.textContent = '오류: ' + (e.message || e);
   }
 }
-const btnAdminHome = document.getElementById('btnAdminHome'); // ✅
-requireAdminUI([btnAdminHome]);                                // ✅
-btnAdminHome?.addEventListener('click', ()=> location.href='./'); // ✅
