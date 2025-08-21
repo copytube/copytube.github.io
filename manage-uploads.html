@@ -105,7 +105,11 @@
         min-width:0; /* 넘침 방지 */
       }
     }
-    #topbar #menuBtn.icon{ display:inline-flex; align-items:center; }
+    .hidden{ display:none !important; }
+    #topbar #menuBtn.icon:not(.hidden){
+  display:inline-flex; align-items:center; justify-content:center;
+  width:36px; height:36px; font-size:18px; line-height:1;
+}
   </style>
 </head>
 <body>
