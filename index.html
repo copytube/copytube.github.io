@@ -107,14 +107,21 @@
       <p class="sublead">첫 시청 시 화면 상단 <strong>음소거를 해제</strong>해 주세요. (모바일: 첫 스와이프/탭, PC: 스크롤/키 입력/클릭)</p>
 
       <!-- 버튼 중앙 + 연속재생 오른쪽 -->
-      <div class="cta-row">
-        <span aria-hidden="true"></span>
-        <button id="btnWatch" class="btn-primary">▶ 영상보기</button>
-        <label class="inline-check" id="autoNextWrap" title="영상 종료 시 자동으로 다음 영상으로 이동">
-          <input type="checkbox" id="cbAutoNext"/> 연속재생
-        </label>
-        <span aria-hidden="true"></span>
-      </div>
+      <!-- 기존 cta-row 블록을 이걸로 교체 -->
+<div class="cta-row">
+  <!-- 왼쪽 유령 라벨: 버튼을 정확히 중앙에 고정하기 위한 균형추 -->
+  <label class="inline-check ghost" aria-hidden="true">
+    <input type="checkbox" disabled /> 연속재생
+  </label>
+
+  <button id="btnWatch" class="btn-primary">▶ 영상보기</button>
+
+  <!-- 실제 연속재생 체크 -->
+  <label class="inline-check" id="autoNextWrap" title="영상 종료 시 자동으로 다음 영상으로 이동">
+    <input type="checkbox" id="cbAutoNext"/> 연속재생
+  </label>
+</div>
+
 
       <!-- 카테고리 타이틀 중앙 + 전체선택 오른쪽 -->
       <div class="cat-head">
