@@ -26,42 +26,49 @@
     .lead{ font-size:20px; color:#e6e6e6; margin:0 0 6px; }
     .sublead{ font-size:14px; color:#9aa0a6; margin:0 0 12px; }
 
-    .toolbar{ display:flex; gap:10px; align-items:center; justify-content:center; margin:8px 0 10px; flex-wrap:wrap; }
-    .label-strong{ font-weight:800; font-size:18px; }
+    /* 상단 CTA: [빈칸 | 버튼 | 연속재생 | 빈칸] → 버튼이 정확히 중앙 */
+    .cta-row{
+      display:grid; grid-template-columns: 1fr auto auto 1fr;
+      gap:10px; align-items:center; margin:8px 0 10px;
+    }
     .btn-primary{
       padding:10px 16px; border:0; border-radius:10px; background:#4ea1ff;
       color:#fff; font-weight:800; cursor:pointer;
     }
-    .btn-pill{
+    /* 인라인 체크(박스 없는 스타일) */
+    .inline-check{
       display:inline-flex; align-items:center; gap:8px;
-      padding:10px 14px; border-radius:12px; border:1px solid #2a2a2a; background:#111; color:#ddd;
-      cursor:pointer; font-weight:700;
+      font-size:13px; color:#ddd; user-select:none;
     }
-    .btn-pill input{ transform:scale(1.1); accent-color:#4ea1ff; }
-    .btn-pill[aria-pressed="true"]{ background:#1b1b1b; border-color:#3a3a3a; }
+    .inline-check input{ transform:scale(1.05); accent-color:#4ea1ff; }
 
-    /* 그룹(부모 체크박스 추가) */
+    /* 카테고리 헤더: 가운데 제목 + 오른쪽 전체선택 */
+    .cat-head{ position:relative; margin:10px 0 8px; }
+    .cat-title{ margin:0; font-size:22px; font-weight:900; text-align:center; color:#e6e6e6; }
+    .cat-right{ position:absolute; right:0; top:50%; transform:translateY(-50%); }
+
+    /* 그룹(대분류 + 세부) */
     .group{
       border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
-      padding:8px; margin:8px 0;
-      text-align:left; max-width:900px; margin-left:auto; margin-right:auto;
+      padding:8px; margin:8px 0; text-align:left; max-width:900px; margin-left:auto; margin-right:auto;
     }
     .group legend{
       display:flex; align-items:center; gap:8px;
       padding:0 4px; font-weight:800; font-size:15px; color:#eee;
-      margin-bottom:0; line-height:1.05;
+      margin-bottom:0; /* ✅ 기억값 유지 */
+      line-height:1.05;
     }
     .group .group-toggle{
       display:inline-flex; align-items:center; gap:8px;
       padding:6px 8px; border-radius:8px;
-      background:#101010; border:1px solid #2a2a2a; color:#e5e7eb; cursor:pointer;
-      font-weight:800;
+      background:#101010; border:1px solid #2a2a2a; color:#e5e7eb; cursor:pointer; font-weight:800;
     }
     .group .group-toggle input{ accent-color:#4ea1ff; transform:scale(1.05); }
     .group .subnote{ font-size:12px; color:#9aa0a6; margin-left:6px; font-weight:600; }
 
     .child-grid{
-      margin-top:0; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px;
+      margin-top:0; /* ✅ 기억값 유지 */
+      display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px;
     }
     @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
     .child-grid label{
@@ -95,24 +102,28 @@
   </header>
 
   <section class="intro">
-    <div style="width:100%;">
+    <div style="width:100%; max-width:980px; margin:0 auto;">
       <p class="lead">영상보기를 눌러 선택된 카테고리의 영상을 시청하세요.</p>
       <p class="sublead">첫 시청 시 화면 상단 <strong>음소거를 해제</strong>해 주세요. (모바일: 첫 스와이프/탭, PC: 스크롤/키 입력/클릭)</p>
 
-      <div class="toolbar">
-        <span class="label-strong">카테고리 선택</span>
+      <!-- 버튼 중앙 + 연속재생 오른쪽 -->
+      <div class="cta-row">
+        <span aria-hidden="true"></span>
         <button id="btnWatch" class="btn-primary">▶ 영상보기</button>
-
-        <label class="btn-pill" id="autoNextWrap" title="영상 종료 시 자동으로 다음 영상으로 이동">
-          <input type="checkbox" id="cbAutoNext"/>
-          연속재생
+        <label class="inline-check" id="autoNextWrap" title="영상 종료 시 자동으로 다음 영상으로 이동">
+          <input type="checkbox" id="cbAutoNext"/> 연속재생
         </label>
+        <span aria-hidden="true"></span>
       </div>
 
-      <div style="margin-bottom:8px;">
-        <button id="btnToggleAll" class="btn-pill" aria-pressed="false" type="button">
-          <span aria-hidden="true">☑</span> 전체보기
-        </button>
+      <!-- 카테고리 타이틀 중앙 + 전체선택 오른쪽 -->
+      <div class="cat-head">
+        <h3 class="cat-title">카테고리</h3>
+        <div class="cat-right">
+          <label class="inline-check" title="모든 카테고리 선택/해제">
+            <input type="checkbox" id="cbToggleAll"/> 전체선택
+          </label>
+        </div>
       </div>
 
       <div id="cats"><!-- JS로 그룹 렌더링 --></div>
@@ -121,6 +132,6 @@
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/index.js?v=20250821-gcheck"></script>
+  <script type="module" src="js/index.js?v=20250821-layout2"></script>
 </body>
 </html>
