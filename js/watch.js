@@ -1,4 +1,4 @@
-// js/watch.js — clean rewrite (iPad 스와이프/언뮤트 지속/초기로딩 가속/슬리버 제거)
+// js/watch.js — tap-to-pause 지원 + 사용자일시정지 유지 + iOS 슬리버 방지
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import {
@@ -10,7 +10,6 @@ import {
    ========================= */
 let lastVhPx = 0;
 function calcVhPx(){
-  // iOS Safari 주소창 표시/숨김에 따라 innerHeight가 바뀌므로 매번 픽셀을 재계산
   return Math.max(1, Math.floor(window.innerHeight || document.documentElement.clientHeight || 0));
 }
 function updateVh(){
@@ -19,7 +18,6 @@ function updateVh(){
   enforceItemHeights();
 }
 function enforceItemHeights(){
-  // 각 카드 높이를 정확히 같은 픽셀로 강제 → 스냅 시 다음 카드 "비치는" 현상 방지
   const h = `${lastVhPx}px`;
   document.querySelectorAll('#videoContainer .video').forEach(el => { el.style.height = h; });
 }
@@ -37,7 +35,7 @@ const signinLink     = document.getElementById("signinLink");
 const welcome        = document.getElementById("welcome");
 const menuBtn        = document.getElementById("menuBtn");
 const dropdown       = document.getElementById("dropdownMenu");
-const menuBackdrop   = document.getElementById("menuBackdrop"); // HTML에 있음
+const menuBackdrop   = document.getElementById("menuBackdrop");
 const btnSignOut     = document.getElementById("btnSignOut");
 const btnGoUpload    = document.getElementById("btnGoUpload");
 const btnGoCategory  = document.getElementById("btnGoCategory");
@@ -47,14 +45,14 @@ const brandHome      = document.getElementById("brandHome");
 const videoContainer = document.getElementById("videoContainer");
 
 /* =========================
-   드롭다운(백드롭 포함)
+   드롭다운
    ========================= */
 let isMenuOpen = false;
 function openDropdown(){
   isMenuOpen = true;
   dropdown.classList.remove("hidden");
   requestAnimationFrame(()=> dropdown.classList.add("show"));
-  menuBackdrop?.classList.add('show');   // 아이프레임 위 바깥 클릭도 감지
+  menuBackdrop?.classList.add('show');
 }
 function closeDropdown(){
   isMenuOpen = false;
@@ -76,7 +74,6 @@ addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
 ["scroll","wheel","keydown","touchmove"].forEach(ev=>{
   addEventListener(ev, ()=>{ if(isMenuOpen) closeDropdown(); }, { passive:true });
 });
-// 네비게이션
 function goOrSignIn(path){ auth.currentUser ? (location.href = path) : (location.href = 'signin.html'); }
 btnGoCategory?.addEventListener("click", ()=>{ location.href = "index.html"; closeDropdown(); });
 btnMyUploads ?.addEventListener("click", ()=>{ goOrSignIn("manage-uploads.html"); closeDropdown(); });
@@ -115,11 +112,13 @@ function getSelectedCats(){ try { return JSON.parse(localStorage.getItem('select
 const AUTO_NEXT = localStorage.getItem('autonext') === 'on';
 
 /* =========================
-   YouTube 제어(언뮤트 지속)
+   YouTube 제어(언뮤트 지속 + 사용자 일시정지 유지)
    ========================= */
-let userSoundConsent = false;     // 오디오 전역 허용 여부
-let currentActive    = null;      // 활성 카드
-const winToCard      = new Map(); // player window → card
+let userSoundConsent = false;        // 오디오 전역 허용 여부
+let currentActive    = null;         // 활성 카드
+const winToCard      = new Map();    // player window → card
+const lastState      = new WeakMap();// card → 최근 state(-1,0,1,2,3,5…)
+const userPaused     = new WeakMap();// card → 사용자가 일시정지했는가(boolean)
 
 function ytCmd(iframe, func, args = []) {
   if (!iframe || !iframe.contentWindow) return;
@@ -134,6 +133,19 @@ function applyAudioPolicy(iframe){
     ytCmd(iframe, "mute");
   }
 }
+function togglePlay(card){
+  const ifr = card?.querySelector('iframe');
+  if (!ifr) return;
+  const st = lastState.get(card);
+  if (st === 1 || st === 3){ // playing/buffering → pause
+    ytCmd(ifr, 'pauseVideo');
+    userPaused.set(card, true);
+  } else { // paused/unstarted → play
+    ytCmd(ifr, 'playVideo');
+    if (userSoundConsent) ytCmd(ifr, 'unMute');
+    userPaused.set(card, false);
+  }
+}
 
 /* ----- 플레이어 이벤트 수신(onReady / onStateChange) ----- */
 addEventListener('message', (e)=>{
@@ -145,28 +157,35 @@ addEventListener('message', (e)=>{
     const card = winToCard.get(e.source);
     if (!card) return;
     const iframe = card.querySelector('iframe');
+    // 현재 활성 카드면 정책 적용 + 필요 시 재생
     if (card === currentActive){
-      applyAudioPolicy(iframe);       // 준비 시점에 정책 재적용
-      ytCmd(iframe,"playVideo");
+      applyAudioPolicy(iframe);
+      if (!userPaused.get(card)) ytCmd(iframe,"playVideo");
     } else {
-      ytCmd(iframe,"mute");           // 프리로드 카드는 항상 음소거
+      ytCmd(iframe,"mute"); // 프리로드 카드는 항상 음소거
     }
     return;
   }
 
-  if (data.event === 'onStateChange' && data.info === 0){
-    // 종료 → 자동다음 (현재 활성 플레이어만)
+  if (data.event === 'onStateChange'){
     const card = winToCard.get(e.source);
     if (!card) return;
-    const activeIframe = currentActive?.querySelector('iframe');
-    if (activeIframe && e.source === activeIframe.contentWindow && AUTO_NEXT){
-      goToNextCard();
+    lastState.set(card, data.info);
+    if (data.info === 1) userPaused.set(card, false); // playing
+    if (data.info === 2) userPaused.set(card, true);  // paused (사용자/우리 쪽)
+
+    // 종료 시 자동다음 (현재 활성 플레이어만)
+    if (data.info === 0){
+      const activeIframe = currentActive?.querySelector('iframe');
+      if (activeIframe && e.source === activeIframe.contentWindow && AUTO_NEXT){
+        goToNextCard();
+      }
     }
     return;
   }
 }, false);
 
-/* ----- 소리 허용: 카드 위 탭으로만 (스와이프 방해 금지) ----- */
+/* ----- 소리 허용: 카드 위 탭(클릭)으로만, 스와이프 방해 금지 ----- */
 function grantSoundFromCard(){
   userSoundConsent = true;
   document.querySelectorAll('.gesture-capture').forEach(el => el.classList.add('hidden'));
@@ -192,8 +211,8 @@ const activeIO = new IntersectionObserver((entries)=>{
       ensureIframe(card);               // 필요 시 플레이어 생성
       const ifr = card.querySelector('iframe');
       if (ifr){
-        ytCmd(ifr,"playVideo");
-        applyAudioPolicy(ifr);          // onReady에서도 한 번 더 적용
+        applyAudioPolicy(ifr);
+        if (!userPaused.get(card)) ytCmd(ifr,"playVideo"); // 사용자 일시정지면 자동 재생 금지
       }
 
       // 다음 카드 1장 프리로드(항상 mute)
@@ -218,30 +237,42 @@ function makeCard(url, docId){
   card.className = 'video';
   card.dataset.vid = id;
   card.dataset.docId = docId;
-  card.style.height = `${lastVhPx}px`;  // JS 강제 높이
+  card.style.height = `${lastVhPx}px`;
 
-  // 카드 본문
+  // 썸네일(초기 표시)
   card.innerHTML = `
     <div class="thumb" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;position:relative;background:#000;">
       <img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="thumbnail" loading="lazy" style="max-width:100%;max-height:100%;object-fit:contain;border:0;"/>
       <div class="playhint" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:6px 10px;background:rgba(0,0,0,.45);border-radius:6px;font-size:13px;color:#fff;text-align:center;">
-        위로 스와이프 · 탭하여 소리 허용
+        위로 스와이프 · 탭하여 소리 허용 / 탭으로 일시정지
       </div>
       ${userSoundConsent ? '' : '<div class="mute-tip" style="position:absolute;top:12px;left:50%;transform:translateX(-50%);padding:6px 10px;background:rgba(0,0,0,.45);border-radius:6px;color:#fff;font-size:12px;">🔇 현재 음소거 • 한 번만 허용하면 계속 소리 재생</div>'}
     </div>
   `;
 
-  // 제스처 캡처 오버레이: 스와이프 방해하지 않도록 클릭만 사용 + pan-y 허용
+  // 1) 소리 허용용 오버레이(최초 1회): 스와이프는 통과, 탭만 사용
   const overlay = document.createElement('div');
   overlay.className = `gesture-capture ${userSoundConsent ? 'hidden':''}`;
   Object.assign(overlay.style, {
     position:'absolute', inset:'0', zIndex:'20',
     display:'flex', alignItems:'center', justifyContent:'center',
-    background:'transparent', cursor:'pointer'
+    background:'transparent', cursor:'pointer', touchAction:'pan-y'
   });
-  overlay.style.touchAction = 'pan-y';  // 세로 스와이프 통과
-  overlay.addEventListener('click', grantSoundFromCard, { passive:true });
+  overlay.addEventListener('click', (e)=>{ e.stopPropagation(); grantSoundFromCard(); }, { passive:true });
   card.appendChild(overlay);
+
+  // 2) 탭-토글(재생/일시정지) 오버레이: 항상 존재, 스와이프는 통과
+  const tap = document.createElement('div');
+  tap.className = 'tap-toggle';
+  Object.assign(tap.style, {
+    position:'absolute', inset:'0', zIndex:'10',
+    background:'transparent', touchAction:'pan-y'
+  });
+  tap.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    togglePlay(card);
+  }, { passive:true });
+  card.appendChild(tap);
 
   activeIO.observe(card);
   return card;
@@ -265,12 +296,11 @@ function ensureIframe(card, preload=false){
 
   iframe.addEventListener('load', ()=>{
     try{
-      // YouTube IFrame postMessage API (event 등록)
       iframe.contentWindow.postMessage(JSON.stringify({ event:'listening', id: playerId }), '*');
       ytCmd(iframe, "addEventListener", ["onReady"]);
       ytCmd(iframe, "addEventListener", ["onStateChange"]);
       winToCard.set(iframe.contentWindow, card);
-      if (preload) ytCmd(iframe, "mute"); // 프리로드는 항상 음소거
+      if (preload) ytCmd(iframe, "mute");
     }catch{}
   });
 
@@ -279,15 +309,14 @@ function ensureIframe(card, preload=false){
 }
 
 /* =========================
-   데이터 로드 (첫 배치 작게 + 이어받기)
+   데이터 로드 (초기 소량 + 이어받기)
    ========================= */
 const PAGE_SIZE = 12;
 const INITIAL_PAGE_SIZE = (() => {
-  // 네트워크 느리면 더 작게 시작
   const t = navigator.connection?.effectiveType || '';
   if (/slow-2g|2g/.test(t)) return 2;
   if (/3g/.test(t)) return 3;
-  return 4; // 기본
+  return 4;
 })();
 
 let isLoading = false, hasMore = true, lastDoc = null;
@@ -298,7 +327,6 @@ function resetFeed(){
   videoContainer.innerHTML = "";
   isLoading = false; hasMore = true; lastDoc = null; loadedIds.clear(); currentActive = null;
 }
-
 function appendCardsFromSnap(snap){
   snap.docs.forEach(d=>{
     if (loadedIds.has(d.id)) return;
@@ -306,10 +334,8 @@ function appendCardsFromSnap(snap){
     const data = d.data();
     videoContainer.appendChild(makeCard(data.url, d.id));
   });
-  // DOM 붙인 뒤 높이 동기화(슬리버 방지)
   enforceItemHeights();
 }
-
 async function loadMore(initial=false, pageSize = PAGE_SIZE){
   if (isLoading || !hasMore) return;
   isLoading = true;
@@ -323,7 +349,7 @@ async function loadMore(initial=false, pageSize = PAGE_SIZE){
     if (selected === "ALL" || !selected){
       parts.push(orderBy("createdAt","desc"));
     }else if (Array.isArray(selected) && selected.length){
-      const cats = selected.length > 10 ? null : selected; // Firestore array-contains-any ≤ 10
+      const cats = selected.length > 10 ? null : selected; // array-contains-any ≤ 10
       if (cats) parts.push(where("categories","array-contains-any", cats));
       parts.push(orderBy("createdAt","desc"));
     }else{
@@ -331,7 +357,7 @@ async function loadMore(initial=false, pageSize = PAGE_SIZE){
     }
 
     if (lastDoc) parts.push(startAfter(lastDoc));
-    parts.push(limit(pageSize));  // ← 초기엔 더 작게
+    parts.push(limit(pageSize));
 
     const snap = await getDocs(query(base, ...parts));
     if (snap.empty){
@@ -355,56 +381,4 @@ async function loadMore(initial=false, pageSize = PAGE_SIZE){
       const err = document.createElement('div');
       err.className = 'video';
       err.style.height = `${lastVhPx}px`;
-      err.innerHTML = `<p class="playhint" style="position:static;margin:0 auto;color:#cfcfcf;">목록을 불러오지 못했습니다.</p>`;
-      videoContainer.appendChild(err);
-    }
-  }finally{
-    isLoading = false;
-  }
-}
-
-videoContainer.addEventListener('scroll', ()=>{
-  // 주소창 수축/확장으로 innerHeight가 바뀌었을 수 있어 주기적으로 보정
-  // (과도한 호출 방지를 위해 약하게 디바운스)
-  if (!enforceItemHeights._t){
-    enforceItemHeights._t = setTimeout(()=>{
-      enforceItemHeights._t = null;
-      const now = calcVhPx();
-      if (now !== lastVhPx){ updateVh(); }
-    }, 120);
-  }
-
-  const nearBottom = videoContainer.scrollTop + videoContainer.clientHeight >= videoContainer.scrollHeight - 200;
-  if (nearBottom) loadMore(false);
-});
-
-/* =========================
-   자동 다음
-   ========================= */
-async function goToNextCard(){
-  const next = currentActive?.nextElementSibling;
-  if (next && next.classList.contains('video')){
-    next.scrollIntoView({ behavior:'smooth', block:'start' });
-    return;
-  }
-  if (!hasMore) { showTopbar(); return; }
-  const before = videoContainer.querySelectorAll('.video').length;
-  await loadMore(false);
-  const after  = videoContainer.querySelectorAll('.video').length;
-  if (after > before){
-    videoContainer.querySelectorAll('.video')[before]?.scrollIntoView({ behavior:'smooth', block:'start' });
-  }else{
-    showTopbar();
-  }
-}
-
-/* =========================
-   시작
-   ========================= */
-resetFeed();
-// ① 아주 작은 초기 배치로 화면 먼저 띄우고
-loadMore(true, INITIAL_PAGE_SIZE).then(() => {
-  // ② UI가 뜬 뒤 나머지 이어받기
-  setTimeout(() => loadMore(false, PAGE_SIZE), 60);
-});
-showTopbar();
+      err.innerHTML = `<p class="playhint" sty
