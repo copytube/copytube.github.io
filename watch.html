@@ -1,134 +1,39 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>Copytube - 영상 보기</title>
-
-  <!-- 성능 최적화: 미리 연결 -->
-  <link rel="preconnect" href="https://www.youtube.com" crossorigin>
-  <link rel="preconnect" href="https://i.ytimg.com" crossorigin>
-  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
-
-  <!-- CSP (필수 출처만 허용) -->
-  <meta http-equiv="Content-Security-Policy" content="
-    default-src 'self';
-    connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
-    img-src 'self' data: blob: https://i.ytimg.com;
-    frame-src https://www.youtube.com https://www.youtube-nocookie.com;
-    script-src 'self' https://www.gstatic.com 'unsafe-inline';
-    style-src 'self' 'unsafe-inline';
-    object-src 'none';
-    base-uri 'self';
-    frame-ancestors 'self';
-  ">
-
-  <link rel="stylesheet" href="css/style.css"/>
-  <style>
-    :root{ --app-vh: 100vh; }
-
-    /* 상단바 (사용자 선호 유지) */
-    #topbar{
-      position:fixed; inset:0 0 auto 0; z-index:1000;
-      background:var(--bg-1, #0b0b0b);
-      transition: transform .25s ease;
-      will-change: transform;
-    }
-    #topbar.hide{ transform: translateY(-100%); }
-
-    /* 로고 크기 선호: 모바일 40px, 데스크톱 48px */
-    .brand-logo{ height:48px; }
-    @media (max-width:420px){ .brand-logo{ height:40px; } }
-
-    /* 전 화면 높이: dvh/svh 우선 + visualViewport 보정 변수 */
-    #videoContainer, .video{ height: var(--app-vh, 100vh); }
-    @supports (height: 100svh){ #videoContainer, .video{ height: 100svh; } }
-    @supports (height: 100dvh){ #videoContainer, .video{ height: 100dvh; } }
-
-    /* 스냅/스크롤 */
-    #videoContainer{
-      overflow-y: auto;
-      scroll-snap-type: y mandatory;
-      overscroll-behavior-y: contain;
-      background:#000;
-      -webkit-overflow-scrolling: touch;
-      touch-action: pan-y;
-    }
-    .video{
-      scroll-snap-align: start;
-      scroll-snap-stop: always;
-      position:relative; display:flex; align-items:center; justify-content:center;
-      background:#000;
-      contain: content;
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CopyTube - 연결 중…</title>
+<style>
+  body{margin:0;background:#000;color:#9aa0a6;font-family:system-ui,Segoe UI,Roboto,Apple SD Gothic Neo,Apple Color Emoji,sans-serif}
+  main{min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px}
+  .hint{font-size:13px;opacity:.8}
+</style>
+<main>
+  <div>기기를 확인하고 있어요…</div>
+  <div class="hint">잠시만요</div>
+</main>
+<script>
+(function(){
+  try{
+    const qp = new URL(location.href).searchParams;
+    // 수동 강제 모드 (?mode=ios|android|desktop) 유지
+    if (qp.get('mode')) {
+      const m = qp.get('mode');
+      if (m === 'ios')      return location.replace('watch-ios.html?'+qp.toString());
+      if (m === 'android')  return location.replace('watch-android.html?'+qp.toString());
+      return location.replace('watch-android.html?'+qp.toString());
     }
 
-    /* 썸네일/힌트 */
-    .thumb{
-      width:100%; height:100%; display:flex; align-items:center; justify-content:center;
-      position:relative; background:#000;
-    }
-    .thumb img{ max-width:100%; max-height:100%; object-fit:contain; border:0; }
-    .playhint{
-      position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
-      padding:6px 10px; background:rgba(0,0,0,.45); border-radius:6px;
-      font-size:13px; color:#fff; text-align:center;
-      pointer-events:none;
-    }
-    .mute-tip{
-      position:absolute; top:12px; left:50%; transform:translateX(-50%);
-      padding:6px 10px; background:rgba(0,0,0,.45); border-radius:6px; color:#fff; font-size:12px;
-      pointer-events:none;
-    }
-    .video iframe{ width:100%; height:100%; border:0; }
+    const ua = navigator.userAgent || navigator.vendor || window.opera || "";
+    const isiPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1; // iPadOS의 'Mac' 위장
+    const isIOS = /iPad|iPhone|iPod/.test(ua) || isiPadOS;
 
-    /* 소리 허용 제스처 오버레이 */
-    .gesture-capture{
-      position:absolute; inset:0; z-index:20;
-      display:flex; align-items:center; justify-content:center;
-      background:transparent; cursor:pointer;
-    }
-    .gesture-capture.hidden{ display:none; }
-
-    /* 드롭다운 백드롭(iframe 위 터치 차단) */
-    #menuBackdrop{
-      position:fixed; inset:0; background:transparent; z-index:900;
-      display:none;
-    }
-    #menuBackdrop.show{ display:block; }
-  </style>
-</head>
-<body>
-  <!-- 상단바 -->
-  <header id="topbar">
-    <div class="brand">
-      <a id="brandHome" href="#" aria-label="CopyTube 홈으로">
-        <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
-      </a>
-    </div>
-    <div class="right" style="position:relative;">
-      <a id="signupLink" class="link" href="signup.html">Sign up</a>
-      <a id="signinLink" class="link" href="signin.html">Sign in</a>
-      <span id="welcome" class="welcome"></span>
-      <button id="menuBtn" class="icon" aria-label="menu">三</button>
-
-      <!-- 드롭다운 -->
-      <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
-        <button id="btnAbout"       type="button">CopyTube는…</button>
-        <button id="btnGoCategory"  class="menu-strong" type="button">카테고리 선택</button>
-        <button id="btnMyUploads"   type="button">내영상관리</button>
-        <button id="btnSignOut"     type="button">Sign out</button>
-        <button id="btnGoUpload"    class="menu-strong" type="button">추천영상등록</button>
-      </div>
-    </div>
-  </header>
-
-  <!-- 드롭다운 바깥 클릭용 백드롭 -->
-  <div id="menuBackdrop"></div>
-
-  <main id="videoContainer" aria-live="polite"><!-- JS가 카드 렌더링 --></main>
-
-  <script type="module" src="js/firebase-init.js"></script>
-  <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/watch.js?v=20250822-unified"></script>
-</body>
+    // iOS는 전용 페이지, 그 외(안드/윈/맥/리눅스)는 기존 페이지로
+    location.replace(isIOS ? 'watch-ios.html' : 'watch-android.html');
+  }catch(e){
+    // 문제가 생겨도 기본은 안드/윈 페이지로 보냄
+    location.replace('watch-android.html');
+  }
+})();
+</script>
 </html>
