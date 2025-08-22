@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Copytube - 영상 보기 (iOS 전용)</title>
+
+  <!-- 성능 최적화 -->
+  <link rel="preconnect" href="https://www.youtube.com" crossorigin>
+  <link rel="preconnect" href="https://i.ytimg.com" crossorigin>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+
+  <!-- CSP (필수 출처만 허용) -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
+    img-src 'self' data: blob: https://i.ytimg.com;
+    frame-src https://www.youtube.com;
+    script-src 'self' https://www.gstatic.com 'unsafe-inline';
+    style-src 'self' 'unsafe-inline';
+    object-src 'none';
+    base-uri 'self';
+    frame-ancestors 'self';
+  ">
+
+  <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    :root{ --app-vh: 100vh; }
+
+    /* 상단바: 원본 유지(요청사항 반영) */
+    #topbar{
+      position:fixed; inset:0 0 auto 0; z-index:1000;
+      background:var(--bg-1, #0b0b0b);
+      transition: transform .25s ease; will-change: transform;
+    }
+    #topbar.hide{ transform: translateY(-100%); }
+
+    /* 로고 크기 선호 */
+    .brand-logo{ height:48px; }
+    @media (max-width:420px){ .brand-logo{ height:40px; } }
+
+    /* 전 화면 높이: dvh/svh + visualViewport 동기화 + 1px 여유(픽셀 누수 방지) */
+    #videoContainer, .video{ height: calc(var(--app-vh, 100vh) + 1px); }
+    @supports (height: 100svh){ #videoContainer, .video{ height: calc(100svh + 1px); } }
+    @supports (height: 100dvh){ #videoContainer, .video{ height: calc(100dvh + 1px); } }
+
+    /* 스냅/스크롤 */
+    #videoContainer{
+      overflow-y: auto;
+      scroll-snap-type: y mandatory;
+      overscroll-behavior-y: contain;
+      background:#000;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+    }
+    .video{
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      position:relative; display:flex; align-items:center; justify-content:center;
+      background:#000; contain: content;
+    }
+
+    /* 썸네일/힌트 */
+    .thumb{
+      width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+      position:relative; background:#000;
+    }
+    .thumb img{ max-width:100%; max-height:100%; object-fit:contain; border:0; }
+    .playhint{
+      position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+      padding:6px 10px; background:rgba(0,0,0,.45); border-radius:6px;
+      font-size:13px; color:#fff; text-align:center; pointer-events:none;
+    }
+    .mute-tip{
+      position:absolute; top:12px; left:50%; transform:translateX(-50%);
+      padding:6px 10px; background:rgba(0,0,0,.45); border-radius:6px; color:#fff; font-size:12px;
+      pointer-events:none;
+    }
+    .video iframe{ width:100%; height:100%; border:0; }
+
+    /* 소리 허용 제스처 오버레이 */
+    .gesture-capture{
+      position:absolute; inset:0; z-index:20;
+      display:flex; align-items:center; justify-content:center;
+      background:transparent; cursor:pointer;
+    }
+    .gesture-capture.hidden{ display:none; }
+
+    /* 드롭다운 백드롭(iframe 위 터치 차단) */
+    #menuBackdrop{
+      position:fixed; inset:0; background:transparent; z-index:900; display:none;
+    }
+    #menuBackdrop.show{ display:block; }
+  </style>
+</head>
+<body>
+  <!-- 상단바 -->
+  <header id="topbar">
+    <div class="brand">
+      <a id="brandHome" href="#" aria-label="CopyTube 홈으로">
+        <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
+      </a>
+    </div>
+    <div class="right" style="position:relative;">
+      <a id="signupLink" class="link" href="signup.html">Sign up</a>
+      <a id="signinLink" class="link" href="signin.html">Sign in</a>
+      <span id="welcome" class="welcome"></span>
+      <button id="menuBtn" class="icon" aria-label="menu">三</button>
+
+      <!-- 드롭다운 (index와 동일 UX) -->
+      <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
+        <button id="btnAbout"       type="button">CopyTube는…</button>
+        <button id="btnGoCategory"  class="menu-strong" type="button">카테고리 선택</button>
+        <button id="btnMyUploads"   type="button">내영상관리</button>
+        <button id="btnSignOut"     type="button">Sign out</button>
+        <button id="btnGoUpload"    class="menu-strong" type="button">추천영상등록</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="menuBackdrop"></div>
+
+  <main id="videoContainer" aria-live="polite"><!-- JS가 카드 렌더링 --></main>
+
+  <script type="module" src="js/firebase-init.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="js/watch-ios.js?v=20250822-ios"></script>
+</body>
+</html>
