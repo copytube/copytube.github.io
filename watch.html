@@ -2,26 +2,32 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>Copytube - 영상 보기</title>
 
-  <!-- CSP (보안 강화) -->
+  <!-- 성능 최적화: 미리 연결 -->
+  <link rel="preconnect" href="https://www.youtube.com" crossorigin>
+  <link rel="preconnect" href="https://i.ytimg.com" crossorigin>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+
+  <!-- CSP (필수 출처만 허용) -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
-    img-src 'self' data: https://i.ytimg.com;
-    frame-src https://www.youtube.com;
+    img-src 'self' data: blob: https://i.ytimg.com;
+    frame-src https://www.youtube.com https://www.youtube-nocookie.com;
     script-src 'self' https://www.gstatic.com 'unsafe-inline';
     style-src 'self' 'unsafe-inline';
     object-src 'none';
     base-uri 'self';
+    frame-ancestors 'self';
   ">
 
   <link rel="stylesheet" href="css/style.css"/>
   <style>
     :root{ --app-vh: 100vh; }
 
-    /* 상단바: 화면 위에 겹치도록 고정 */
+    /* 상단바 (사용자 선호 유지) */
     #topbar{
       position:fixed; inset:0 0 auto 0; z-index:1000;
       background:var(--bg-1, #0b0b0b);
@@ -30,42 +36,30 @@
     }
     #topbar.hide{ transform: translateY(-100%); }
 
-    /* ===== 전 화면 스냅 높이 통일 규칙 =====
-       - 기본: var(--app-vh, 100vh)  (JS가 동기화)
-       - svh 지원 시 덮어쓰기
-       - dvh 지원 시 최종 덮어쓰기 (최우선) */
-    #videoContainer, .video{
-      height: var(--app-vh, 100vh);
-    }
-    @supports (height: 100svh){
-      #videoContainer, .video{ height: 100svh; }
-    }
-    @supports (height: 100dvh){
-      #videoContainer, .video{ height: 100dvh; }
-    }
-    /* 필요시 1px 여유: 드문 반올림 오차용 (문제 있으면 주석 해제)
-    .video{ height: calc(100% + 1px); }
-    */
+    /* 로고 크기 선호: 모바일 40px, 데스크톱 48px */
+    .brand-logo{ height:48px; }
+    @media (max-width:420px){ .brand-logo{ height:40px; } }
 
-    /* 컨테이너 스냅/스크롤 설정 */
+    /* 전 화면 높이: dvh/svh 우선 + visualViewport 보정 변수 */
+    #videoContainer, .video{ height: var(--app-vh, 100vh); }
+    @supports (height: 100svh){ #videoContainer, .video{ height: 100svh; } }
+    @supports (height: 100dvh){ #videoContainer, .video{ height: 100dvh; } }
+
+    /* 스냅/스크롤 */
     #videoContainer{
-      overflow-y: scroll;
+      overflow-y: auto;
       scroll-snap-type: y mandatory;
       overscroll-behavior-y: contain;
       background:#000;
       -webkit-overflow-scrolling: touch;
-      touch-action: pan-y; 
+      touch-action: pan-y;
     }
-
     .video{
       scroll-snap-align: start;
       scroll-snap-stop: always;
       position:relative; display:flex; align-items:center; justify-content:center;
       background:#000;
-      touch-action: pan-y;
-    }
-    .video iframe{
-      pointer-events: none;   /* ← 추가 */
+      contain: content;
     }
 
     /* 썸네일/힌트 */
@@ -78,14 +72,16 @@
       position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
       padding:6px 10px; background:rgba(0,0,0,.45); border-radius:6px;
       font-size:13px; color:#fff; text-align:center;
+      pointer-events:none;
     }
     .mute-tip{
       position:absolute; top:12px; left:50%; transform:translateX(-50%);
       padding:6px 10px; background:rgba(0,0,0,.45); border-radius:6px; color:#fff; font-size:12px;
+      pointer-events:none;
     }
     .video iframe{ width:100%; height:100%; border:0; }
 
-    /* 첫 소리 허용을 위한 제스처 캡처 오버레이 */
+    /* 소리 허용 제스처 오버레이 */
     .gesture-capture{
       position:absolute; inset:0; z-index:20;
       display:flex; align-items:center; justify-content:center;
@@ -93,7 +89,7 @@
     }
     .gesture-capture.hidden{ display:none; }
 
-    /* 드롭다운 백드롭(아이프레임 위에서도 터치 감지) */
+    /* 드롭다운 백드롭(iframe 위 터치 차단) */
     #menuBackdrop{
       position:fixed; inset:0; background:transparent; z-index:900;
       display:none;
@@ -129,10 +125,10 @@
   <!-- 드롭다운 바깥 클릭용 백드롭 -->
   <div id="menuBackdrop"></div>
 
-  <main id="videoContainer"><!-- JS가 카드 렌더링 --></main>
+  <main id="videoContainer" aria-live="polite"><!-- JS가 카드 렌더링 --></main>
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/watch.js?v=20250821-dvh"></script>
+  <script type="module" src="js/watch.js?v=20250822-unified"></script>
 </body>
 </html>
