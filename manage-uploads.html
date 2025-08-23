@@ -19,92 +19,97 @@
 
   <link rel="stylesheet" href="css/style.css"/>
 
- <!-- ...head 동일 -->
-<style>
-  /* 레이아웃 */
-  body { padding-top: 72px; }
-  main { max-width: 1000px; margin: 0 auto; padding: 0 16px 40px; }
-  h2 { display:flex; align-items:center; gap:10px; }
-  .badge { font-size:12px; color:#9ef01a; font-weight:700; }
+  <style>
+    /* 레이아웃 */
+    body { padding-top: 72px; }
+    main { max-width: 1000px; margin: 0 auto; padding: 0 16px 40px; }
+    h2 { display:flex; align-items:center; gap:10px; }
+    .badge { font-size:12px; color:#9ef01a; font-weight:700; }
 
-  /* 헤더 오른쪽: 항상 가로 정렬 (index와 동일) */
-  #topbar .right{
-    display:flex; flex-direction:row; align-items:center; gap:8px;
-  }
-
-  .toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:10px 0 14px; }
-  .toolbar .msg { color:#9aa0a6; font-size:13px; min-height:1.2em; }
-
-  .list { display:flex; flex-direction:column; gap:10px; }
-
-  .row {
-    display:grid;
-    grid-template-columns: 1fr auto;
-    gap:10px;
-    border:1px solid var(--border); border-radius:10px; background:#111; padding:10px;
-  }
-  .row .meta {
-    display:flex; flex-direction:column; gap:6px; min-width:0;
-  }
-  .title {
-    font-weight:700; overflow:hidden; text-overflow:ellipsis;
-    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-  }
-  .sub { font-size:12px; color:#9aa0a6; word-break:break-all; }
-  .cats { display:flex; flex-direction:column; gap:4px; font-size:12px; }
-  .cats .chip {
-    display:inline-block; background:#0f0f0f; border:1px solid #2a2a2a; border-radius:6px;
-    padding:4px 6px; width:max-content;
-  }
-
-  /* ✅ 목록용 right는 스코프 한정 (헤더와 충돌 방지) */
-  .row .right {
-    display:flex; flex-direction:column; gap:6px; align-items:flex-end; justify-content:space-between;
-    min-width:260px;
-  }
-
-  /* 카테고리 에디터 (기본: PC = 세로 배치) */
-  .cat-editor { display:flex; flex-direction:column; gap:6px; }
-  .cat-editor select {
-    background:#0f0f0f; color:#fff; border:1px solid #2a2a2a; border-radius:8px; padding:6px 8px; min-width:150px;
-  }
-
-  /* 버튼 영역은 항상 오른쪽 정렬 */
-  .actions { display:flex; gap:6px; justify-content:flex-end; }
-  .btn { padding:8px 10px; border:0; border-radius:8px; cursor:pointer; font-weight:700; }
-  .btn-primary { background:#4ea1ff; color:#fff; }
-  .btn-danger { background:#dc2626; color:#fff; }
-  .btn-ghost  { background:#1b1b1b; color:#ddd; border:1px solid #2a2a2a; }
-
-  .pager { display:flex; gap:6px; align-items:center; justify-content:center; margin-top:16px; }
-  .pager button { padding:6px 10px; border-radius:8px; border:1px solid #2a2a2a; background:#111; color:#ddd; cursor:pointer; }
-  .pager .now { font-weight:800; color:#fff; }
-
-  /* 모바일 최적화 */
-  @media (max-width:720px){
-    .row { grid-template-columns: 1fr; }
-    .row .right { align-items:flex-end; min-width:0; }
-    .actions { justify-content:flex-end; width:100%; }
-
-    /* 모바일: 카테고리 선택 3개를 가로 3열로 */
-    .cat-editor{
-      display:grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap:6px;
-      width:100%;
+    /* 상단바 오른쪽 영역 가로 정렬(모바일 안전망 포함) */
+    #topbar .right{
+      display:flex; flex-direction:row; align-items:center; gap:8px;
     }
-    .cat-editor select{ width:100%; min-width:0; }
-  }
+    /* menu 아이콘은 hidden 아닐 때 항상 보이게 */
+    .hidden{ display:none !important; }
+    #menuBtn.icon:not(.hidden){
+      display:inline-flex; align-items:center; justify-content:center;
+      width:36px; height:36px; font-size:18px; line-height:1;
+    }
 
-  /* dropdown 보이기/숨기기용 보조 규칙 */
-  .hidden{ display:none !important; }
-  #topbar #menuBtn.icon{
-    display:inline-flex; align-items:center; justify-content:center;
-    width:36px; height:36px; font-size:18px; line-height:1;
-  }
-</style>
+    .toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:10px 0 14px; }
+    .toolbar .msg { color:#9aa0a6; font-size:13px; min-height:1.2em; }
+
+    .list { display:flex; flex-direction:column; gap:10px; }
+
+    .row {
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:10px;
+      border:1px solid var(--border); border-radius:10px; background:#111; padding:10px;
+    }
+    .row .meta {
+      display:flex; flex-direction:column; gap:6px; min-width:0;
+    }
+    .title {
+      font-weight:700; overflow:hidden; text-overflow:ellipsis;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    }
+    .sub { font-size:12px; color:#9aa0a6; word-break:break-all; }
+    .sub a{ color:#9aa0a6; text-decoration:underline; }
+    .cats { display:flex; flex-direction:column; gap:4px; font-size:12px; }
+    .cats .chip {
+      display:inline-block; background:#0f0f0f; border:1px solid #2a2a2a; border-radius:6px;
+      padding:4px 6px; width:max-content;
+    }
+
+    .right {
+      display:flex; flex-direction:column; gap:6px; align-items:flex-end; justify-content:space-between;
+      min-width:260px;
+    }
+
+    /* 카테고리 에디터 (기본: PC = 세로 배치) */
+    .cat-editor { display:flex; flex-direction:column; gap:6px; }
+    .cat-editor select {
+      background:#0f0f0f; color:#fff; border:1px solid #2a2a2a; border-radius:8px; padding:6px 8px; min-width:150px;
+    }
+
+    /* 버튼 영역 오른쪽 정렬 */
+    .actions { display:flex; gap:6px; justify-content:flex-end; }
+    .btn {
+      padding:8px 10px; border:0; border-radius:8px; cursor:pointer; font-weight:700;
+    }
+    .btn-primary { background:#4ea1ff; color:#fff; }
+    .btn-danger { background:#dc2626; color:#fff; }
+    .btn-ghost  { background:#1b1b1b; color:#ddd; border:1px solid #2a2a2a; }
+
+    .pager { display:flex; gap:6px; align-items:center; justify-content:center; margin-top:16px; }
+    .pager button { padding:6px 10px; border-radius:8px; border:1px solid #2a2a2a; background:#111; color:#ddd; cursor:pointer; }
+    .pager .now { font-weight:800; color:#fff; }
+
+    /* 모바일 최적화 */
+    @media (max-width:720px){
+      .row { grid-template-columns: 1fr; }
+
+      .row .right { align-items:flex-end; min-width:0; }
+      .actions { justify-content:flex-end; width:100%; }
+
+      /* 모바일: 카테고리 선택 3개를 가로 3열로 */
+      .cat-editor{
+        display:grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap:6px;
+        width:100%;
+      }
+      .cat-editor select{
+        width:100%;
+        min-width:0; /* 넘침 방지 */
+      }
+    }
+  </style>
 </head>
 <body>
+  <!-- 상단바 -->
   <header id="topbar">
     <div class="brand">
       <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
@@ -115,10 +120,9 @@
       <a id="signupLink" class="link" href="signup.html">Sign up</a>
       <a id="signinLink" class="link" href="signin.html">Sign in</a>
       <span id="welcome" class="welcome"></span>
-
-      <!-- ✅ index와 동일: 처음부터 보이게 두고 JS로는 숨김 토글 안 함 -->
       <button id="menuBtn" class="icon" aria-label="menu">三</button>
 
+      <!-- 드롭다운 -->
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
         <button id="btnAbout" type="button">CopyTube는…</button>
         <button id="btnMyUploads" type="button">내영상관리</button>
@@ -127,8 +131,6 @@
       </div>
     </div>
   </header>
-  <!-- ...이하 본문 동일 -->
-
 
   <main>
     <h2>
@@ -153,6 +155,7 @@
   <!-- 모듈 스크립트 -->
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/manage-uploads.js?v=20250821-admin-nick"></script>
+  <script type="module" src="js/categories.js?v=20250820"></script>
+  <script type="module" src="js/manage-uploads.js?v=20250822"></script>
 </body>
 </html>
