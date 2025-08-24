@@ -2,6 +2,24 @@
 import { CATEGORY_GROUPS } from './categories.js?v=20250820'; // 1.0 그대로
 import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
+// [Order] 대분류(그룹) 순서 로컬 저장/적용 헬퍼
+const ORDER_KEY = 'categoryOrderV1';
+function getSavedGroupOrder(){
+  try { return JSON.parse(localStorage.getItem(ORDER_KEY) || 'null'); }
+  catch { return null; }
+}
+function applyGroupOrder(groups){
+  const ord = getSavedGroupOrder();
+  if (!Array.isArray(ord) || !ord.length) return groups.slice(); // 저장 없으면 원본 순서
+  const rank = new Map(ord.map((key, i) => [key, i]));
+  // 저장된 건 앞쪽에, 없는 건 원래 순서를 보존하며 뒤로
+  return groups.slice().sort((a, b) => {
+    const ra = rank.has(a.key) ? rank.get(a.key) : 1e9;
+    const rb = rank.has(b.key) ? rank.get(b.key) : 1e9;
+    return ra - rb;
+  });
+}
+
 
 const signupLink   = document.getElementById("signupLink");
 const signinLink   = document.getElementById("signinLink");
@@ -74,22 +92,23 @@ function saveCategoryOrder(order){
 
 /* ---------- 렌더 ---------- */
 function renderGroups(){
-  const personalLabels = getPersonalLabels(); // 기존 개인자료 라벨만 유지
-  const order = getCategoryOrder();
+  const personalLabels = getPersonalLabels();
 
-  // order에 맞춰 그룹 정렬
-  const keyToGroup = new Map(CATEGORY_GROUPS.map(g=>[g.key, g]));
-  const groups = order.map(k => keyToGroup.get(k)).filter(Boolean);
+  // 저장된 순서 적용(없으면 categories.js 기본 순서)
+  const groups = applyGroupOrder(CATEGORY_GROUPS);
 
   const html = groups.map(g=>{
     const kids = g.children.map(c=>{
       const isPersonal = (g.key==='personal');
-      const defLabel   = (c.value==='personal1') ? '자료1' : (c.value==='personal2' ? '자료2' : c.label);
+      const defLabel   = (c.value==='personal1') ? '자료1'
+                        : (c.value==='personal2') ? '자료2' : c.label;
       const labelText  = isPersonal && personalLabels[c.value] ? personalLabels[c.value] : defLabel;
       return `<label><input type="checkbox" class="cat" value="${c.value}"> ${labelText}</label>`;
     }).join('');
 
-    const legendText = (g.key==='personal') ? `${g.label} <span class="subnote">(로컬저장소)</span>` : g.label;
+    const legendText = (g.key==='personal')
+      ? `${g.label} <span class="subnote">(로컬저장소)</span>`
+      : g.label;
 
     return `
       <fieldset class="group" data-key="${g.key}">
@@ -107,6 +126,7 @@ function renderGroups(){
   catsBox.innerHTML = html;
   bindGroupInteractions();
 }
+
 renderGroups();
 
 /* ---------- 개인자료 라벨 ---------- */
