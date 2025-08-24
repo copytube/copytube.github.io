@@ -24,12 +24,13 @@
 
     .hint{ color:#9aa0a6; font-size:14px; margin:6px 0 12px; }
 
-    .grid{
-      display:grid;
-      grid-template-columns: 1fr 120px 1fr;
-      gap:12px;
-      align-items:start;
-    }
+.grid{
+  display:grid;
+  /* 가운데 열을 내용 크기(max-content) 만큼만 차지하게 */
+  grid-template-columns: minmax(0,1fr) max-content minmax(0,1fr);
+  gap:8px; /* 가운데 열이 줄어든 만큼 전체 간격도 살짝 줄여 줌(선택사항) */
+  align-items:start;
+}
 
     .col{
       border:1px solid var(--border);
@@ -51,9 +52,10 @@
     }
     .item:hover{ border-color:#3a3a3a; }
 
-    .mid{
-      display:flex; flex-direction:column; align-items:center; gap:10px;
-    }
+.mid{
+  display:flex; flex-direction:column; align-items:center; gap:10px;
+  width:max-content; /* 중간 열 폭을 내부 콘텐츠(리셋 버튼) 크기에 딱 맞춤 */
+}
     .arrow{
       width:40px; height:40px; border-radius:10px; border:1px solid #2a2a2a;
       background:#151515; color:#ddd; display:flex; align-items:center; justify-content:center;
