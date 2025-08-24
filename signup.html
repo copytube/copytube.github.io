@@ -1,20 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>회원가입 - copytube</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>회원가입 - CopyTube</title>
 
-  <!-- CSP -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    connect-src 'self'
-      https://identitytoolkit.googleapis.com
-      https://securetoken.googleapis.com
-      https://firebaseinstallations.googleapis.com
-      https://www.googleapis.com
-      https://www.gstatic.com
-      https://firestore.googleapis.com;
+    connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://www.googleapis.com https://www.gstatic.com https://firestore.googleapis.com;
     img-src 'self' data:;
     frame-src https://www.youtube.com https://www.youtube-nocookie.com;
     script-src 'self' https://www.gstatic.com 'unsafe-inline';
@@ -22,95 +15,106 @@
     object-src 'none';
     base-uri 'self';
   ">
+
   <link rel="stylesheet" href="css/style.css"/>
   <style>
-    main { max-width:420px; margin:96px auto 40px; padding:0 16px; }
+    main { max-width:480px; margin:96px auto 40px; padding:0 16px; }
     label { display:block; margin-top:14px; font-size:14px; }
     input { width:100%; padding:10px; margin-top:6px; box-sizing:border-box; border:1px solid #333; border-radius:6px; background:#000; color:#fff; }
-    button { margin-top:18px; width:100%; padding:12px; border:0; border-radius:8px; background:#0366d6; color:#fff; font-weight:600; cursor:pointer; }
+    button { margin-top:18px; width:100%; padding:12px; border:0; border-radius:8px; background:#10b981; color:#fff; font-weight:700; cursor:pointer; }
     .msg { margin-top:10px; font-size:13px; color:#ccc; white-space:pre-line; min-height:1.2em; }
+    .small { color:#9aa0a6; font-size:12px; margin-top:6px; }
   </style>
 </head>
 <body>
   <header id="topbar">
-    <div class="brand">
-      <a href="./"><img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/></a>
-    </div>
-    <div class="right">
-      <a class="link" href="signin.html">Sign in</a>
-    </div>
+    <div class="brand"><a href="./"><img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/></a></div>
+    <div class="right"><a class="link" href="signin.html">Sign in</a></div>
   </header>
 
   <main>
     <h2>회원가입</h2>
-    <p><small>닉네임과 비밀번호만 입력하면 됩니다.</small></p>
-
-    <label>닉네임
-      <input id="nickname" placeholder="예: coolboy" />
-    </label>
-    <label>비밀번호
-      <input id="password" type="password" placeholder="4자 이상" autocomplete="new-password"/>
-    </label>
-    <button id="submitBtn">가입하기</button>
+    <form id="signupForm">
+      <label>닉네임 또는 이메일
+        <input id="nickOrEmail" placeholder="예: coolboy 또는 coolboy@example.com" autocomplete="username" required/>
+      </label>
+      <div class="small">이메일을 쓰면 그 이메일로 가입되고, 닉네임만 쓰면 내부적으로 <code>닉@copytube.local</code> 로 가입됩니다.</div>
+      <label>비밀번호
+        <input id="password" type="password" autocomplete="new-password" required/>
+      </label>
+      <label>비밀번호 확인
+        <input id="password2" type="password" autocomplete="new-password" required/>
+      </label>
+      <button>가입하기</button>
+    </form>
     <div class="msg" id="msg"></div>
-    <p style="margin-top:12px;">이미 계정이 있으신가요? <a class="link" href="signin.html">Sign in</a></p>
+    <p style="margin-top:12px;">이미 계정이 있나요? <a class="link" href="signin.html">Sign in</a></p>
   </main>
 
-  <script type="module" src="js/firebase-init.js"></script>
-  <script type="module" src="js/auth.js"></script>
   <script type="module">
-    import {
-      auth, db, createUserWithEmailAndPassword, updateProfile,
-      runTransaction, doc, deleteUser, onAuthStateChanged
-    } from './js/auth.js';
-    import { sanitizeNickname } from './js/auth.js';
+    import { auth } from './js/firebase-init.js';
+    import { createUserWithEmailAndPassword, updateProfile } from './js/auth.js';
+    import { db } from './js/firebase-init.js';
+    import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-    const $ = (id) => document.getElementById(id);
+    const $ = id => document.getElementById(id);
     const msg = $('msg');
 
-    async function waitAuthReady() {
-      if (typeof auth.authStateReady === 'function') { await auth.authStateReady(); return; }
-      await new Promise((resolve) => { const unsub = onAuthStateChanged(auth, () => { unsub(); resolve(); }); });
+    function sanitizeNick(n){
+      return (n||'').trim().toLowerCase().replace(/[^a-z0-9._-]/g,'').slice(1, 24);
+    }
+    function normalizeLogin(raw){
+      const hasAt=/@/.test(raw);
+      if(hasAt) return { email: raw.trim(), nickname: raw.split('@')[0].trim() || null };
+      const nick = sanitizeNick(raw) || 'user';
+      return { email: `${nick}@copytube.local`, nickname: nick };
     }
 
-    $('submitBtn').addEventListener('click', async () => {
-      msg.textContent = '처리 중...';
-      const rawNick = $('nickname').value.trim();
-      const password = $('password').value;
+    async function reserveNickname(uid, nick){
+      if(!nick) return true; // 이메일 가입 등
+      const ref = doc(db,'usernames', nick);
+      const snap = await getDoc(ref);
+      if (snap.exists()){
+        // 이미 다른 사람이 선점
+        return snap.data().uid === uid;
+      }
+      await setDoc(ref, { uid, createdAt: serverTimestamp() });
+      return true;
+    }
 
-      if (!rawNick || !password) { msg.textContent = '닉네임과 비밀번호를 입력해 주세요.'; return; }
-      if (password.length < 4)    { msg.textContent = '비밀번호는 4자 이상으로 해주세요.'; return; }
+    document.getElementById('signupForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      msg.textContent='가입 처리 중...';
 
-      const nickname = sanitizeNickname(rawNick);
-      if (!nickname) { msg.textContent = '닉네임은 영문/숫자/한글/[-_.]만 허용, 길이 2~20자입니다.'; return; }
+      const raw = $('nickOrEmail').value.trim();
+      const pass = $('password').value;
+      const pass2= $('password2').value;
 
-      const pseudoEmail = `${nickname.toLowerCase()}@copytube.local`;
-      let createdUser = null;
+      if(!raw || !pass){ msg.textContent='닉네임/이메일과 비밀번호를 입력하세요.'; return; }
+      if(pass !== pass2){ msg.textContent='비밀번호가 일치하지 않습니다.'; return; }
 
-      try {
-        const cred = await createUserWithEmailAndPassword(auth, pseudoEmail, password);
-        createdUser = cred.user;
+      try{
+        const { email, nickname } = normalizeLogin(raw);
+        const cred = await createUserWithEmailAndPassword(auth, email, pass);
 
-        await waitAuthReady();
-        if (auth.currentUser) { await auth.currentUser.getIdToken(true); }
+        // 닉네임 예약 (중복 방지)
+        if (nickname){
+          const ok = await reserveNickname(cred.user.uid, nickname);
+          if(!ok){ msg.textContent='이미 사용중인 닉네임입니다. 다른 닉네임을 사용해주세요.'; return; }
+          await updateProfile(cred.user, { displayName: nickname });
+        }
 
-        await runTransaction(db, async (tx) => {
-          const key = nickname.toLowerCase();
-          const ref = doc(db, 'usernames', key);
-          const snap = await tx.get(ref);
-          if (snap.exists()) throw new Error('이미 사용 중인 닉네임입니다.');
-          tx.set(ref, { reserved: true, uid: createdUser.uid, createdAt: Date.now() });
-        });
+        // users/{uid} 문서 작성
+        await setDoc(doc(db,'users', cred.user.uid), {
+          displayName: nickname || null,
+          createdAt: serverTimestamp(),
+          disabled: false
+        }, { merge:true });
 
-        await updateProfile(createdUser, { displayName: nickname });
-
-        msg.textContent = '회원가입 완료! 로그인 페이지로 이동합니다...';
-        setTimeout(() => { location.href = 'signin.html'; }, 600);
-
-      } catch (e) {
-        if (createdUser) { try { await deleteUser(createdUser); } catch (_) {} }
-        console.error(e);
-        msg.textContent = `오류: ${e.message || e.code || e}`;
+        msg.textContent='가입 완료! 자동으로 홈으로 이동합니다...';
+        location.href='./';
+      }catch(e){
+        msg.textContent = '가입 실패: ' + (e.message || e);
       }
     });
   </script>
