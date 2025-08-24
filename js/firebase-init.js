@@ -1,15 +1,15 @@
-// js/firebase-init.js
-// Firebase SDK v12.x (CDN 모듈) 초기화
-
+// js/firebase-init.js  (iOS Safari 대비: multi-persistence fallback)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+import {
+  // iOS/Safari에서 IndexedDB 차단(프라이빗 모드 등) 대비
+  initializeAuth,
+  getAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-/**
- * ⚠️ 프로젝트 SDK 설정값으로 교체 가능.
- * 사용자가 공유한 설정(예시):
- * projectId: copytube-daf30
- */
 const firebaseConfig = {
   apiKey: "AIzaSyBdZwzeAB91VnR0yqZK9qcW6LsOdCfHm8U",
   authDomain: "copytube-daf30.firebaseapp.com",
@@ -20,6 +20,25 @@ const firebaseConfig = {
   measurementId: "G-CNPT9SCSYH"
 };
 
-export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+const app = initializeApp(firebaseConfig);
+
+// iOS 사파리(특히 프라이빗 모드)에서 IndexedDB가 막히면
+// 기본 getAuth()가 내부에서 실패하면서 auth/network-request-failed가 날 수 있습니다.
+// initializeAuth에 복수 퍼시스턴스를 주면, IndexedDB→localStorage→sessionStorage 순으로
+// 자동 폴백하여 로그인 네트워크 호출이 정상 완료됩니다.
+let auth;
+try {
+  auth = initializeAuth(app, {
+    persistence: [
+      indexedDBLocalPersistence,
+      browserLocalPersistence,
+      browserSessionPersistence,
+    ],
+  });
+} catch {
+  // 이미 어딘가에서 getAuth(app)로 초기화된 경우 등
+  auth = getAuth(app);
+}
+
+export { auth };
 export const db = getFirestore(app);
