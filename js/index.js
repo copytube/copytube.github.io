@@ -1,5 +1,5 @@
 // js/index.js
-import { CATEGORY_GROUPS } from './categories.js?v=20250820';
+import { CATEGORY_GROUPS } from './categories.js?v=20250820'; // 1.0 그대로
 import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 
@@ -17,8 +17,8 @@ const brandHome    = document.getElementById("brandHome");
 const catsBox      = document.getElementById("cats");
 const btnWatch     = document.getElementById("btnWatch");
 const cbAutoNext   = document.getElementById("cbAutoNext");
-const autoNextWrap = document.getElementById("autoNextWrap");
-const cbToggleAll  = document.getElementById("cbToggleAll"); // ✅ 새 전체선택 체크박스
+const cbToggleAll  = document.getElementById("cbToggleAll");
+const btnOrderOpen = document.getElementById("btnOrderOpen");
 
 /* ---------- 드롭다운 ---------- */
 let isMenuOpen = false;
@@ -50,20 +50,36 @@ btnSignOut   ?.addEventListener("click", async ()=>{
 });
 brandHome?.addEventListener("click", (e)=>{ e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); });
 
-/* ---------- 개인자료 라벨/위치 ---------- */
-function getPersonalLabels(){ try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }catch{ return {}; } }
-function getPersonalPosition(){ const v = localStorage.getItem('personalPosition'); return v === 'top' ? 'top' : 'bottom'; }
+/* ---------- 카테고리 순서 로컬저장 ---------- */
+const DEFAULT_ORDER = CATEGORY_GROUPS.map(g=>g.key);
+
+function readOrderRaw(){
+  try { return JSON.parse(localStorage.getItem('categoryOrder') || 'null'); }
+  catch { return null; }
+}
+/** 현재 카테고리 정의에 맞게 정규화(신규/삭제 반영) */
+function getCategoryOrder(){
+  const raw = readOrderRaw();
+  const known = new Set(DEFAULT_ORDER);
+  let arr = Array.isArray(raw) ? raw.filter(k=>known.has(k)) : [];
+
+  // 누락된 키는 기본 순서대로 뒤에 붙임
+  DEFAULT_ORDER.forEach(k=>{ if(!arr.includes(k)) arr.push(k); });
+  return arr;
+}
+/** 저장 */
+function saveCategoryOrder(order){
+  try { localStorage.setItem('categoryOrder', JSON.stringify(order)); } catch {}
+}
 
 /* ---------- 렌더 ---------- */
 function renderGroups(){
-  const personalLabels = getPersonalLabels();
-  const pos = getPersonalPosition();
+  const personalLabels = getPersonalLabels(); // 기존 개인자료 라벨만 유지
+  const order = getCategoryOrder();
 
-  const groups = CATEGORY_GROUPS.slice();
-  if (pos === 'top'){
-    const idx = groups.findIndex(g => g.key === 'personal');
-    if (idx > -1){ const [pg] = groups.splice(idx, 1); groups.unshift(pg); }
-  }
+  // order에 맞춰 그룹 정렬
+  const keyToGroup = new Map(CATEGORY_GROUPS.map(g=>[g.key, g]));
+  const groups = order.map(k => keyToGroup.get(k)).filter(Boolean);
 
   const html = groups.map(g=>{
     const kids = g.children.map(c=>{
@@ -89,34 +105,26 @@ function renderGroups(){
   }).join('');
 
   catsBox.innerHTML = html;
-
   bindGroupInteractions();
 }
 renderGroups();
+
+/* ---------- 개인자료 라벨 ---------- */
+function getPersonalLabels(){ try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }catch{ return {}; } }
 
 /* ---------- 부모/자식 동기화 ---------- */
 function setParentStateByChildren(groupEl){
   const children = Array.from(groupEl.querySelectorAll('input.cat'));
   const parent   = groupEl.querySelector('.group-check');
   if (!parent) return;
-
-  const total   = children.length;
-  const checked = children.filter(c => c.checked).length;
-
-  if (checked === 0){
-    parent.checked = false;
-    parent.indeterminate = false;
-  } else if (checked === total){
-    parent.checked = true;
-    parent.indeterminate = false;
-  } else {
-    parent.checked = false;
-    parent.indeterminate = true; // 일부 선택 시 indeterminate
-  }
+  const total = children.length;
+  const checked = children.filter(c=>c.checked).length;
+  if (checked===0){ parent.checked=false; parent.indeterminate=false; }
+  else if (checked===total){ parent.checked=true; parent.indeterminate=false; }
+  else { parent.checked=false; parent.indeterminate=true; }
 }
 function setChildrenByParent(groupEl, on){
-  const children = Array.from(groupEl.querySelectorAll('input.cat'));
-  children.forEach(c => { c.checked = !!on; });
+  groupEl.querySelectorAll('input.cat').forEach(c=> c.checked = !!on);
 }
 function refreshAllParentStates(){
   catsBox.querySelectorAll('.group').forEach(setParentStateByChildren);
@@ -125,11 +133,9 @@ function computeAllSelected(){
   const realChildren = Array.from(catsBox.querySelectorAll('.group:not([data-key="personal"]) input.cat'));
   return realChildren.length > 0 && realChildren.every(c => c.checked);
 }
-
 let allSelected = false;
 
 function bindGroupInteractions(){
-  // 부모 → 자식
   catsBox.querySelectorAll('.group-check').forEach(parent=>{
     parent.addEventListener('change', ()=>{
       const groupEl = parent.closest('.group');
@@ -139,8 +145,6 @@ function bindGroupInteractions(){
       if (cbToggleAll) cbToggleAll.checked = allSelected;
     });
   });
-
-  // 자식 → 부모
   catsBox.querySelectorAll('input.cat').forEach(child=>{
     child.addEventListener('change', ()=>{
       const groupEl = child.closest('.group');
@@ -158,7 +162,6 @@ function selectAll(on){
   allSelected = !!on;
   if (cbToggleAll) cbToggleAll.checked = allSelected;
 }
-
 function applySavedSelection(){
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem('selectedCats') || 'null'); } catch {}
@@ -179,7 +182,7 @@ function applySavedSelection(){
 }
 applySavedSelection();
 
-cbAutoNext?.addEventListener('change', ()=>{ /* UI만, 저장은 btnWatch에서 */ });
+cbAutoNext?.addEventListener('change', ()=>{ /* 저장은 btnWatch에서 */ });
 cbToggleAll?.addEventListener('change', ()=>{ selectAll(!!cbToggleAll.checked); });
 
 // 시청으로 이동 (선택 저장)
@@ -191,4 +194,9 @@ btnWatch?.addEventListener('click', ()=>{
   localStorage.setItem('selectedCats', JSON.stringify(valueToSave));
   localStorage.setItem('autonext', cbAutoNext?.checked ? 'on' : 'off');
   location.href = 'watch.html';
+});
+
+/* ---------- 순서 설정 페이지 열기 ---------- */
+btnOrderOpen?.addEventListener('click', ()=>{
+  location.href = 'category-order.html';
 });
