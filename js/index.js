@@ -59,7 +59,7 @@ const cbAutoNext   = document.getElementById("cbAutoNext");
 const cbToggleAll  = document.getElementById("cbToggleAll");
 const catTitleBtn  = document.getElementById("btnOpenOrder");
 
-let lastAppliedSig = ""; // 마지막 적용된 순서 시그니처
+let lastAppliedSig = "";
 
 function currentCheckedSet(){
   const set=new Set();
