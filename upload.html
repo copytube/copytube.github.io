@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>추천영상 등록 - CopyTube</title>
 
-  <!-- CSP (보안 강화) -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
@@ -21,60 +20,32 @@
   <style>
     main { max-width:900px; margin:96px auto 40px; padding:0 16px; }
     h2 { margin:8px 0 12px; }
-
-    /* 상단 컨트롤 (라디오 2줄 + 붙여넣기 + 등록) */
     .controls-grid{
-      display:grid;
-      grid-template-columns: minmax(160px, 40%) 1fr 1fr;
-      grid-template-rows: auto auto;
+      display:grid; grid-template-columns:minmax(160px,40%) 1fr 1fr; grid-template-rows:auto auto;
       gap:10px; align-items:stretch; margin:10px 0 8px;
     }
-    .order-col{ display:grid; grid-template-rows: 1fr 1fr; gap:10px; }
-    .pill-radio{
-      display:flex; align-items:center; gap:10px;
-      padding:12px 14px; border-radius:10px;
-      background:#121212; border:1px solid #2a2a2a; color:#e5e7eb; font-weight:700;
-    }
+    .order-col{ display:grid; grid-template-rows:1fr 1fr; gap:10px; }
+    .pill-radio{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:10px; background:#121212; border:1px solid #2a2a2a; color:#e5e7eb; font-weight:700; }
     .pill-radio input{ accent-color:#4ea1ff; transform:scale(1.1); }
-    .btn-clip, .btn-submit{
-      grid-row: span 2; display:flex; align-items:center; justify-content:center; text-align:center;
-      border:0; border-radius:12px; cursor:pointer; font-weight:800; line-height:1.2; padding:0 12px; min-height:96px;
-    }
-    @media (min-width: 900px){ .btn-clip, .btn-submit{ min-height:110px; } }
+    .btn-clip,.btn-submit{ grid-row:span 2; display:flex; align-items:center; justify-content:center; text-align:center; border:0; border-radius:12px; cursor:pointer; font-weight:800; line-height:1.2; padding:0 12px; min-height:96px; }
+    @media (min-width:900px){ .btn-clip,.btn-submit{ min-height:110px; } }
     .btn-clip{ background:#22c55e; color:#fff; font-size:16px; white-space:normal; word-break:keep-all; }
     .btn-submit{ background:#4ea1ff; color:#fff; font-size:16px; }
-
     .msg{ margin-top:10px; font-size:13px; color:#ccc; white-space:pre-line; min-height:1.2em; }
     details.help{ margin:10px 0 8px; }
-    details.help summary{ cursor:pointer; user-select:none; font-weight:800; color:#e5e7eb; list-style: disclosure-closed; }
-    details.help[open] summary{ list-style: disclosure-open; }
+    details.help summary{ cursor:pointer; user-select:none; font-weight:800; color:#e5e7eb; list-style:disclosure-closed; }
+    details.help[open] summary{ list-style:disclosure-open; }
     .help-body{ margin-top:8px; color:#bfc6ce; font-size:14px; line-height:1.6; }
-
-    /* 카테고리 박스 */
-    .group{
-      border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
-      padding:8px; margin:8px 0; text-align:left; max-width:900px; margin-left:auto; margin-right:auto;
-    }
-    .group legend{
-      padding:0 4px; font-weight:800; font-size:15px; color:#eee;
-      margin-bottom:0; line-height:1.05; display:inline-flex; gap:6px; align-items:center;
-    }
+    .group{ border:1px solid var(--border); border-radius:12px; background:var(--bg-3); padding:8px; margin:8px 0; text-align:left; max-width:900px; margin-left:auto; margin-right:auto; }
+    .group legend{ padding:0 4px; font-weight:800; font-size:15px; color:#eee; margin-bottom:0; line-height:1.05; display:inline-flex; gap:6px; align-items:center; }
     .group .subnote{ font-size:12px; color:#9aa0a6; margin-left:6px; }
     .child-grid{ margin-top:0; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px; }
     @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
-    .child-grid label{
-      background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px;
-      padding:6px 8px; font-size:14px; line-height:1.2;
-      display:flex; gap:6px; align-items:center; justify-content:flex-start;
-    }
-    .rename-btn{
-      margin-left:auto; font-size:12px; padding:4px 6px; border-radius:6px;
-      border:1px solid #2a2a2a; background:#151515; color:#bfc6ce; cursor:pointer;
-    }
+    .child-grid label{ background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px; padding:6px 8px; font-size:14px; line-height:1.2; display:flex; gap:6px; align-items:center; justify-content:flex-start; }
+    .rename-btn{ margin-left:auto; font-size:12px; padding:4px 6px; border-radius:6px; border:1px solid #2a2a2a; background:#151515; color:#bfc6ce; cursor:pointer; }
   </style>
 </head>
 <body>
-  <!-- 상단바 -->
   <header id="topbar">
     <div class="brand">
       <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
@@ -116,9 +87,8 @@
     <details class="help" id="pasteHelp">
       <summary>붙여넣기 도움말</summary>
       <div class="help-body">
-        • <b>URL 다중등록:</b> 입력칸에 <b>한 줄에 1개</b> URL을 넣고, <b>카테고리 선택 후 “등록”</b><br/>
-        • <b>아래부터/위부터</b> 옵션으로 등록 순서를 조절합니다.<br/>
-        • iOS/안드로이드/데스크탑에서 클립보드 권한이 필요할 수 있어요.
+        • 입력칸에 한 줄당 1개의 URL을 넣고, 카테고리 선택 후 “등록”하세요.<br/>
+        • “아래부터/위부터” 옵션으로 등록 순서를 조절할 수 있어요.
       </div>
     </details>
 
@@ -132,6 +102,7 @@
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/upload.js?v=1.2"></script>
+  <!-- ⬇️ 캐시 우회를 위해 v=1.2.1로 호출 -->
+  <script type="module" src="js/upload.js?v=1.2.1"></script>
 </body>
 </html>
