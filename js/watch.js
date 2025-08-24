@@ -1,4 +1,4 @@
-// js/watch.js  (stable 1.1.1: iOS 첫 카드 강제 초기화 + 안전 origin 처리 + >10카테고리 스캔-필터)
+// js/watch.js  (stable 1.0: v1.2와 동일 – iOS에서 영상은 나오고, 자동재생은 정책상 제한)
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { collection, getDocs, query, where, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -58,12 +58,7 @@ let userSoundConsent=false;  // once tapped, unmute policy
 let currentActive=null;
 const winToCard=new Map();
 
-function ytCmd(iframe, func, args=[]){
-  try{
-    if(!iframe?.contentWindow) return;
-    iframe.contentWindow.postMessage(JSON.stringify({event:"command", func, args}), "*");
-  }catch{/* noop */}
-}
+function ytCmd(iframe, func, args=[]){ if(!iframe?.contentWindow) return; iframe.contentWindow.postMessage(JSON.stringify({event:"command", func, args}), "*"); }
 function applyAudioPolicy(iframe){ if(!iframe) return; if(userSoundConsent){ ytCmd(iframe,"setVolume",[100]); ytCmd(iframe,"unMute"); } else { ytCmd(iframe,"mute"); } }
 
 /* player events */
@@ -117,14 +112,6 @@ const activeIO = new IntersectionObserver((entries)=>{
 
 function extractId(url){ const m=String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/); return m?m[1]:url; }
 
-/* 안전한 origin 파라미터 */
-function buildPlayerSrc(id, playerId){
-  const hasValidOrigin = !!(location && location.origin && location.origin !== 'null');
-  const originParam = hasValidOrigin ? `&origin=${encodeURIComponent(location.origin)}` : '';
-  const refParam = `&widget_referrer=${encodeURIComponent(location.href)}`;
-  return `https://www.youtube.com/embed/${id}?enablejsapi=1&playsinline=1&autoplay=1&mute=1&rel=0${originParam}${refParam}&playerapiid=${encodeURIComponent(playerId)}`;
-}
-
 function makeCard(url, docId){
   const id = extractId(url);
   const card = document.createElement('div');
@@ -147,10 +134,15 @@ function makeCard(url, docId){
 function ensureIframe(card, preload=false){
   if(card.querySelector('iframe')) return;
   const id = card.dataset.vid;
+  const origin = encodeURIComponent(location.origin);
   const playerId = `yt-${id}-${Math.random().toString(36).slice(2,8)}`;
   const iframe = document.createElement('iframe');
   iframe.id = playerId;
-  iframe.src = buildPlayerSrc(id, playerId);
+  iframe.src =
+    `https://www.youtube.com/embed/${id}` +
+    `?enablejsapi=1&playsinline=1&autoplay=1&mute=1&rel=0` +
+    `&origin=${origin}&widget_referrer=${encodeURIComponent(location.href)}` +
+    `&playerapiid=${encodeURIComponent(playerId)}`;
   iframe.allow = "autoplay; encrypted-media; picture-in-picture";
   iframe.allowFullscreen = true;
   Object.assign(iframe.style,{ width:"100%", height:"100%", border:"0" });
@@ -161,147 +153,56 @@ function ensureIframe(card, preload=false){
       ytCmd(iframe,"addEventListener",["onStateChange"]);
       winToCard.set(iframe.contentWindow, card);
       if(preload) ytCmd(iframe,"mute");
-    }catch{/* noop */}
+    }catch{}
   });
-  const thumb = card.querySelector('thumb'); // 안전: 잘못된 선택자 방지용
-  const t = card.querySelector('.thumb');
-  t ? card.replaceChild(iframe, t) : card.appendChild(iframe);
-}
-
-/* ----- 첫 카드 강제 머티리얼라이즈 (iOS 안정화 핵심) ----- */
-function ensureFirstCardMaterialized(){
-  const first = videoContainer.querySelector('.video');
-  if(first){
-    currentActive = first;
-    ensureIframe(first, false);
-    const ifr = first.querySelector('iframe');
-    if(ifr){ applyAudioPolicy(ifr); ytCmd(ifr,"playVideo"); }
-  }
+  const thumb = card.querySelector('.thumb');
+  thumb ? card.replaceChild(iframe, thumb) : card.appendChild(iframe);
 }
 
 /* feed */
-const PAGE_SIZE=10;      // 화면에 실제로 추가할 개수
-const SCAN_STEP=60;      // 스캔-필터 모드에서 한 번에 읽는 개수
-
-let isLoading=false, hasMore=true;
-let mode='ALL';          // 'ALL' | 'FILTER' | 'SCAN'
-let lastDocAll=null;     // ALL 모드 커서
-let lastDocFilter=null;  // FILTER 모드 커서(<=10개)
-let lastDocScan=null;    // SCAN 모드 커서(>10개)
+const PAGE_SIZE=10;
+let isLoading=false, hasMore=true, lastDoc=null;
 const loadedIds=new Set();
 
 function resetFeed(){
   document.querySelectorAll('#videoContainer .video').forEach(el=> activeIO.unobserve(el));
-  videoContainer.innerHTML="";
-  isLoading=false; hasMore=true;
-  lastDocAll=null; lastDocFilter=null; lastDocScan=null;
-  loadedIds.clear(); currentActive=null;
+  videoContainer.innerHTML=""; isLoading=false; hasMore=true; lastDoc=null; loadedIds.clear(); currentActive=null;
 }
-
-function intersectSelected(docCats, selectedSet){
-  if(!Array.isArray(docCats) || docCats.length===0) return false;
-  for(const c of docCats){ if(selectedSet.has(c)) return true; }
-  return false;
-}
-
 async function loadMore(initial=false){
   if(isLoading || !hasMore) return;
   isLoading=true;
-
   const selected = getSelectedCats();
   try{
     const base = collection(db,"videos");
-
-    if(selected==="ALL" || !selected){
-      mode='ALL';
-      const parts=[ orderBy("createdAt","desc") ];
-      if(lastDocAll) parts.push(startAfter(lastDocAll));
-      parts.push(limit(PAGE_SIZE));
-      const snap = await getDocs(query(base, ...parts));
-      if(snap.empty){
-        if(initial) videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">영상이 없습니다.</p></div>`;
-        hasMore=false; return;
-      }
-      snap.docs.forEach(d=>{ if(!loadedIds.has(d.id)){ loadedIds.add(d.id); const v=d.data(); videoContainer.appendChild(makeCard(v.url, d.id)); } });
-      lastDocAll = snap.docs[snap.docs.length-1] || lastDocAll;
-
-      if(initial){
-        // DOM 반영 직후 2프레임 뒤에 강제 초기화(사파리 호환)
-        requestAnimationFrame(()=> requestAnimationFrame(ensureFirstCardMaterialized));
-      }
-      if(snap.size < PAGE_SIZE) hasMore=false;
-      return;
-    }
-
-    if(Array.isArray(selected) && selected.length && selected.length<=10){
-      mode='FILTER';
-      const parts=[ where("categories","array-contains-any", selected), orderBy("createdAt","desc"), limit(PAGE_SIZE) ];
-      if(lastDocFilter) parts.push(startAfter(lastDocFilter));
-      const snap = await getDocs(query(base, ...parts));
-      if(snap.empty){
-        if(initial) videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
-        hasMore=false; return;
-      }
-      snap.docs.forEach(d=>{ if(!loadedIds.has(d.id)){ loadedIds.add(d.id); const v=d.data(); videoContainer.appendChild(makeCard(v.url, d.id)); } });
-      lastDocFilter = snap.docs[snap.docs.length-1] || lastDocFilter;
-
-      if(initial){
-        requestAnimationFrame(()=> requestAnimationFrame(ensureFirstCardMaterialized));
-      }
-      if(snap.size < PAGE_SIZE) hasMore=false;
-      return;
-    }
-
-    // >10개 선택: 스캔-필터 모드
-    mode='SCAN';
-    const selectedSet = new Set(Array.isArray(selected) ? selected : []);
-    const picked=[];
-    let localHasMore=true;
-    let protection=0; // 무한루프 보호
-
-    while(picked.length < PAGE_SIZE && localHasMore && protection<5){
-      const parts=[ orderBy("createdAt","desc"), limit(SCAN_STEP) ];
-      if(lastDocScan) parts.push(startAfter(lastDocScan));
-      const snap = await getDocs(query(base, ...parts));
-      if(snap.empty){ localHasMore=false; break; }
-
-      const docs = snap.docs;
-      lastDocScan = docs[docs.length-1] || lastDocScan;
-      if(docs.length < SCAN_STEP) localHasMore=false;
-
-      for(const d of docs){
-        if(picked.length>=PAGE_SIZE) break;
-        if(loadedIds.has(d.id)) continue;
-        const v = d.data();
-        const cats = Array.isArray(v.categories) ? v.categories : [];
-        if(intersectSelected(cats, selectedSet)){
-          loadedIds.add(d.id);
-          picked.push(makeCard(v.url, d.id));
-        }
-      }
-      protection++;
-    }
-
-    if(picked.length===0){
+    const parts=[];
+    if(selected==="ALL" || !selected){ parts.push(orderBy("createdAt","desc")); }
+    else if(Array.isArray(selected) && selected.length){
+      const cats = selected.length>10 ? null : selected;
+      if(cats) parts.push(where("categories","array-contains-any", cats));
+      parts.push(orderBy("createdAt","desc"));
+    }else{ parts.push(orderBy("createdAt","desc")); }
+    if(lastDoc) parts.push(startAfter(lastDoc));
+    parts.push(limit(PAGE_SIZE));
+    const snap = await getDocs(query(base, ...parts));
+    if(snap.empty){
       if(initial) videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
-      hasMore = localHasMore;
-      return;
+      hasMore=false; isLoading=false; return;
     }
-    picked.forEach(card=> videoContainer.appendChild(card));
-    if(initial){
-      requestAnimationFrame(()=> requestAnimationFrame(ensureFirstCardMaterialized));
-    }
-    hasMore = localHasMore;
+    snap.docs.forEach(d=>{
+      if(loadedIds.has(d.id)) return;
+      loadedIds.add(d.id);
+      const data = d.data();
+      videoContainer.appendChild(makeCard(data.url, d.id));
+    });
+    lastDoc = snap.docs[snap.docs.length-1] || lastDoc;
+    if(snap.size < PAGE_SIZE) hasMore=false;
   }catch(e){
     console.error(e);
     if(initial){
       videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">목록을 불러오지 못했습니다.</p></div>`;
     }
-  }finally{
-    isLoading=false;
-  }
+  }finally{ isLoading=false; }
 }
-
 videoContainer.addEventListener('scroll', ()=>{
   const nearBottom = videoContainer.scrollTop + videoContainer.clientHeight >= videoContainer.scrollHeight - 200;
   if(nearBottom) loadMore(false);
