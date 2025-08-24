@@ -1,4 +1,4 @@
-// js/watch.js  (stable 1.0: v1.2와 동일 – iOS에서 영상은 나오고, 자동재생은 정책상 제한)
+// js/watch.js  (stable 1.0: iOS에서 영상은 표시, 자동재생은 정책상 제한)
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { collection, getDocs, query, where, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -177,7 +177,7 @@ async function loadMore(initial=false){
     const parts=[];
     if(selected==="ALL" || !selected){ parts.push(orderBy("createdAt","desc")); }
     else if(Array.isArray(selected) && selected.length){
-      const cats = selected.length>10 ? null : selected;
+      const cats = selected.length>10 ? null : selected; // 10개 초과면 where를 생략(=전체에서 정렬). v1.0 동작.
       if(cats) parts.push(where("categories","array-contains-any", cats));
       parts.push(orderBy("createdAt","desc"));
     }else{ parts.push(orderBy("createdAt","desc")); }
