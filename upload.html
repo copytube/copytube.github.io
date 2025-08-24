@@ -54,15 +54,9 @@
       .btn-clip, .btn-submit{ min-height:110px; }
     }
     .btn-clip{
-      background:#22c55e; color:#fff;
-      font-size:16px;
-      white-space:normal;
-      word-break:keep-all;
+      background:#22c55e; color:#fff; font-size:16px; white-space:normal; word-break:keep-all;
     }
-    .btn-submit{
-      background:#4ea1ff; color:#fff;
-      font-size:16px;
-    }
+    .btn-submit{ background:#4ea1ff; color:#fff; font-size:16px; }
 
     /* 등록 결과/에러 메시지 */
     .msg{ margin-top:10px; font-size:13px; color:#ccc; white-space:pre-line; min-height:1.2em; }
@@ -70,16 +64,12 @@
     /* 도움말 */
     details.help{ margin:10px 0 8px; }
     details.help summary{
-      cursor:pointer; user-select:none; font-weight:800; color:#e5e7eb;
-      list-style: disclosure-closed;
+      cursor:pointer; user-select:none; font-weight:800; color:#e5e7eb; list-style: disclosure-closed;
     }
     details.help[open] summary{ list-style: disclosure-open; }
     .help-body{ margin-top:8px; color:#bfc6ce; font-size:14px; line-height:1.6; }
 
-    /* (숨김) 개인자료 위치 스위치 — 순서 페이지로 대체됨 */
-    .personal-pos{ display:none; }
-
-    /* 카테고리 박스는 인덱스와 동일 밀도 */
+    /* 카테고리 박스 (index와 동일 밀도) */
     .group{
       border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
       padding:8px; margin:8px 0;
@@ -117,7 +107,7 @@
       <a id="signupLink" class="link" href="signup.html">Sign up</a>
       <a id="signinLink" class="link" href="signin.html">Sign in</a>
       <span id="welcome" class="welcome"></span>
-      <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
+      <button id="menuBtn" class="icon" aria-label="menu">三</button>
 
       <!-- 드롭다운 -->
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
@@ -153,23 +143,6 @@
 
       <div id="msgTop" class="msg"></div>
 
-      <!-- 붙여넣기 도움말 -->
-      <details class="help" id="pasteHelp">
-        <summary>붙여넣기 도움말</summary>
-        <div class="help-body">
-          • <b>URL 입력칸</b>에 직접 붙여넣거나, <b>오른쪽 “클립보드 붙여넣기”</b> 버튼을 사용하세요. (브라우저/OS 허용 필요)<br/>
-          • <b>URL 다중등록:</b> 입력칸에 <b>한 줄에 1개의 URL</b>을 넣고, <b>카테고리 선택 후 “등록”</b>을 누르면 모두 등록됩니다.<br/>
-          • 위의 <b>“아래부터/위부터 등록”</b> 옵션으로 등록 순서를 정합니다. (피드는 최신순이라 시리즈는 보통 <b>아래부터</b>가 적합합니다.)<br/><br/>
-          • <b>HTTPS</b> 환경에서만 작동합니다. (GitHub Pages OK)<br/>
-          • <b>iPhone/iPad</b>: 처음 붙여넣기 시 <i>“이 앱에서 붙여넣기 허용”</i> 팝업에서 <b>허용</b> 선택<br/>
-          • <b>안드로이드/데스크탑 Chrome</b>: <b>설정 → 사이트 설정 → 클립보드</b>에서 <code>https://copytube.github.io</code> <b>허용</b><br/>
-          • 또는 <b>길게 누르기 → 붙여넣기</b> 혹은 <code>Ctrl/⌘+V</code>를 사용하셔도 됩니다.
-        </div>
-      </details>
-
-      <!-- (숨김) 개인자료 위치 스위치 — 순서 페이지로 대체됨 -->
-      <div id="personalPosRow" class="personal-pos"></div>
-
       <p style="margin:10px 0 6px;color:#bfc6ce;">카테고리는 <b>최대 3개</b>까지 선택 가능합니다.</p>
       <div id="cats"><!-- JS로 카테고리 렌더링 --></div>
 
@@ -181,9 +154,6 @@
   </main>
 
   <!-- 모듈 스크립트 -->
-  <script type="module" src="js/firebase-init.js"></script>
-  <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/categories.js"></script>
   <script type="module">
     import { auth, db } from './js/firebase-init.js';
     import { onAuthStateChanged } from './js/auth.js';
@@ -191,100 +161,101 @@
     import { CATEGORY_GROUPS } from './js/categories.js';
 
     /* ---------- 상단바/드롭다운 ---------- */
-    const $ = (s)=>document.querySelector(s);
-    const signupLink   = $("#signupLink");
-    const signinLink   = $("#signinLink");
-    const welcome      = $("#welcome");
-    const menuBtn      = $("#menuBtn");
-    const dropdown     = $("#dropdownMenu");
-    const btnSignOut   = $("#btnSignOut");
-    const btnGoUpload  = $("#btnGoUpload");
-    const btnMyUploads = $("#btnMyUploads");
-    const btnAbout     = $("#btnAbout");
+    const signupLink   = document.getElementById("signupLink");
+    const signinLink   = document.getElementById("signinLink");
+    const welcome      = document.getElementById("welcome");
+    const menuBtn      = document.getElementById("menuBtn");
+    const dropdown     = document.getElementById("dropdownMenu");
+    const btnSignOut   = document.getElementById("btnSignOut");
+    const btnGoUpload  = document.getElementById("btnGoUpload");
+    const btnMyUploads = document.getElementById("btnMyUploads");
+    const btnAbout     = document.getElementById("btnAbout");
 
-    let isMenuOpen=false;
-    function openDropdown(){ isMenuOpen=true; dropdown?.classList.remove("hidden"); requestAnimationFrame(()=> dropdown?.classList.add("show")); }
-    function closeDropdown(){ isMenuOpen=false; dropdown?.classList.remove("show"); setTimeout(()=> dropdown?.classList.add("hidden"),180); }
+    let isMenuOpen = false;
+    function openDropdown(){ isMenuOpen = true; dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); }
+    function closeDropdown(){ isMenuOpen = false; dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"), 180); }
 
-    onAuthStateChanged(auth,(user)=>{
-      const loggedIn=!!user;
+    onAuthStateChanged(auth, (user)=>{
+      const loggedIn = !!user;
       signupLink?.classList.toggle("hidden", loggedIn);
       signinLink?.classList.toggle("hidden", loggedIn);
       menuBtn?.classList.toggle("hidden", !loggedIn);
       welcome && (welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "");
       closeDropdown();
     });
-    menuBtn?.addEventListener("click",(e)=>{ e.stopPropagation(); dropdown?.classList.contains("hidden")?openDropdown():closeDropdown(); });
-    document.addEventListener("pointerdown",(e)=>{ if(!dropdown||dropdown.classList.contains("hidden")) return; if(!e.target.closest("#dropdownMenu,#menuBtn")) closeDropdown(); }, true);
-    document.addEventListener("keydown",(e)=>{ if(e.key==="Escape") closeDropdown(); });
-    dropdown?.addEventListener("click",(e)=> e.stopPropagation());
-    btnGoUpload?.addEventListener("click", ()=>{ location.href="upload.html"; closeDropdown(); });
-    btnMyUploads?.addEventListener("click", ()=>{ location.href="manage-uploads.html"; closeDropdown(); });
-    btnAbout?.addEventListener("click", ()=>{ location.href="about.html"; closeDropdown(); });
 
-    /* ---------- 공통 유틸 ---------- */
+    menuBtn?.addEventListener("click",(e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown(); });
+    document.addEventListener('pointerdown',(e)=>{ if(dropdown.classList.contains('hidden')) return; if(!e.target.closest('#dropdownMenu, #menuBtn')) closeDropdown(); }, true);
+    document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDropdown(); });
+    dropdown?.addEventListener("click",(e)=> e.stopPropagation());
+    btnGoUpload?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
+    btnMyUploads?.addEventListener("click", ()=>{ location.href = "manage-uploads.html"; closeDropdown(); });
+    btnAbout?.addEventListener("click", ()=>{ location.href = "about.html"; closeDropdown(); });
+    btnSignOut?.addEventListener("click", async ()=>{ await (await import('./js/auth.js')).signOut(auth); closeDropdown(); });
+
+    /* ---------- 공통 ---------- */
     const GROUP_ORDER_KEY = 'groupOrderV1';
 
-    function loadGroupOrder(){
-      try{
-        const raw = localStorage.getItem(GROUP_ORDER_KEY);
-        const arr = raw ? JSON.parse(raw) : [];
-        return Array.isArray(arr) ? arr : [];
-      }catch{ return []; }
+    function applyGroupOrder(groups){
+      // localStorage의 순서를 기반으로 정렬. 없는 키는 뒤에 기본 순서대로.
+      let saved = null;
+      try{ saved = JSON.parse(localStorage.getItem(GROUP_ORDER_KEY) || 'null'); }catch{}
+      const savedArr = Array.isArray(saved) ? saved : [];
+
+      const index = new Map();
+      savedArr.forEach((k,i)=> index.set(k, i + 1)); // 1부터 시작(가중치)
+      let fallback = savedArr.length + 1;
+      // 기본 순서 보강
+      groups.forEach(g=>{
+        if (!index.has(g.key)){ index.set(g.key, fallback++); }
+      });
+      return groups.slice().sort((a,b)=> (index.get(a.key) - index.get(b.key)));
     }
-    function applyGroupOrder(baseGroups){
-      const order = loadGroupOrder();
-      if(!order.length) return baseGroups.slice(); // 저장 없으면 기본
-      const map = new Map(baseGroups.map(g=>[g.key, g]));
-      const used = new Set();
-      const out = [];
-      for(const k of order){
-        const g = map.get(k);
-        if(g && !used.has(k)){ out.push(g); used.add(k); }
-      }
-      // 남은 그룹(새로 추가된 대분류 등)은 원래 순서를 유지한 채 뒤에 붙임
-      for(const g of baseGroups){
-        if(!used.has(g.key)) out.push(g);
-      }
-      return out;
+
+    /* ---------- 업로드 전용 ---------- */
+    const $ = sel => document.querySelector(sel);
+    const catsBox = $('#cats');
+    const msg     = $('#msg');
+    const msgTop  = $('#msgTop');
+    const urlsBox = $('#urls');
+
+    function setMsg(text){
+      if (msgTop) msgTop.textContent = text || '';
+      if (msg)    msg.textContent    = text || '';
     }
 
     function getPersonalLabels(){
       try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }catch{ return {}; }
     }
-    function setPersonalLabel(key,label){
-      const labels=getPersonalLabels(); labels[key]=label;
+    function setPersonalLabel(key, label){
+      const labels = getPersonalLabels();
+      labels[key] = label;
       localStorage.setItem('personalLabels', JSON.stringify(labels));
-    }
-
-    /* ---------- 카테고리 렌더 ---------- */
-    const catsBox = $("#cats");
-    const msgTop  = $("#msgTop");
-    const msg     = $("#msg");
-    const urlsBox = $("#urls");
-
-    function setMsg(text){
-      if(msgTop) msgTop.textContent = text || '';
-      if(msg)    msg.textContent    = text || '';
     }
 
     function renderCats(){
       const personalLabels = getPersonalLabels();
-      // ★ 여기서 저장된 순서를 적용
+      // ✅ 저장된 그룹 순서 적용
       const groups = applyGroupOrder(CATEGORY_GROUPS);
 
       const html = groups.map(g=>{
         const kids = g.children.map(c=>{
-          const isPersonal   = (g.key==='personal');
-          const defLabel     = (c.value==='personal1') ? '자료1'
-                              : (c.value==='personal2') ? '자료2'
-                              : c.label;
-          const labelText    = isPersonal && personalLabels[c.value] ? personalLabels[c.value] : defLabel;
-          const renameBtn    = isPersonal ? `<button class="rename-btn" data-key="${c.value}" type="button">이름변경</button>` : '';
+          const isPersonal   = (g.key === 'personal');
+          const defaultLabel = (c.value === 'personal1') ? '자료1'
+                             : (c.value === 'personal2') ? '자료2'
+                             : c.label;
+          const labelText    = isPersonal && personalLabels[c.value] ? personalLabels[c.value] : defaultLabel;
+
+          const renameBtn    = isPersonal
+            ? `<button class="rename-btn" data-key="${c.value}" type="button">이름변경</button>`
+            : '';
+
           return `<label><input type="checkbox" class="cat" value="${c.value}"> ${labelText}${renameBtn}</label>`;
         }).join('');
 
-        const legend = (g.key==='personal') ? `${g.label} <span class="subnote">(로컬저장소)</span>` : g.label;
+        const legend = (g.key === 'personal')
+          ? `${g.label} <span class="subnote">(로컬저장소)</span>`
+          : g.label;
 
         return `
           <fieldset class="group" data-key="${g.key}">
@@ -296,14 +267,14 @@
 
       catsBox.innerHTML = html;
 
-      // 이름변경(개인자료)
+      // 개인자료 이름변경
       catsBox.querySelectorAll('.rename-btn').forEach(btn=>{
         btn.addEventListener('click', ()=>{
           const key = btn.getAttribute('data-key');
-          const cur = getPersonalLabels()[key] || (key==='personal1'?'자료1':'personal2'?'자료2':'자료');
+          const cur = getPersonalLabels()[key] || (key==='personal1'?'자료1':'자료2');
           const name = prompt('개인자료 이름을 입력하세요 (최대 12자):', cur);
           const clean = (name||'').trim().slice(0,12).replace(/[<>"]/g,'');
-          if(!clean) return;
+          if (!clean) return;
           setPersonalLabel(key, clean);
           renderCats();
         });
@@ -314,8 +285,8 @@
       catsBox.querySelectorAll('input.cat').forEach(chk=>{
         chk.addEventListener('change', ()=>{
           const checked = Array.from(catsBox.querySelectorAll('input.cat:checked'))
-            .filter(x=> x.value!=='personal1' && x.value!=='personal2');
-          if(checked.length > limit){
+            .filter(x => x.value !== 'personal1' && x.value !== 'personal2');
+          if (checked.length > limit){
             chk.checked = false;
             alert(`카테고리는 최대 ${limit}개까지 선택 가능합니다.`);
           }
@@ -324,12 +295,18 @@
     }
     renderCats();
 
-    /* ---------- 붙여넣기 ---------- */
+    function extractId(url){
+      const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
+      return m ? m[1] : '';
+    }
+    function parseInputUrls(){
+      return urlsBox.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    }
     async function pasteFromClipboard(){
       try{
         const txt = await navigator.clipboard.readText();
-        if(!txt){ setMsg('클립보드에 텍스트가 없습니다.'); return; }
-        if(urlsBox.value.trim()){
+        if(!txt) { setMsg('클립보드에 텍스트가 없습니다.'); return; }
+        if (urlsBox.value.trim()){
           urlsBox.value = urlsBox.value.replace(/\s*$/,'') + '\n' + txt.trim();
         }else{
           urlsBox.value = txt.trim();
@@ -338,15 +315,6 @@
       }catch(e){
         setMsg('클립보드 접근이 차단되었습니다. 브라우저 설정에서 허용해 주세요.');
       }
-    }
-
-    /* ---------- 업로드 ---------- */
-    function extractId(url){
-      const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
-      return m ? m[1] : '';
-    }
-    function parseInputUrls(){
-      return urlsBox.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
     }
 
     async function submitAll(){
@@ -364,28 +332,28 @@
       if(categories.length > 3){ setMsg('카테고리는 최대 3개까지 선택 가능합니다.'); return; }
 
       const order = (document.querySelector('input[name="order"]:checked')?.value || 'bottom');
-      const list = (order==='bottom') ? urls.slice().reverse() : urls.slice();
+      const list = (order === 'bottom') ? urls.slice().reverse() : urls.slice();
 
-      let ok=0, fail=0;
+      let ok = 0, fail = 0;
       for(const url of list){
         const id = extractId(url);
         if(!id){ fail++; continue; }
         try{
           await addDoc(collection(db,'videos'), {
-            url, categories, uid: user.uid, createdAt: serverTimestamp()
+            url: url, categories, uid: user.uid, createdAt: serverTimestamp()
           });
           ok++;
         }catch(e){ fail++; }
       }
 
       setMsg(`등록 완료: ${ok}건 성공, ${fail}건 실패`);
-      document.querySelectorAll('.cat:checked').forEach(ch => ch.checked=false);
-      urlsBox.value='';
+      document.querySelectorAll('.cat:checked').forEach(ch => ch.checked = false);
+      urlsBox.value = '';
     }
 
-    document.getElementById('btnPaste').addEventListener('click', pasteFromClipboard);
-    document.getElementById('btnSubmitTop').addEventListener('click', submitAll);
-    document.getElementById('btnSubmitBottom').addEventListener('click', submitAll);
+    document.getElementById('btnPaste')        .addEventListener('click', pasteFromClipboard);
+    document.getElementById('btnSubmitTop')    .addEventListener('click', submitAll);
+    document.getElementById('btnSubmitBottom') .addEventListener('click', submitAll);
   </script>
 </body>
 </html>
