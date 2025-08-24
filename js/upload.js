@@ -1,7 +1,8 @@
-// js/upload.js v1.2
-import { auth, db } from './firebase-init.js';
+// js/upload.js v1.2.1
+import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+import { db } from './firebase-init.js';
 import { CATEGORY_GROUPS } from './categories.js';
 
 const $ = s => document.querySelector(s);
@@ -28,7 +29,6 @@ onAuthStateChanged(auth, (user)=>{
   welcome && (welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : '');
   closeDropdown();
 });
-
 menuBtn?.addEventListener('click',(e)=>{ e.stopPropagation(); dropdown?.classList.contains('hidden')?openDropdown():closeDropdown(); });
 document.addEventListener('pointerdown',(e)=>{ if(!dropdown || dropdown.classList.contains('hidden')) return; if(!e.target.closest('#dropdownMenu,#menuBtn')) closeDropdown(); }, true);
 document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDropdown(); });
@@ -39,19 +39,22 @@ btnAbout?.addEventListener('click', ()=>{ location.href='about.html'; closeDropd
 btnSignOut?.addEventListener('click', async ()=>{ await fbSignOut(auth); closeDropdown(); });
 
 /* ---------- 그룹 순서 적용 ---------- */
-const GROUP_ORDER_KEY='groupOrderV1';
+const GROUP_ORDER_KEY = 'groupOrderV1';
 function getStoredOrder(){
-  try{ const arr=JSON.parse(localStorage.getItem(GROUP_ORDER_KEY)||'[]'); return Array.isArray(arr)?arr:[]; }
-  catch{ return []; }
+  try{
+    const raw = localStorage.getItem(GROUP_ORDER_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  }catch{ return []; }
 }
 function applyGroupOrder(groups){
-  const stored=getStoredOrder();
-  if(!stored.length) return groups.slice();
-  const byKey=new Map(groups.map(g=>[g.key,g]));
-  const out=stored.map(k=>byKey.get(k)).filter(Boolean);
-  // 새로 추가된 그룹은 맨 뒤에 유지
-  groups.forEach(g=>{ if(!stored.includes(g.key)) out.push(g); });
-  return out;
+  const order = getStoredOrder();
+  if (!order.length) return groups.slice(); // 저장 없으면 기본
+  const byKey = new Map(groups.map(g => [g.key, g]));
+  const sorted = order.map(k => byKey.get(k)).filter(Boolean);
+  // 새로 생긴 그룹(키 추가)은 맨 뒤로
+  groups.forEach(g => { if (!order.includes(g.key)) sorted.push(g); });
+  return sorted;
 }
 
 /* ---------- 개인자료 라벨 ---------- */
@@ -76,6 +79,12 @@ function setMsg(text){ if(msgTop) msgTop.textContent=text||''; if(msg) msg.textC
 function renderCats(){
   const personalLabels = getPersonalLabels();
   const groups = applyGroupOrder(CATEGORY_GROUPS);
+
+  // 디버그(확인 후 지워도 됨)
+  try{
+    console.debug('[upload] groupOrder:', localStorage.getItem(GROUP_ORDER_KEY));
+    console.debug('[upload] groups used:', groups.map(g=>g.key));
+  }catch{}
 
   const html = groups.map(g=>{
     const kids = g.children.map(c=>{
@@ -175,7 +184,6 @@ async function submitAll(){
   }
   setMsg(`등록 완료: ${ok}건 성공, ${fail}건 실패`);
 
-  // 초기화
   document.querySelectorAll('.cat:checked').forEach(ch=> ch.checked=false);
   urlsBox.value='';
 }
@@ -184,3 +192,6 @@ async function submitAll(){
 document.getElementById('btnPaste')?.addEventListener('click', pasteFromClipboard);
 document.getElementById('btnSubmitTop')?.addEventListener('click', submitAll);
 document.getElementById('btnSubmitBottom')?.addEventListener('click', submitAll);
+
+// 콘솔에서 확인용(선택): window.__order()
+try{ window.__order = () => JSON.parse(localStorage.getItem(GROUP_ORDER_KEY) || 'null'); }catch{}
