@@ -86,6 +86,7 @@ export const CATEGORY_GROUPS = [
       { value: 'foodie',   label: '맛집' },
       { value: 'travel',   label: '여행' },
       { value: 'activity', label: '액티비티' },
+      { value: 'proart',    label: '예술' },
       { value: 'hobby',    label: '취미' },
       { value: 'making',     label: '만들기' },
       { value: 'mobility',     label: '모빌리티' },
