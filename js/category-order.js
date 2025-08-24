@@ -1,122 +1,135 @@
 // js/category-order.js
-import { CATEGORY_GROUPS } from './categories.js?v=20250820';
+import { CATEGORY_GROUPS } from './categories.js';
 import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 
-/* ---------- 상단바 ---------- */
-const $ = s => document.querySelector(s);
-const signupLink   = $('#signupLink');
-const signinLink   = $('#signinLink');
-const welcome      = $('#welcome');
-const menuBtn      = $('#menuBtn');
-const dropdown     = $('#dropdownMenu');
-const btnSignOut   = $('#btnSignOut');
-const btnGoUpload  = $('#btnGoUpload');
-const btnMyUploads = $('#btnMyUploads');
-const btnAbout     = $('#btnAbout');
-const brandHome    = $('#brandHome');
+const GROUP_ORDER_KEY = 'groupOrder.v1';
+const LEGACY_KEYS = ['groupOrder']; // 혹시 예전 키로 저장된 경우 대비
+
+/* ---------- 상단바(공용) ---------- */
+const signupLink   = document.getElementById("signupLink");
+const signinLink   = document.getElementById("signinLink");
+const welcome      = document.getElementById("welcome");
+const menuBtn      = document.getElementById("menuBtn");
+const dropdown     = document.getElementById("dropdownMenu");
+const btnSignOut   = document.getElementById("btnSignOut");
+const btnGoUpload  = document.getElementById("btnGoUpload");
+const btnMyUploads = document.getElementById("btnMyUploads");
+const btnAbout     = document.getElementById("btnAbout");
 
 let isMenuOpen = false;
-function openDropdown(){ isMenuOpen = true; dropdown?.classList.remove('hidden'); requestAnimationFrame(()=> dropdown?.classList.add('show')); }
-function closeDropdown(){ isMenuOpen = false; dropdown?.classList.remove('show'); setTimeout(()=> dropdown?.classList.add('hidden'), 180); }
+function openDropdown(){ isMenuOpen = true; dropdown?.classList.remove("hidden"); requestAnimationFrame(()=> dropdown?.classList.add("show")); }
+function closeDropdown(){ isMenuOpen = false; dropdown?.classList.remove("show"); setTimeout(()=> dropdown?.classList.add("hidden"), 180); }
+
 onAuthStateChanged(auth, (user)=>{
   const loggedIn = !!user;
   signupLink?.classList.toggle("hidden", loggedIn);
   signinLink?.classList.toggle("hidden", loggedIn);
   welcome && (welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : "");
+  menuBtn?.classList.remove("hidden");
   closeDropdown();
 });
 menuBtn?.addEventListener("click", (e)=>{ e.stopPropagation(); dropdown?.classList.contains("hidden") ? openDropdown() : closeDropdown(); });
 document.addEventListener('pointerdown', (e)=>{ if (dropdown?.classList.contains('hidden')) return; if (!e.target.closest('#dropdownMenu, #menuBtn')) closeDropdown(); }, true);
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
 dropdown?.addEventListener("click", (e)=> e.stopPropagation());
-btnMyUploads ?.addEventListener("click", ()=>{ location.href = "manage-uploads.html"; closeDropdown(); });
-btnGoUpload  ?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
+function goOrSignIn(path){ auth.currentUser ? (location.href = path) : (location.href = 'signin.html'); }
+btnMyUploads ?.addEventListener("click", ()=>{ goOrSignIn("manage-uploads.html"); closeDropdown(); });
+btnGoUpload  ?.addEventListener("click", ()=>{ goOrSignIn("upload.html"); closeDropdown(); });
 btnAbout     ?.addEventListener("click", ()=>{ location.href = "about.html"; closeDropdown(); });
-btnSignOut   ?.addEventListener("click", async ()=>{ await fbSignOut(auth); closeDropdown(); });
-brandHome    ?.addEventListener("click", (e)=>{ e.preventDefault(); location.href = "index.html"; });
+btnSignOut   ?.addEventListener("click", async ()=>{ if (!auth.currentUser){ location.href = 'signin.html'; return; } await fbSignOut(auth); closeDropdown(); });
 
-/* ---------- 순서 상태 ---------- */
-const DEFAULT_ORDER = CATEGORY_GROUPS.map(g=>g.key);
-function readOrderRaw(){
-  try { return JSON.parse(localStorage.getItem('categoryOrder') || 'null'); }
-  catch { return null; }
-}
-function normalizeOrder(raw){
-  const known = new Set(DEFAULT_ORDER);
-  let arr = Array.isArray(raw) ? raw.filter(k=>known.has(k)) : [];
-  DEFAULT_ORDER.forEach(k=>{ if(!arr.includes(k)) arr.push(k); });
-  return arr;
+/* ---------- 로컬 저장 ---------- */
+function getSavedOrder(){
+  try{
+    const v = localStorage.getItem(GROUP_ORDER_KEY);
+    if (v) return JSON.parse(v);
+    // fallback
+    for (const k of LEGACY_KEYS){
+      const lv = localStorage.getItem(k);
+      if (lv) return JSON.parse(lv);
+    }
+  }catch{}
+  return null;
 }
 function saveOrder(arr){
-  try{ localStorage.setItem('categoryOrder', JSON.stringify(arr)); }catch{}
+  localStorage.setItem(GROUP_ORDER_KEY, JSON.stringify(arr));
+  localStorage.setItem(GROUP_ORDER_KEY + '.ts', String(Date.now()));
+}
+function defaultOrder(){
+  return CATEGORY_GROUPS.map(g => g.key);
 }
 
-/* ---------- UI 리스트 ---------- */
-const leftList  = $('#leftList');
-const rightList = $('#rightList');
-const btnReset  = $('#btnReset');
-const btnApply  = $('#btnApply');
+/* ---------- UI 상태 ---------- */
+const leftListEl  = document.getElementById('leftList');
+const rightListEl = document.getElementById('rightList');
+const btnReset    = document.getElementById('btnReset');
+const btnConfirm  = document.getElementById('btnConfirm');
+const msgEl       = document.getElementById('msg');
 
-// 기준 순서(페이지 진입 시점) — 리셋할 때 이걸로 복귀
-const baseline = normalizeOrder(readOrderRaw());
+const initialOrder = getSavedOrder() || defaultOrder();
+const keyToInitialIndex = new Map(initialOrder.map((k, i) => [k, i]));
 
-// 동적 상태
-let left  = baseline.slice(); // 왼쪽에 남아있는 키들 (현재 상태)
-let right = [];               // 오른쪽으로 보낸 키들 (현재 상태)
+// 시작 상태: 모두 왼쪽(현재 순서), 오른쪽 비움
+let left  = initialOrder.slice();
+let right = [];
 
-/* 원래 위치로 되돌릴 때, '기준 순서' 내 상대 위치 유지 삽입 */
-function moveRight(key){
-  const i = left.indexOf(key);
-  if (i>-1){ left.splice(i,1); right.push(key); render(); }
-}
-function moveLeft(key){
-  const j = right.indexOf(key);
-  if (j>-1){
-    right.splice(j,1);
-    // baseline에서 이 key 다음으로 오는, 아직 LEFT에 남아있는 첫 키를 찾아 그 앞에 삽입
-    const afterKeys = baseline.slice(baseline.indexOf(key)+1);
-    let insertIdx = left.length;
-    for (const k of afterKeys){
-      const p = left.indexOf(k);
-      if (p>-1){ insertIdx = p; break; }
-    }
-    left.splice(insertIdx, 0, key);
-    render();
-  }
-}
-
-function render(){
-  leftList.innerHTML  = left .map(k => itemHTML(k)).join('');
-  rightList.innerHTML = right.map(k => itemHTML(k)).join('');
-
-  leftList.querySelectorAll('.item').forEach(el=>{
-    el.addEventListener('click', ()=> moveRight(el.dataset.key));
-  });
-  rightList.querySelectorAll('.item').forEach(el=>{
-    el.addEventListener('click', ()=> moveLeft(el.dataset.key));
-  });
-}
+/* ---------- 렌더링 ---------- */
 function labelOf(key){
-  const g = CATEGORY_GROUPS.find(x=>x.key===key);
+  const g = CATEGORY_GROUPS.find(x => x.key === key);
   return g ? g.label : key;
 }
-function itemHTML(key){
-  return `<div class="item" data-key="${key}">${labelOf(key)}</div>`;
-}
+function render(){
+  leftListEl.innerHTML  = left .map(k => `<div class="item" data-k="${k}">${labelOf(k)}</div>`).join('');
+  rightListEl.innerHTML = right.map(k => `<div class="item" data-k="${k}">${labelOf(k)}</div>`).join('');
 
+  // 왼쪽 → 오른쪽
+  leftListEl.querySelectorAll('.item').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const k = el.dataset.k;
+      const i = left.indexOf(k);
+      if (i > -1){
+        left.splice(i,1);
+        right.push(k);
+        render();
+      }
+    });
+  });
+
+  // 오른쪽 → 왼쪽(원래 자리 기준으로 정렬 복귀)
+  rightListEl.querySelectorAll('.item').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const k = el.dataset.k;
+      const i = right.indexOf(k);
+      if (i > -1){
+        right.splice(i,1);
+        left.push(k);
+        // 왼쪽은 초기 인덱스 순으로 재정렬
+        left.sort((a,b)=> (keyToInitialIndex.get(a) ?? 999) - (keyToInitialIndex.get(b) ?? 999));
+        render();
+      }
+    });
+  });
+}
+render();
+
+/* ---------- 동작 ---------- */
 btnReset.addEventListener('click', ()=>{
-  // 최근 저장된 순서(= baseline) 기준으로 모두 LEFT로
-  left  = baseline.slice();
+  const recent = getSavedOrder() || defaultOrder();
+  left  = recent.slice(); // 모두 왼쪽
   right = [];
+  // 초기 인덱스 맵 갱신 (최근 상태 기준으로 돌아가게)
+  keyToInitialIndex.clear();
+  recent.forEach((k,i)=> keyToInitialIndex.set(k,i));
   render();
+  msgEl.textContent = '최근 적용된 순서로 리셋되었습니다.';
 });
-btnApply.addEventListener('click', ()=>{
+
+btnConfirm.addEventListener('click', ()=>{
+  // 새 순서 = 오른쪽(사용자 지정) + 왼쪽(남은 것들)
   const finalOrder = right.concat(left);
   saveOrder(finalOrder);
-  // 적용 후 index로 이동
+  msgEl.textContent = '저장 완료! 적용 중…';
+  // index로 이동
   location.href = 'index.html';
 });
-
-// 초기도면
-render();
