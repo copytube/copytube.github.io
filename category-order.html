@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>카테고리 순서 세팅 - CopyTube</title>
 
+  <!-- CSP -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
@@ -17,82 +18,59 @@
   ">
 
   <link rel="stylesheet" href="css/style.css"/>
-  <script>
-/* 실패 시 메모리로 폴백하는 안전 저장소 */
-const safeStorage = (() => {
-  try {
-    const k = '__probe__';
-    localStorage.setItem(k, '1');
-    localStorage.removeItem(k);
-    return localStorage;          // 정상: 진짜 localStorage 사용
-  } catch {
-    // 실패: 메모리 맵으로 대체(새로고침하면 사라짐)
-    const mem = new Map();
-    return {
-      getItem: k => (mem.has(k) ? mem.get(k) : null),
-      setItem: (k, v) => mem.set(k, String(v)),
-      removeItem: k => mem.delete(k),
-    };
-  }
-})();
-
-function saveJSON(key, value){
-  try { safeStorage.setItem(key, JSON.stringify(value)); } catch {}
-}
-function loadJSON(key, fallback){
-  try {
-    const v = safeStorage.getItem(key);
-    return v ? JSON.parse(v) : fallback;
-  } catch { return fallback; }
-}
-
-/* 예시:
-   const selected = loadJSON('selectedCats', "ALL");
-   saveJSON('selectedCats', selected);
-*/
-</script>
-
   <style>
     body{ padding-top:72px; }
     main{ max-width:980px; margin:0 auto; padding:16px; }
 
-    .lead{ font-size:20px; margin:4px 0 8px; color:#e6e6e6; }
-    .sub{ font-size:13px; color:#9aa0a6; margin:0 0 12px; }
+    .hint{ color:#9aa0a6; font-size:14px; margin:6px 0 12px; }
 
     .grid{
       display:grid;
-      grid-template-columns: 1fr 120px 1fr; /* 좌 | 가운데 화살/리셋 | 우 */
+      grid-template-columns: 1fr 120px 1fr;
       gap:12px;
       align-items:start;
     }
 
     .col{
       border:1px solid var(--border);
-      border-radius:10px; background:#0f0f0f;
-      padding:10px; min-height:260px;
+      background:#101010;
+      border-radius:10px;
+      min-height:220px;
+      padding:10px;
     }
-    .title{ font-weight:800; font-size:14px; color:#e6e6e6; margin:0 0 8px; }
-    .list{ display:flex; flex-direction:column; gap:6px; }
-
+    .col h3{
+      margin:0 0 8px;
+      font-size:16px;
+    }
+    .list{
+      display:flex; flex-direction:column; gap:6px;
+    }
     .item{
-      display:flex; align-items:center; gap:8px; padding:10px 12px;
-      background:#111; border:1px solid #2a2a2a; color:#e5e7eb; border-radius:8px;
-      cursor:pointer; user-select:none;
+      background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px;
+      padding:8px 10px; cursor:pointer; user-select:none;
     }
-    .item:hover{ background:#151515; }
+    .item:hover{ border-color:#3a3a3a; }
 
     .mid{
       display:flex; flex-direction:column; align-items:center; gap:10px;
     }
-    .btn{
-      padding:10px 14px; border:1px solid #2a2a2a; border-radius:8px; background:#111; color:#e5e7eb; cursor:pointer; font-weight:800;
-      width:100%;
+    .arrow{
+      width:40px; height:40px; border-radius:10px; border:1px solid #2a2a2a;
+      background:#151515; color:#ddd; display:flex; align-items:center; justify-content:center;
+      font-size:18px; user-select:none;
     }
-    .btn-primary{ background:#4ea1ff; color:#fff; border:0; }
-    .row-right{ display:flex; justify-content:flex-end; margin-top:12px; }
+    .reset{
+      margin-top:auto;
+      padding:8px 12px; border-radius:8px; border:1px solid #2a2a2a; background:#111; color:#fff; cursor:pointer;
+    }
+
+    .row-right{ margin-top:12px; display:flex; justify-content:flex-end; }
+    .btn-primary{ background:#4ea1ff; color:#fff; font-weight:800; border:0; border-radius:8px; padding:10px 16px; cursor:pointer; }
+    .msg{ margin-top:8px; min-height:1.2em; color:#ccc; font-size:13px; white-space:pre-line; }
   </style>
 </head>
 <body>
+  <!-- 상단바 -->
   <header id="topbar">
     <div class="brand">
       <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
@@ -114,36 +92,35 @@ function loadJSON(key, fallback){
   </header>
 
   <main>
-    <h2 style="margin:6px 0 10px;">카테고리 순서 세팅</h2>
-    <p class="sub">원하는 카테고리를 <b>오른쪽으로 차례대로</b> 보내고, <b>확인</b>을 누르세요. 오른쪽으로 보낸 순서가 먼저 적용되고, 남은 항목은 왼쪽에 남은 순서대로 뒤에 이어집니다.</p>
+    <h2>카테고리 순서 세팅</h2>
+    <p class="hint">왼쪽 목록에서 <b>위에서부터 차례대로</b> 눌러 오른쪽으로 보낸 뒤, 아래의 <b>확인</b>을 누르세요.<br/>오른쪽으로 보낸 항목이 새 순서가 되고, <b>선택하지 않은 항목은 남은 순서대로</b> 뒤에 이어집니다.</p>
 
     <div class="grid">
-      <!-- 왼쪽: 현재(기준) 순서 -->
       <div class="col">
-        <div class="title">현재 순서</div>
+        <h3>현재 순서</h3>
         <div id="leftList" class="list"></div>
       </div>
 
-      <!-- 가운데: 화살표(표식) + 리셋 -->
       <div class="mid">
-        <button id="hint" class="btn" type="button" disabled>→</button>
-        <button id="btnReset" class="btn" type="button">Reset</button>
+        <div class="arrow">→</div>
+        <button id="btnReset" class="reset" type="button">Reset</button>
       </div>
 
-      <!-- 오른쪽: 새 순서(비어있음) -->
       <div class="col">
-        <div class="title">새 순서(여기에 쌓이게)</div>
+        <h3>새 순서(여기로 보냄)</h3>
         <div id="rightList" class="list"></div>
       </div>
     </div>
 
     <div class="row-right">
-      <button id="btnApply" class="btn btn-primary" type="button">확인</button>
+      <button id="btnConfirm" class="btn-primary" type="button">확인</button>
     </div>
+    <div id="msg" class="msg"></div>
   </main>
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/category-order.js?v=20250822"></script>
+  <script type="module" src="js/categories.js"></script>
+  <script type="module" src="js/category-order.js?v=20250824"></script>
 </body>
 </html>
