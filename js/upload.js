@@ -1,5 +1,8 @@
 // js/upload.js
-// 업로드 페이지 전용 스크립트
+// 업로드 페이지 전용 스크립트 (대분류 사용자순서 적용 + 개인자료 이름변경)
+// - 카테고리 대분류 순서는 localStorage('groupOrder.v1')를 따름
+// - 개인자료 이름변경(localStorage('personalLabels')) 지원
+// - 개인자료 위치(top/bottom)는 더 이상 사용하지 않음
 
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
@@ -9,26 +12,6 @@ import {
   serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 import { CATEGORY_GROUPS } from './categories.js';
-// === [Order] 대분류(그룹) 순서 로컬 저장/적용 헬퍼 ===
-const ORDER_KEY = 'categoryOrderV1';
-
-function getSavedGroupOrder(){
-  try { return JSON.parse(localStorage.getItem(ORDER_KEY) || 'null'); }
-  catch { return null; }
-}
-
-function applyGroupOrder(groups){
-  const ord = getSavedGroupOrder();
-  if (!Array.isArray(ord) || !ord.length) return groups.slice(); // 저장 없으면 기본 순서
-  const rank = new Map(ord.map((key, i) => [key, i]));
-  // 저장된 키는 순위대로, 저장에 없는 키는 뒤쪽에 원래 순서 유지
-  return groups.slice().sort((a, b) => {
-    const ra = rank.has(a.key) ? rank.get(a.key) : 1e9;
-    const rb = rank.has(b.key) ? rank.get(b.key) : 1e9;
-    return ra - rb;
-  });
-}
-
 
 const $ = (s) => document.querySelector(s);
 
@@ -60,7 +43,7 @@ onAuthStateChanged(auth, (user)=>{
   signupLink?.classList.toggle('hidden', loggedIn);
   signinLink?.classList.toggle('hidden', loggedIn);
   menuBtn?.classList.toggle('hidden', !loggedIn);
-  welcome && (welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : '');
+  if (welcome) welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : '';
   closeDropdown();
 });
 
@@ -84,7 +67,42 @@ btnSignOut?.addEventListener('click', async ()=>{
   closeDropdown();
 });
 
-/* -------------------- 개인자료 라벨/위치 -------------------- */
+/* -------------------- 메시지 헬퍼 -------------------- */
+const catsBox   = $('#cats');
+const msg       = $('#msg');
+const msgTop    = $('#msgTop');
+const urlsBox   = $('#urls');
+
+function setMsg(text){
+  if (msgTop) msgTop.textContent = text || '';
+  if (msg)    msg.textContent    = text || '';
+}
+
+/* -------------------- 대분류 순서(로컬 저장) -------------------- */
+const GROUP_ORDER_KEY = 'groupOrder.v1';
+
+function getSavedGroupOrder(){
+  try { return JSON.parse(localStorage.getItem(GROUP_ORDER_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function applyGroupOrder(groups){
+  // 저장된 key 배열로 재정렬, 저장에 없는 새 그룹은 뒤에 이어붙임
+  const order = getSavedGroupOrder();
+  if (!Array.isArray(order) || order.length === 0) return groups.slice();
+
+  const map = new Map(groups.map(g => [g.key, g]));
+  const out = [];
+  for (const k of order){
+    const g = map.get(k);
+    if (g){ out.push(g); map.delete(k); }
+  }
+  // 남은(새로 추가된) 그룹은 기본 순서대로 뒤에
+  for (const g of map.values()) out.push(g);
+  return out;
+}
+
+/* -------------------- 개인자료 라벨 -------------------- */
 function getPersonalLabels(){
   try { return JSON.parse(localStorage.getItem('personalLabels') || '{}'); }
   catch { return {}; }
@@ -94,38 +112,24 @@ function setPersonalLabel(key, label){
   labels[key] = label;
   localStorage.setItem('personalLabels', JSON.stringify(labels));
 }
-function getPersonalPosition(){
-  const v = localStorage.getItem('personalPosition');
-  return v === 'top' ? 'top' : 'bottom';
-}
-function setPersonalPosition(pos){
-  localStorage.setItem('personalPosition', pos === 'top' ? 'top' : 'bottom');
-}
+
+/* -------------------- 개인자료 위치 UI 숨김(기능 폐기) -------------------- */
+const personalPosRow = document.getElementById('personalPosRow');
+if (personalPosRow) personalPosRow.style.display = 'none';
 
 /* -------------------- 카테고리 렌더 -------------------- */
-const catsBox   = $('#cats');
-const msg       = $('#msg');
-const msgTop    = $('#msgTop'); // 🔼 추가
-const urlsBox   = $('#urls');
-
-// 공통 메시지 헬퍼 🔼 추가
-function setMsg(text){
-  if (msgTop) msgTop.textContent = text || '';
-  if (msg)    msg.textContent    = text || '';
-}
-
 function renderCats(){
   const personalLabels = getPersonalLabels();
 
-  // 저장된 순서 적용(없으면 categories.js 기본 순서)
+  // 저장된 대분류 순서 적용(없으면 categories.js 기본 순서)
   const groups = applyGroupOrder(CATEGORY_GROUPS);
 
   const html = groups.map(g=>{
     const kids = g.children.map(c=>{
       const isPersonal   = (g.key === 'personal');
       const defaultLabel = (c.value === 'personal1') ? '자료1'
-                         : (c.value === 'personal2') ? '자료2'
-                         : c.label;
+                       : (c.value === 'personal2') ? '자료2'
+                       : c.label;
       const labelText    = isPersonal && personalLabels[c.value] ? personalLabels[c.value] : defaultLabel;
 
       const renameBtn    = isPersonal
@@ -149,37 +153,7 @@ function renderCats(){
 
   catsBox.innerHTML = html;
 
-  // 이름변경(개인자료)
-  catsBox.querySelectorAll('.rename-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const key = btn.getAttribute('data-key');
-      const cur = getPersonalLabels()[key] || (key==='personal1'?'자료1':'자료2');
-      const name = prompt('개인자료 이름을 입력하세요 (최대 12자):', cur);
-      const clean = (name||'').trim().slice(0,12).replace(/[<>"]/g,'');
-      if (!clean) return;
-      setPersonalLabel(key, clean);
-      renderCats();
-    });
-  });
-
-  // 카테고리 3개 제한(개인자료 제외)
-  const limit = 3;
-  catsBox.querySelectorAll('input.cat').forEach(chk=>{
-    chk.addEventListener('change', ()=>{
-      const checked = Array.from(catsBox.querySelectorAll('input.cat:checked'))
-        .filter(x => x.value !== 'personal1' && x.value !== 'personal2');
-      if (checked.length > limit){
-        chk.checked = false;
-        alert(`카테고리는 최대 ${limit}개까지 선택 가능합니다.`);
-      }
-    });
-  });
-}
-
-
-  catsBox.innerHTML = html;
-
-  // 이름변경
+  // 개인자료 이름변경
   catsBox.querySelectorAll('.rename-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const key = btn.getAttribute('data-key');
@@ -207,28 +181,13 @@ function renderCats(){
 }
 renderCats();
 
-/* 개인자료 위치 스위치 UI 초기화 */
-(function initPersonalPosUI(){
-  const row = $('#personalPosRow');
-  if (!row) return;
-  const cur = getPersonalPosition();
-  const el  = row.querySelector(`input[name="personalPos"][value="${cur}"]`);
-  if (el) el.checked = true;
-  row.querySelectorAll('input[name="personalPos"]').forEach(r=>{
-    r.addEventListener('change', (e)=>{
-      setPersonalPosition(e.target.value);
-      renderCats();
-    });
-  });
-})();
-
 /* -------------------- 붙여넣기 / 파싱 / 업로드 -------------------- */
 function extractId(url){
   const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
   return m ? m[1] : '';
 }
 function parseInputUrls(){
-  return urlsBox.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  return (urlsBox?.value || '').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
 }
 async function pasteFromClipboard(){
   try{
@@ -270,7 +229,7 @@ async function submitAll(){
       await addDoc(collection(db, 'videos'), {
         url,
         categories,
-        uid: auth.currentUser.uid,
+        uid: user.uid,
         createdAt: serverTimestamp(),
       });
       ok++;
@@ -278,15 +237,15 @@ async function submitAll(){
       fail++;
     }
   }
-  // 결과 메시지: 위/아래 동시 표시
+
   setMsg(`등록 완료: ${ok}건 성공, ${fail}건 실패`);
 
-  // 🔽 등록 후 초기화
+  // 등록 후 초기화
   document.querySelectorAll('.cat:checked').forEach(ch => ch.checked = false);
-  urlsBox.value = '';
+  if (urlsBox) urlsBox.value = '';
 }
 
 /* -------------------- 버튼 바인딩 -------------------- */
-$('#btnPaste')?.addEventListener('click', pasteFromClipboard);
-$('#btnSubmitTop')?.addEventListener('click', submitAll);
-$('#btnSubmitBottom')?.addEventListener('click', submitAll);
+document.getElementById('btnPaste')?.addEventListener('click', pasteFromClipboard);
+document.getElementById('btnSubmitTop')?.addEventListener('click', submitAll);
+document.getElementById('btnSubmitBottom')?.addEventListener('click', submitAll);
