@@ -17,6 +17,41 @@
   ">
 
   <link rel="stylesheet" href="css/style.css"/>
+  <script>
+/* 실패 시 메모리로 폴백하는 안전 저장소 */
+const safeStorage = (() => {
+  try {
+    const k = '__probe__';
+    localStorage.setItem(k, '1');
+    localStorage.removeItem(k);
+    return localStorage;          // 정상: 진짜 localStorage 사용
+  } catch {
+    // 실패: 메모리 맵으로 대체(새로고침하면 사라짐)
+    const mem = new Map();
+    return {
+      getItem: k => (mem.has(k) ? mem.get(k) : null),
+      setItem: (k, v) => mem.set(k, String(v)),
+      removeItem: k => mem.delete(k),
+    };
+  }
+})();
+
+function saveJSON(key, value){
+  try { safeStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
+function loadJSON(key, fallback){
+  try {
+    const v = safeStorage.getItem(key);
+    return v ? JSON.parse(v) : fallback;
+  } catch { return fallback; }
+}
+
+/* 예시:
+   const selected = loadJSON('selectedCats', "ALL");
+   saveJSON('selectedCats', selected);
+*/
+</script>
+
   <style>
     body{ padding-top:72px; }
     main{ max-width:980px; margin:0 auto; padding:16px; }
