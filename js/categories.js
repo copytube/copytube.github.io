@@ -103,6 +103,7 @@ export const CATEGORY_GROUPS = [
       { value: 'tech_future', label: '기술미래' },
       { value: 'computer',    label: '컴퓨터' },
       { value: 'coding',      label: '코딩' },
+      { value: 'graphic',    label: '그래픽영상' },
       { value: 'app',         label: '앱·어플' },
       { value: 'game',        label: '게임' },
     ],
