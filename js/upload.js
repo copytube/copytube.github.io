@@ -9,6 +9,26 @@ import {
   serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 import { CATEGORY_GROUPS } from './categories.js';
+// === [Order] 대분류(그룹) 순서 로컬 저장/적용 헬퍼 ===
+const ORDER_KEY = 'categoryOrderV1';
+
+function getSavedGroupOrder(){
+  try { return JSON.parse(localStorage.getItem(ORDER_KEY) || 'null'); }
+  catch { return null; }
+}
+
+function applyGroupOrder(groups){
+  const ord = getSavedGroupOrder();
+  if (!Array.isArray(ord) || !ord.length) return groups.slice(); // 저장 없으면 기본 순서
+  const rank = new Map(ord.map((key, i) => [key, i]));
+  // 저장된 키는 순위대로, 저장에 없는 키는 뒤쪽에 원래 순서 유지
+  return groups.slice().sort((a, b) => {
+    const ra = rank.has(a.key) ? rank.get(a.key) : 1e9;
+    const rb = rank.has(b.key) ? rank.get(b.key) : 1e9;
+    return ra - rb;
+  });
+}
+
 
 const $ = (s) => document.querySelector(s);
 
@@ -96,16 +116,9 @@ function setMsg(text){
 
 function renderCats(){
   const personalLabels = getPersonalLabels();
-  const pos = getPersonalPosition();
 
-  const groups = CATEGORY_GROUPS.slice();
-  if (pos === 'top'){
-    const idx = groups.findIndex(g => g.key === 'personal');
-    if (idx > -1){
-      const [pg] = groups.splice(idx, 1);
-      groups.unshift(pg);
-    }
-  }
+  // 저장된 순서 적용(없으면 categories.js 기본 순서)
+  const groups = applyGroupOrder(CATEGORY_GROUPS);
 
   const html = groups.map(g=>{
     const kids = g.children.map(c=>{
@@ -133,6 +146,36 @@ function renderCats(){
       </fieldset>
     `;
   }).join('');
+
+  catsBox.innerHTML = html;
+
+  // 이름변경(개인자료)
+  catsBox.querySelectorAll('.rename-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const key = btn.getAttribute('data-key');
+      const cur = getPersonalLabels()[key] || (key==='personal1'?'자료1':'자료2');
+      const name = prompt('개인자료 이름을 입력하세요 (최대 12자):', cur);
+      const clean = (name||'').trim().slice(0,12).replace(/[<>"]/g,'');
+      if (!clean) return;
+      setPersonalLabel(key, clean);
+      renderCats();
+    });
+  });
+
+  // 카테고리 3개 제한(개인자료 제외)
+  const limit = 3;
+  catsBox.querySelectorAll('input.cat').forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      const checked = Array.from(catsBox.querySelectorAll('input.cat:checked'))
+        .filter(x => x.value !== 'personal1' && x.value !== 'personal2');
+      if (checked.length > limit){
+        chk.checked = false;
+        alert(`카테고리는 최대 ${limit}개까지 선택 가능합니다.`);
+      }
+    });
+  });
+}
+
 
   catsBox.innerHTML = html;
 
