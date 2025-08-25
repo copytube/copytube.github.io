@@ -1,4 +1,4 @@
-// js/index.js  (order auto-refresh + preserve selection)
+// js/index.js  (btnOpenOrder 클릭 안정화 + 순서 자동반영 유지)
 import { CATEGORY_GROUPS } from './categories.js';
 import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
@@ -180,9 +180,11 @@ btnWatch?.addEventListener('click', ()=>{
   localStorage.setItem('autonext', cbAutoNext?.checked ? 'on' : 'off');
   location.href = 'watch.html';
 });
-catTitleBtn?.addEventListener('click', ()=> location.href='category-order.html');
 
-/* ---- Order change auto detection ---- */
+/* 이 버튼이 ‘죽어보이는’ 문제 방지: 명시적 클릭 핸들러 */
+const openOrder = ()=>{ location.href='category-order.html'; };
+document.getElementById('btnOpenOrder')?.addEventListener('click', openOrder);
+
 function maybeRerenderIfOrderChanged(){
   const sig = orderSignature(getSavedOrder() || CATEGORY_GROUPS.map(g=>g.key));
   if(sig !== lastAppliedSig){
