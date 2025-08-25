@@ -20,7 +20,14 @@
 
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
+    connect-src 'self'
+      https://www.googleapis.com
+      https://firestore.googleapis.com
+      https://securetoken.googleapis.com
+      https://identitytoolkit.googleapis.com
+      https://firebaseinstallations.googleapis.com
+      https://www.gstatic.com
+      https://www.youtube.com;
     img-src 'self' data: https://i.ytimg.com;
     frame-src https://www.youtube.com;
     script-src 'self' https://www.gstatic.com 'unsafe-inline';
@@ -83,7 +90,7 @@
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <!-- 안정 버전 1.0 공통 코드 -->
+  <!-- 안정 버전 1.0 공통 코드 (안드/PC) -->
   <script type="module" src="js/watch.v1_0.js?v=1.0"></script>
 </body>
 </html>
