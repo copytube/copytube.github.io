@@ -5,30 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Copytube - 영상 보기</title>
 
-  <!-- iOS 감지 → iOS면 watch-ios.html로 이동 -->
-  <script>
-    (function () {
-      var ua = navigator.userAgent || navigator.vendor || window.opera;
-      var isiOS = /iPad|iPhone|iPod/.test(ua);
-      var isIpadOS13Plus = (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      if (isiOS || isIpadOS13Plus) {
-        var v = 'v=ios-redirect';
-        location.replace('watch-ios.html' + (location.search ? location.search + '&' + v : '?' + v));
-      }
-    })();
-  </script>
-
-  <!-- ★ CSP 보강 -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    connect-src 'self'
-      https://www.googleapis.com
-      https://firestore.googleapis.com
-      https://securetoken.googleapis.com
-      https://identitytoolkit.googleapis.com
-      https://firebaseinstallations.googleapis.com
-      https://www.gstatic.com
-      https://www.youtube.com;
+    connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firebaseinstallations.googleapis.com https://www.gstatic.com https://www.youtube.com;
     img-src 'self' data: https://i.ytimg.com;
     frame-src https://www.youtube.com;
     script-src 'self' https://www.gstatic.com 'unsafe-inline';
@@ -36,14 +15,6 @@
     object-src 'none';
     base-uri 'self';
   ">
-
-  <!-- 네트워크 워밍업 -->
-  <link rel="preconnect" href="https://www.youtube.com" crossorigin>
-  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
-  <link rel="preconnect" href="https://i.ytimg.com" crossorigin>
-  <link rel="dns-prefetch" href="https://www.youtube.com">
-  <link rel="dns-prefetch" href="https://www.gstatic.com">
-  <link rel="dns-prefetch" href="https://i.ytimg.com">
 
   <link rel="stylesheet" href="css/style.css"/>
   <style>
@@ -63,26 +34,26 @@
       position:relative; display:flex; align-items:center; justify-content:center; background:#000;
     }
     @supports (height: 100svh){ .video{ height: 100svh; } }
+    .thumb{ width:100%; height:100%; display:flex; align-items:center; justify-content:center; position:relative; background:#000; }
+    .thumb img{ max-width:100%; max-height:100%; object-fit:contain; border:0; }
+    .playhint{
+      position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+      padding:6px 10px; background:rgba(0,0,0,.45); border-radius:6px; font-size:13px; color:#fff; text-align:center;
+    }
+    .mute-tip{
+      position:absolute; top:12px; left:50%; transform:translateX(-50%);
+      padding:6px 10px; background:rgba(0,0,0,.45); border-radius:6px; color:#fff; font-size:12px;
+    }
     .video iframe{ width:100%; height:100%; border:0; }
+
+    .gesture-capture{ position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; background:transparent; cursor:pointer; }
+    .gesture-capture.hidden{ display:none; }
 
     /* Topbar reuse */
     #topbar{ position:fixed; inset:0 0 auto 0; z-index:1000; background:var(--bg-1); transition:transform .25s ease; }
     #topbar.hide{ transform:translateY(-100%); }
     #menuBackdrop{ position:fixed; inset:0; background:transparent; z-index:900; display:none; }
     #menuBackdrop.show{ display:block; }
-
-    /* 🔧 디버그 오버레이 */
-    #debugPane{
-      position:fixed; inset:auto 8px 8px 8px; z-index:2000;
-      font:12px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      background:rgba(0,0,0,.85); color:#fff; border:1px solid #333; border-radius:8px;
-      padding:8px; max-height:40vh; overflow:auto; display:none; white-space:pre-wrap;
-    }
-    #debugPane.show{ display:block; }
-    #debugPane .row{ opacity:.9; }
-    #debugPane .ok{ color:#9ef01a; }
-    #debugPane .warn{ color:#ffd166; }
-    #debugPane .err{ color:#ff6b6b; }
   </style>
 </head>
 <body>
@@ -109,42 +80,9 @@
 
   <div id="menuBackdrop"></div>
   <main id="videoContainer"></main>
-  <div id="debugPane"></div>
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-
-  <!-- 🔧 헬스체크(에러를 화면에 출력) -->
-  <script type="module">
-    import { db } from './js/firebase-init.js';
-    import { collection, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
-
-    const pane = document.getElementById('debugPane');
-    const qs = new URLSearchParams(location.search);
-    const force = qs.get('debug') === '1';
-
-    function show(){ pane.classList.add('show'); }
-    function log(msg, cls='row'){ const p=document.createElement('div'); p.className=cls; p.textContent=msg; pane.appendChild(p); if(force) show(); }
-    function ok(m){ log('✓ '+m,'ok'); }
-    function warn(m){ log('! '+m,'warn'); }
-    function err(m){ log('✗ '+m,'err'); show(); }
-
-    window.addEventListener('error', e=> err(`[window.onerror] ${e.message || e}`));
-    window.addEventListener('unhandledrejection', e=> err(`[unhandled] ${(e.reason&&e.reason.message)||e.reason||e}`));
-
-    // Firestore read 헬스체크(존재하지 않는 컬렉션이라도 OK)
-    (async ()=>{
-      try{
-        const snap = await getDocs(query(collection(db,'videos'), limit(1)));
-        ok('Firestore reachable (health check ok).');
-        if(snap.empty){ warn('health: empty (정상).'); }
-      }catch(e){
-        err('Firestore ERROR: ' + (e.message||e));
-      }
-    })();
-  </script>
-
-  <!-- 안정 버전 1.0 공통 코드 (안드/PC) -->
-  <script type="module" src="js/watch.v1_0.js?v=1.0"></script>
+  <script type="module" src="js/watch.js?v=1.0"></script>
 </body>
 </html>
