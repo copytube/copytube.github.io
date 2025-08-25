@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Copytube - 카테고리 선택</title>
+  <title>Copytube - 영상 보기</title>
 
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
@@ -18,38 +18,42 @@
 
   <link rel="stylesheet" href="css/style.css"/>
   <style>
-    :root{ --cta-width:148px; }
-    .lead{ font-size:20px; color:#e6e6e6; margin:0 0 6px; }
-    .sublead{ font-size:14px; color:#9aa0a6; margin:0 0 12px; }
-    .cta-row{
-      display:grid; grid-template-columns:1fr var(--cta-width) auto 1fr; align-items:center; column-gap:10px; margin:4px 0;
+    :root{ --app-vh: 100vh; }
+    #videoContainer{
+      height: var(--app-vh);
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      overscroll-behavior-y: contain;
+      background:#000;
     }
-    .btn-primary{ grid-column:2; padding:8px 14px; border:0; border-radius:8px; background:#4ea1ff; color:#fff; font-weight:800; cursor:pointer; font-size:18px; width:var(--cta-width); text-align:center; }
-    .inline-check{ display:inline-flex; align-items:center; gap:8px; font-size:13px; color:#ddd; user-select:none; line-height:1; }
-    .inline-check input{ width:16px; height:16px; margin:0; accent-color:#4ea1ff; appearance:auto; vertical-align:middle; }
-    .cta-row .inline-check:not(.ghost){ grid-column:3; justify-self:flex-start; }
-    .cta-row .inline-check.ghost{ display:none; }
-
-    .cat-head{ display:grid; grid-template-columns:1fr var(--cta-width) auto 1fr; align-items:center; column-gap:0; margin:0; }
-    /* h3 → button으로 변경, 클릭/포커스 안정화 */
-    .cat-title{
-      grid-column:2; display:inline-block; width:var(--cta-width);
-      margin:0; padding:8px 14px; background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px; color:#fff;
-      font-weight:800; font-size:20px; text-align:center; user-select:none; cursor:pointer;
-      appearance:none; -webkit-appearance:none;
+    @supports (height: 100svh){ #videoContainer{ height: 100svh; } }
+    .video{
+      height: var(--app-vh);
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      position:relative; display:flex; align-items:center; justify-content:center; background:#000;
     }
-    .cat-title:active{ transform:translateY(0.5px); }
-    .cat-right{ grid-column:3; }
+    @supports (height: 100svh){ .video{ height: 100svh; } }
+    .thumb{ width:100%; height:100%; display:flex; align-items:center; justify-content:center; position:relative; background:#000; }
+    .thumb img{ max-width:100%; max-height:100%; object-fit:contain; border:0; }
+    .playhint{
+      position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+      padding:6px 10px; background:rgba(0,0,0,.45); border-radius:6px; font-size:13px; color:#fff; text-align:center;
+    }
+    .mute-tip{
+      position:absolute; top:12px; left:50%; transform:translateX(-50%);
+      padding:6px 10px; background:rgba(0,0,0,.45); border-radius:6px; color:#fff; font-size:12px;
+    }
+    .video iframe{ width:100%; height:100%; border:0; }
 
-    .group{ border:1px solid var(--border); border-radius:12px; background:var(--bg-3); padding:4px; margin:4px 0; text-align:left; max-width:900px; margin-left:auto; margin-right:auto; }
-    .group legend{ display:flex; align-items:center; gap:8px; padding:0 4px; font-weight:800; font-size:15px; color:#eee; margin-bottom:0; line-height:1.05; }
-    .group .group-toggle{ display:inline-flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; background:#101010; border:1px solid #2a2a2a; color:#e5e7eb; cursor:pointer; font-weight:800; }
-    .group .group-toggle input{ accent-color:#4ea1ff; }
-    .child-grid{ margin-top:0; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px; }
-    @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
-    .child-grid label{ background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px; padding:6px 8px; font-size:14px; line-height:1.2; display:flex; gap:6px; align-items:center; justify-content:flex-start; }
+    .gesture-capture{ position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; background:transparent; cursor:pointer; }
+    .gesture-capture.hidden{ display:none; }
 
-    .icon-mute{ vertical-align:middle; margin-left:4px; }
+    /* Topbar reuse */
+    #topbar{ position:fixed; inset:0 0 auto 0; z-index:1000; background:var(--bg-1); transition:transform .25s ease; }
+    #topbar.hide{ transform:translateY(-100%); }
+    #menuBackdrop{ position:fixed; inset:0; background:transparent; z-index:900; display:none; }
+    #menuBackdrop.show{ display:block; }
   </style>
 </head>
 <body>
@@ -65,51 +69,20 @@
       <span id="welcome" class="welcome"></span>
       <button id="menuBtn" class="icon" aria-label="menu">三</button>
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
-        <button id="btnAbout" class="menu-strong" type="button">CopyTube는…</button>
-        <button id="btnMyUploads" type="button">내영상관리</button>
-        <button id="btnSignOut" type="button">Sign out</button>
-        <button id="btnGoUpload" class="menu-strong" type="button">추천영상등록</button>
-        <button id="btnOrder" type="button">카테고리 순서 설정</button>
+        <button id="btnAbout"       type="button">CopyTube는…</button>
+        <button id="btnGoCategory"  class="menu-strong" type="button">카테고리 선택</button>
+        <button id="btnMyUploads"   type="button">내영상관리</button>
+        <button id="btnSignOut"     type="button">Sign out</button>
+        <button id="btnGoUpload"    class="menu-strong" type="button">추천영상등록</button>
       </div>
     </div>
   </header>
 
-  <section class="intro">
-    <div style="width:100%; max-width:980px; margin:0 auto;">
-      <p class="lead">영상보기를 눌러 선택된 카테고리의 영상을 시청하세요.</p>
-      <p class="sublead">첫 시청 시 화면을 2번 터치 후 화면 상단
-        <img src="image/mute.jpg" alt="음소거 아이콘" class="icon-mute" width="16" height="16" loading="lazy" decoding="async">
-        를 눌러 음소거를 해제해 주세요.
-      </p>
-
-      <div class="cta-row">
-        <label class="inline-check ghost" aria-hidden="true">
-          <input type="checkbox" disabled/> 연속재생
-        </label>
-
-        <button id="btnWatch" class="btn-primary">▶ 영상보기</button>
-
-        <label class="inline-check" id="autoNextWrap" title="영상 종료 시 자동으로 다음 영상으로 이동">
-          <input type="checkbox" id="cbAutoNext"/> 연속재생
-        </label>
-      </div>
-
-      <div class="cat-head">
-        <!-- 여기: h3 → button 으로 변경 -->
-        <button type="button" class="cat-title" id="btnOpenOrder" aria-label="카테고리 순서 설정 열기">카테고리</button>
-        <div class="cat-right">
-          <label class="inline-check" title="모든 카테고리 선택/해제">
-            <input type="checkbox" id="cbToggleAll"/> 전체선택
-          </label>
-        </div>
-      </div>
-
-      <div id="cats"></div>
-    </div>
-  </section>
+  <div id="menuBackdrop"></div>
+  <main id="videoContainer"></main>
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/index.js?v=1.2.fix1"></script>
+  <script type="module" src="js/watch.js?v=1.0"></script>
 </body>
 </html>
