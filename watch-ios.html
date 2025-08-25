@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Copytube - 영상 보기(iOS)</title>
 
+  <!-- ★ CSP 보강 -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     connect-src 'self'
@@ -22,6 +23,14 @@
     object-src 'none';
     base-uri 'self';
   ">
+
+  <!-- 네트워크 워밍업 -->
+  <link rel="preconnect" href="https://www.youtube.com" crossorigin>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://i.ytimg.com" crossorigin>
+  <link rel="dns-prefetch" href="https://www.youtube.com">
+  <link rel="dns-prefetch" href="https://www.gstatic.com">
+  <link rel="dns-prefetch" href="https://i.ytimg.com">
 
   <link rel="stylesheet" href="css/style.css"/>
   <style>
@@ -47,6 +56,19 @@
     #topbar.hide{ transform:translateY(-100%); }
     #menuBackdrop{ position:fixed; inset:0; background:transparent; z-index:900; display:none; }
     #menuBackdrop.show{ display:block; }
+
+    /* 🔧 디버그 오버레이 */
+    #debugPane{
+      position:fixed; inset:auto 8px 8px 8px; z-index:2000;
+      font:12px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background:rgba(0,0,0,.85); color:#fff; border:1px solid #333; border-radius:8px;
+      padding:8px; max-height:40vh; overflow:auto; display:none; white-space:pre-wrap;
+    }
+    #debugPane.show{ display:block; }
+    #debugPane .row{ opacity:.9; }
+    #debugPane .ok{ color:#9ef01a; }
+    #debugPane .warn{ color:#ffd166; }
+    #debugPane .err{ color:#ff6b6b; }
   </style>
 </head>
 <body>
@@ -73,9 +95,40 @@
 
   <div id="menuBackdrop"></div>
   <main id="videoContainer"></main>
+  <div id="debugPane"></div>
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
+
+  <!-- 🔧 헬스체크(에러를 화면에 출력) -->
+  <script type="module">
+    import { db } from './js/firebase-init.js';
+    import { collection, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+    const pane = document.getElementById('debugPane');
+    const qs = new URLSearchParams(location.search);
+    const force = qs.get('debug') === '1';
+
+    function show(){ pane.classList.add('show'); }
+    function log(msg, cls='row'){ const p=document.createElement('div'); p.className=cls; p.textContent=msg; pane.appendChild(p); if(force) show(); }
+    function ok(m){ log('✓ '+m,'ok'); }
+    function warn(m){ log('! '+m,'warn'); }
+    function err(m){ log('✗ '+m,'err'); show(); }
+
+    window.addEventListener('error', e=> err(`[window.onerror] ${e.message || e}`));
+    window.addEventListener('unhandledrejection', e=> err(`[unhandled] ${(e.reason&&e.reason.message)||e.reason||e}`));
+
+    (async ()=>{
+      try{
+        const snap = await getDocs(query(collection(db,'__health__'), limit(1)));
+        ok('Firestore reachable (health check ok).');
+        if(snap.empty){ warn('health: empty (정상).'); }
+      }catch(e){
+        err('Firestore ERROR: ' + (e.message||e));
+      }
+    })();
+  </script>
+
   <!-- iOS 전용 스크립트(네가 만든 watch-ios.js) -->
   <script type="module" src="js/watch-ios.js?v=1.0"></script>
 </body>
