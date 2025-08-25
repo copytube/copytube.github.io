@@ -1,4 +1,6 @@
-// js/watch.js  (현재 카드 최우선: onReady 이후에야 다음 카드 프리로드)
+// js/watch.js
+// - iOS: 썸네일 유지 + onReady 후 전환 + 다음 카드 프리로드 지연(네트워크 경쟁 제거)
+// - ANDROID/PC: 예전 방식으로 복귀 → 액티브 시 즉시 iframe 표시, 바로 다음 카드 프리로드
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { collection, getDocs, query, where, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -6,6 +8,15 @@ import { collection, getDocs, query, where, orderBy, limit, startAfter } from "h
 /* viewport fix */
 function updateVh(){ document.documentElement.style.setProperty('--app-vh', `${window.innerHeight}px`); }
 updateVh(); addEventListener('resize', updateVh, {passive:true}); addEventListener('orientationchange', updateVh, {passive:true});
+
+/* iOS 감지 */
+function isIOS(){
+  const ua = navigator.userAgent || navigator.vendor || window.opera;
+  const iOS = /iPad|iPhone|iPod/.test(ua);
+  const iPadOS13Plus = (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  return iOS || iPadOS13Plus;
+}
+const IS_IOS = isIOS();
 
 /* DOM */
 const topbar         = document.getElementById("topbar");
@@ -54,7 +65,7 @@ function getSelectedCats(){ try{ return JSON.parse(localStorage.getItem('selecte
 const AUTO_NEXT = localStorage.getItem('autonext')==='on';
 
 /* YouTube control */
-let userSoundConsent=false;     // 한번 탭하면 이후 unmute 허용
+let userSoundConsent=false;     // 한 번 탭하면 이후 unmute 허용
 let currentActive=null;
 let firstAutoplayDone=false;    // 첫 카드만 자동재생
 const winToCard=new Map();      // contentWindow -> card
@@ -82,8 +93,8 @@ function concealPlayer(card){
   if(thumb) thumb.style.display = '';
 }
 
-/* 다음 카드 프리로드는 현재 카드가 준비된 뒤에만 수행 (최우선 보장) */
-function preloadNextAfter(card){
+/* 다음 카드 프리로드: iOS는 onReady 이후, Android/PC는 즉시 */
+function preloadNext(card){
   const next = card.nextElementSibling;
   if(next && next.classList.contains('video') && !next.querySelector('iframe')){
     ensureIframe(next, /*preload*/true, /*autoplay*/false);
@@ -104,13 +115,13 @@ addEventListener('message',(e)=>{
 
     // 현재 액티브 + 자동재생 대상이면 준비 직후 전환 & 재생
     if(card===currentActive && card.dataset.autoplay==='1'){
-      revealPlayer(card);
+      if(IS_IOS) revealPlayer(card); // iOS는 숨겨놨다가 전환
       applyAudioPolicy(iframe);
       ytCmd(iframe,"playVideo");
     }
 
-    // ★ 현재 카드 준비 끝난 뒤, 이제서야 다음 카드 프리로드 (네트워크 경쟁 제거)
-    if(card===currentActive){ preloadNextAfter(card); }
+    // iOS만: 현재 카드 준비 끝난 뒤 다음 카드 프리로드 (네트워크 경쟁 제거)
+    if(IS_IOS && card===currentActive){ preloadNext(card); }
     return;
   }
 
@@ -139,7 +150,7 @@ const activeIO = new IntersectionObserver((entries)=>{
       if(currentActive && currentActive!==card){
         const prev = getIframe(currentActive);
         if(prev){ ytCmd(prev,"pauseVideo"); ytCmd(prev,"mute"); }
-        concealPlayer(currentActive); // 썸네일로 복귀(프리로드 유지)
+        if(IS_IOS) concealPlayer(currentActive); // iOS는 썸네일로 복귀(프리로드 유지)
       }
       currentActive = card;
 
@@ -149,15 +160,23 @@ const activeIO = new IntersectionObserver((entries)=>{
       if(shouldAutoplay){
         const ifr = getIframe(card);
         if(card.dataset.ready==='1'){
-          revealPlayer(card);
+          if(IS_IOS) revealPlayer(card); // iOS만 전환
           applyAudioPolicy(ifr);
           ytCmd(ifr,"playVideo");
         } // 준비 전이면 onReady에서 처리
         firstAutoplayDone = true;
       }else{
-        // 자동재생 아님: 준비되어 있으면 즉시 전환(▶ 오버레이가 바로 보임)
-        if(card.dataset.ready==='1'){ revealPlayer(card); }
+        // 자동재생 아님
+        if(IS_IOS){
+          // iOS: 준비되어 있으면 즉시 전환(▶︎ 오버레이 보이게)
+          if(card.dataset.ready==='1'){ revealPlayer(card); }
+        }else{
+          // ANDROID/PC: 예전처럼 이미 iframe이 보이는 상태
+        }
       }
+
+      // ANDROID/PC: 액티브 시 바로 다음 카드 프리로드(체감 속도 ↑)
+      if(!IS_IOS){ preloadNext(card); }
 
       showTopbar();
     }else{
@@ -169,7 +188,7 @@ const activeIO = new IntersectionObserver((entries)=>{
 /* ID 추출 */
 function extractId(url){ const m=String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/); return m?m[1]:url; }
 
-/* 카드 생성: 기본은 썸네일, 플레이어는 숨김으로 나중에 얹음 */
+/* 카드 생성: 기본은 썸네일(공통), iOS만 onReady까지 썸네일 유지 */
 function makeCard(url, docId){
   const id = extractId(url);
   const card = document.createElement('div');
@@ -195,7 +214,9 @@ function makeCard(url, docId){
   return card;
 }
 
-/* iframe 생성/프리로드: 최초엔 숨김(visibility:hidden) */
+/* iframe 생성
+   - iOS: 최초엔 숨김(visibility:hidden)으로 카드 위에 겹쳐 두고, onReady 때 썸네일→플레이어 전환
+   - ANDROID/PC: 예전처럼 즉시 보이게 붙이고(thumb 교체), 스피너 노출을 굳이 숨기지 않음 */
 function buildPlayerSrc(id, playerId, autoplay){
   const origin = encodeURIComponent(location.origin);
   const ref = encodeURIComponent(location.href);
@@ -211,9 +232,17 @@ function ensureIframe(card, preload=false, autoplay=false){
   iframe.src = buildPlayerSrc(id, playerId, autoplay);
   iframe.allow = "autoplay; encrypted-media; picture-in-picture";
   iframe.allowFullscreen = true;
-  Object.assign(iframe.style,{
-    visibility:'hidden', pointerEvents:'none', // 준비될 때까지 숨김
-  });
+
+  if(IS_IOS){
+    // iOS: 준비될 때까지 숨김
+    Object.assign(iframe.style,{ visibility:'hidden', pointerEvents:'none' });
+    card.appendChild(iframe);
+  }else{
+    // ANDROID/PC: 기존처럼 즉시 보이게 삽입 (thumb 교체)
+    Object.assign(iframe.style,{ width:"100%", height:"100%", border:"0" });
+    const thumb = getThumb(card);
+    thumb ? card.replaceChild(iframe, thumb) : card.appendChild(iframe);
+  }
 
   iframe.addEventListener('load',()=>{
     try{
@@ -226,7 +255,6 @@ function ensureIframe(card, preload=false, autoplay=false){
   });
 
   card.dataset.autoplay = autoplay ? '1' : '0';
-  card.appendChild(iframe);
 }
 
 /* feed */
