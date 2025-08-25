@@ -120,7 +120,7 @@
 
     (async ()=>{
       try{
-        const snap = await getDocs(query(collection(db,'__health__'), limit(1)));
+        const snap = await getDocs(query(collection(db,'videos'), limit(1)));
         ok('Firestore reachable (health check ok).');
         if(snap.empty){ warn('health: empty (정상).'); }
       }catch(e){
