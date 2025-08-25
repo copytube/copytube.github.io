@@ -34,11 +34,14 @@
     /* h3 → button으로 변경, 클릭/포커스 안정화 */
     .cat-title{
       grid-column:2; display:inline-block; width:var(--cta-width);
-      margin:0; padding:8px 14px; background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px; color:#fff;
+      margin:0; padding:8px 14px; background:transparent; border:0; border-radius:8px; color:#fff;
       font-weight:800; font-size:20px; text-align:center; user-select:none; cursor:pointer;
       appearance:none; -webkit-appearance:none;
     }
-    .cat-title:active{ transform:translateY(0.5px); }
+    .cat-title:active{ transform:translateY(0.5px); focus{ outline: none; }; focus-visible{                     /* 접근성 보완(선택) */
+  outline: 2px solid #4ea1ff;
+  outline-offset: 2px;
+} }
     .cat-right{ grid-column:3; }
 
     .group{ border:1px solid var(--border); border-radius:12px; background:var(--bg-3); padding:4px; margin:4px 0; text-align:left; max-width:900px; margin-left:auto; margin-right:auto; }
