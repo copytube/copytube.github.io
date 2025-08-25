@@ -135,7 +135,7 @@
     // Firestore read 헬스체크(존재하지 않는 컬렉션이라도 OK)
     (async ()=>{
       try{
-        const snap = await getDocs(query(collection(db,'__health__'), limit(1)));
+        const snap = await getDocs(query(collection(db,'videos'), limit(1)));
         ok('Firestore reachable (health check ok).');
         if(snap.empty){ warn('health: empty (정상).'); }
       }catch(e){
