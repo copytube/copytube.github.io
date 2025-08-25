@@ -7,7 +7,14 @@
 
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.gstatic.com https://www.youtube.com;
+    connect-src 'self'
+      https://www.googleapis.com
+      https://firestore.googleapis.com
+      https://securetoken.googleapis.com
+      https://identitytoolkit.googleapis.com
+      https://firebaseinstallations.googleapis.com
+      https://www.gstatic.com
+      https://www.youtube.com;
     img-src 'self' data: https://i.ytimg.com;
     frame-src https://www.youtube.com;
     script-src 'self' https://www.gstatic.com 'unsafe-inline';
@@ -36,7 +43,6 @@
     @supports (height: 100svh){ .video{ height: 100svh; } }
     .video iframe{ width:100%; height:100%; border:0; }
 
-    /* Topbar reuse */
     #topbar{ position:fixed; inset:0 0 auto 0; z-index:1000; background:var(--bg-1); transition:transform .25s ease; }
     #topbar.hide{ transform:translateY(-100%); }
     #menuBackdrop{ position:fixed; inset:0; background:transparent; z-index:900; display:none; }
@@ -70,7 +76,7 @@
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <!-- 처음엔 동일한 1.0 코드 사용. 이후 iOS만 다른 파일로 교체하면 됨 -->
+  <!-- iOS 전용 스크립트(네가 만든 watch-ios.js) -->
   <script type="module" src="js/watch-ios.js?v=1.0"></script>
 </body>
 </html>
