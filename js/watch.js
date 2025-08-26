@@ -1,16 +1,45 @@
-// js/watch.js (v1.0.3)
-// - v1.0 기반 + iOS 제스처 방해 제거
-// - 개인저장소(personal1/personal2) 재생 지원: URL ?cats=personal1 또는 personal2 면 로컬 재생
-// - 비개인 카테고리 10개 초과 시 서버 최신순 가져오고 클라 필터
+// js/watch.js (v1.0.4)
+// - v1.0.3 기반
+// - 삼성인터넷(Samsung Internet)에서 다음 카드가 살짝 보이는 문제 보정:
+//   UA 감지 → <html class="ua-sbrowser"> + --snap-h를 videoContainer 실높이로 동기화
+// - iOS 스크롤 방해 없는 제스처 처리 유지
+// - 개인저장소(personal1/personal2) 재생 지원
+// - 공용 카테고리 10개 초과 시 서버 최신순 + 클라이언트 필터
+
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { collection, getDocs, query, where, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-/* viewport fix */
-function updateVh(){ document.documentElement.style.setProperty('--app-vh', `${window.innerHeight}px`); }
-updateVh(); addEventListener('resize', updateVh, {passive:true}); addEventListener('orientationchange', updateVh, {passive:true});
+/* ---------- viewport fix ---------- */
+function updateVh(){
+  document.documentElement.style.setProperty('--app-vh', `${window.innerHeight}px`);
+}
+updateVh();
+addEventListener('resize', updateVh, {passive:true});
+addEventListener('orientationchange', updateVh, {passive:true});
 
-/* DOM */
+/* ---------- Samsung Internet 전용 보정 ---------- */
+const isSamsungInternet = /SamsungBrowser/i.test(navigator.userAgent);
+if (isSamsungInternet) {
+  document.documentElement.classList.add('ua-sbrowser');
+}
+function updateSnapHeightForSamsung(){
+  if (!isSamsungInternet) return;
+  const vc = document.getElementById('videoContainer');
+  if (!vc) return;
+  // 스크롤 컨테이너의 '현재 보이는 영역 높이'로 카드 높이 고정
+  const h = vc.clientHeight;
+  document.documentElement.style.setProperty('--snap-h', h + 'px');
+}
+// 초기 한 번 + 각종 리사이즈 계열 이벤트에서 갱신
+updateSnapHeightForSamsung();
+addEventListener('resize', updateSnapHeightForSamsung, {passive:true});
+addEventListener('orientationchange', updateSnapHeightForSamsung, {passive:true});
+if (window.visualViewport) {
+  visualViewport.addEventListener('resize', updateSnapHeightForSamsung, {passive:true});
+}
+
+/* ---------- DOM ---------- */
 const topbar         = document.getElementById("topbar");
 const signupLink     = document.getElementById("signupLink");
 const signinLink     = document.getElementById("signinLink");
@@ -26,7 +55,7 @@ const btnAbout       = document.getElementById("btnAbout");
 const brandHome      = document.getElementById("brandHome");
 const videoContainer = document.getElementById("videoContainer");
 
-/* dropdown */
+/* ---------- dropdown ---------- */
 let isMenuOpen=false;
 function openDropdown(){ isMenuOpen=true; dropdown?.classList.remove("hidden"); requestAnimationFrame(()=> dropdown?.classList.add("show")); menuBackdrop?.classList.add('show'); }
 function closeDropdown(){ isMenuOpen=false; dropdown?.classList.remove("show"); setTimeout(()=> dropdown?.classList.add("hidden"),180); menuBackdrop?.classList.remove('show'); }
@@ -44,7 +73,7 @@ btnSignOut   ?.addEventListener("click", async ()=>{ if(!auth.currentUser){ loca
 btnGoUpload  ?.addEventListener("click", ()=>{ goOrSignIn("upload.html"); closeDropdown(); });
 brandHome    ?.addEventListener("click",(e)=>{ e.preventDefault(); location.href="index.html"; });
 
-/* topbar auto hide */
+/* ---------- topbar auto hide ---------- */
 const HIDE_DELAY_MS=1000; let hideTimer=null;
 function showTopbar(){ topbar?.classList.remove('hide'); if(hideTimer) clearTimeout(hideTimer); if(!isMenuOpen){ hideTimer=setTimeout(()=> topbar?.classList.add('hide'), HIDE_DELAY_MS); } }
 ['scroll','wheel','mousemove','keydown','pointermove','touchmove'].forEach(ev=>{
@@ -52,7 +81,7 @@ function showTopbar(){ topbar?.classList.remove('hide'); if(hideTimer) clearTime
   tgt.addEventListener(ev, ()=>{ if(!isMenuOpen) showTopbar(); }, {passive:true});
 });
 
-/* selection */
+/* ---------- selection ---------- */
 function parseCatsFromQuery(){
   try{
     const p = new URL(location.href).searchParams.get('cats');
@@ -75,7 +104,7 @@ const wantsPersonal1 = SEL_SET?.has?.('personal1') || parseCatsFromQuery()?.incl
 const wantsPersonal2 = SEL_SET?.has?.('personal2') || parseCatsFromQuery()?.includes('personal2');
 const PERSONAL_MODE = (wantsPersonal1 || wantsPersonal2) && !(SEL_SET && ([...SEL_SET].some(v => v!=='personal1' && v!=='personal2')));
 
-/* YouTube control */
+/* ---------- YouTube control ---------- */
 let userSoundConsent=false;
 let currentActive=null;
 const winToCard=new Map();
@@ -109,7 +138,7 @@ function grantSoundFromCard(){
   if(ifr){ ytCmd(ifr,"setVolume",[100]); ytCmd(ifr,"unMute"); ytCmd(ifr,"playVideo"); }
 }
 
-/* IO: activate current, preload NEXT */
+/* ---------- IO: activate current, preload NEXT ---------- */
 const activeIO = new IntersectionObserver((entries)=>{
   entries.forEach(entry=>{
     const card = entry.target;
@@ -250,6 +279,9 @@ function loadMorePersonal(initial=false){
   personalOffset = end;
   if(personalOffset >= personalItems.length) hasMore=false;
   isLoading=false;
+
+  // 높이 재계산(삼성인터넷에서 붙임)
+  updateSnapHeightForSamsung();
 }
 
 /* ---- 공용모드: Firestore ---- */
@@ -325,6 +357,8 @@ async function loadMoreCommon(initial=false){
     }
   }finally{
     isLoading=false;
+    // 높이 재계산(삼성인터넷)
+    updateSnapHeightForSamsung();
   }
 }
 
@@ -349,7 +383,7 @@ async function appendFromSnap(snap, initial, clientFilter=false){
   }
 }
 
-/* scroll 페이징 */
+/* ---------- scroll 페이징 ---------- */
 videoContainer.addEventListener('scroll', ()=>{
   const nearBottom = videoContainer.scrollTop + videoContainer.clientHeight >= videoContainer.scrollHeight - 200;
   if(nearBottom){
@@ -358,7 +392,7 @@ videoContainer.addEventListener('scroll', ()=>{
   }
 });
 
-/* auto-next */
+/* ---------- auto-next ---------- */
 async function goToNextCard(){
   const next = currentActive?.nextElementSibling;
   if(next && next.classList.contains('video')){ next.scrollIntoView({behavior:'smooth', block:'start'}); return; }
@@ -371,8 +405,12 @@ async function goToNextCard(){
   else{ showTopbar(); }
 }
 
-/* start */
-resetFeed();
-if(PERSONAL_MODE){ loadPersonalInit(); loadMorePersonal(true); }
-else{ await loadMoreCommon(true); }
-showTopbar();
+/* ---------- start (TLA 회피: IIFE) ---------- */
+(async ()=>{
+  resetFeed();
+  if(PERSONAL_MODE){ loadPersonalInit(); loadMorePersonal(true); }
+  else{ await loadMoreCommon(true); }
+  showTopbar();
+  // 시작 시점에도 삼성인터넷 높이 보정(안전망)
+  updateSnapHeightForSamsung();
+})();
