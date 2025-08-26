@@ -20,72 +20,52 @@
   <link rel="stylesheet" href="css/style.css"/>
 
   <style>
-    /* ===== 상단 컨트롤 영역 (라디오 2줄 + 붙여넣기 + 등록) ===== */
     .controls-grid{
       display:grid;
       grid-template-columns: minmax(160px, 40%) 1fr 1fr;
       grid-template-rows: auto auto;
-      gap:10px;
-      align-items:stretch;
-      margin:10px 0 8px;
+      gap:10px; align-items:stretch; margin:10px 0 8px;
     }
-    .order-col{
-      display:grid;
-      grid-template-rows: 1fr 1fr;
-      gap:10px;
-    }
+    .order-col{ display:grid; grid-template-rows: 1fr 1fr; gap:10px; }
     .pill-radio{
       display:flex; align-items:center; gap:10px;
       padding:12px 14px; border-radius:10px;
-      background:#121212; border:1px solid #2a2a2a; color:#e5e7eb;
-      font-weight:700;
+      background:#121212; border:1px solid #2a2a2a; color:#e5e7eb; font-weight:700;
     }
     .pill-radio input{ accent-color:#4ea1ff; transform:scale(1.1); }
-
     .btn-clip, .btn-submit{
-      grid-row: span 2;
-      display:flex; align-items:center; justify-content:center; text-align:center;
-      border:0; border-radius:12px; cursor:pointer;
-      font-weight:800; line-height:1.2;
+      grid-row: span 2; display:flex; align-items:center; justify-content:center; text-align:center;
+      border:0; border-radius:12px; cursor:pointer; font-weight:800; line-height:1.2;
       padding:0 12px; min-height:96px;
     }
     @media (min-width:900px){ .btn-clip, .btn-submit{ min-height:110px; } }
     .btn-clip{ background:#22c55e; color:#fff; font-size:16px; white-space:normal; word-break:keep-all; }
     .btn-submit{ background:#4ea1ff; color:#fff; font-size:16px; }
-
     .msg{ margin-top:10px; font-size:13px; color:#ccc; white-space:pre-line; min-height:1.2em; }
-
-    /* 도움말 토글 */
     details.help{ margin:10px 0 8px; }
     details.help summary{
-      display:flex; align-items:center; gap:8px;
-      cursor:pointer; user-select:none; font-weight:800; color:#e5e7eb;
-      list-style:none;
+      display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none;
+      font-weight:800; color:#e5e7eb; list-style:none;
     }
     details.help summary::-webkit-details-marker{ display:none; }
     .chev{ display:inline-block; transition:transform .2s ease; font-size:12px; opacity:.85; }
     details.help[open] .chev{ transform:rotate(90deg); }
     .help-body{ margin-top:8px; color:#bfc6ce; font-size:14px; line-height:1.6; }
-
-    /* 카테고리 박스 */
     .group{
       border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
-      padding:8px; margin:8px 0;
-      text-align:left; max-width:900px; margin-left:auto; margin-right:auto;
+      padding:8px; margin:8px 0; max-width:900px; margin-left:auto; margin-right:auto;
+      text-align:left;
     }
     .group legend{
       padding:0 4px; font-weight:800; font-size:15px; color:#eee;
       margin-bottom:0; line-height:1.05; display:inline-flex; gap:6px; align-items:center;
     }
     .group .subnote{ font-size:12px; color:#9aa0a6; margin-left:6px; }
-    .child-grid{
-      margin-top:0; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px;
-    }
+    .child-grid{ margin-top:0; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px; }
     @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
     .child-grid label{
       background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px;
-      padding:6px 8px; font-size:14px; line-height:1.2;
-      display:flex; gap:6px; align-items:center; justify-content:flex-start;
+      padding:6px 8px; font-size:14px; line-height:1.2; display:flex; gap:6px; align-items:center; justify-content:flex-start;
     }
     .rename-btn{
       margin-left:auto; font-size:12px; padding:4px 6px; border-radius:6px;
@@ -95,7 +75,6 @@
   </style>
 </head>
 <body>
-  <!-- 상단바 -->
   <header id="topbar">
     <div class="brand">
       <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
@@ -107,7 +86,6 @@
       <a id="signinLink" class="link" href="signin.html">Sign in</a>
       <span id="welcome" class="welcome"></span>
       <button id="menuBtn" class="icon" aria-label="menu">三</button>
-
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
         <button id="btnAbout" type="button">CopyTube는…</button>
         <button id="btnMyUploads" type="button">내영상관리</button>
@@ -125,20 +103,18 @@
         <textarea id="urls" rows="3" placeholder="https://youtu.be/aaa...&#10;https://www.youtube.com/watch?v=bbb...&#10;..." style="width:100%;padding:12px;margin-top:6px;border-radius:8px;border:1px solid #333;background:#000;color:#fff;"></textarea>
       </label>
 
-      <!-- 라디오(2줄) + 붙여넣기 + 등록 -->
       <div class="controls-grid" id="controlsGrid">
         <div class="order-col">
           <label class="pill-radio"><input type="radio" name="order" value="bottom" checked> 아래부터 등록</label>
           <label class="pill-radio"><input type="radio" name="order" value="top"> 위부터 등록</label>
         </div>
-
         <button id="btnPaste" class="btn-clip" type="button" title="클립보드에서 붙여넣기">클립보드<br/>붙여넣기</button>
         <button id="btnSubmitTop" class="btn-submit" type="button">등록</button>
       </div>
 
       <div id="msgTop" class="msg"></div>
 
-      <!-- ▼ 영상등록 도움말 (열기/닫기 아이콘 포함) -->
+      <!-- 영상등록 도움말 -->
       <details class="help" id="regHelp">
         <summary><span class="chev">▶</span><span>영상등록 도움말</span></summary>
         <div class="help-body">
@@ -153,209 +129,14 @@
       </details>
 
       <p style="margin:10px 0 6px;color:#bfc6ce;">카테고리는 <b>최대 3개</b>까지 선택 가능합니다.</p>
-      <div id="cats"><!-- JS로 카테고리 렌더링 --></div>
+      <div id="cats"></div>
 
       <button id="btnSubmitBottom" class="btn-submit" type="button" style="width:100%;margin-top:10px;min-height:56px;">등록</button>
       <div id="msg" class="msg"></div>
     </div>
   </main>
 
-  <!-- 모듈 스크립트 -->
-  <script type="module">
-    import { auth, db } from './js/firebase-init.js';
-    import { onAuthStateChanged, signOut as fbSignOut } from './js/auth.js';
-    import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
-    import { CATEGORY_GROUPS } from './js/categories.js';
-
-    /* ---------- 상단바/드롭다운 ---------- */
-    const signupLink = document.getElementById("signupLink");
-    const signinLink = document.getElementById("signinLink");
-    const welcome    = document.getElementById("welcome");
-    const menuBtn    = document.getElementById("menuBtn");
-    const dropdown   = document.getElementById("dropdownMenu");
-    const btnSignOut = document.getElementById("btnSignOut");
-    const btnGoUpload= document.getElementById("btnGoUpload");
-    const btnMyUploads=document.getElementById("btnMyUploads");
-    const btnAbout   = document.getElementById("btnAbout");
-
-    function openDropdown(){ dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); }
-    function closeDropdown(){ dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"),180); }
-
-    onAuthStateChanged(auth, (user)=>{
-      const loggedIn = !!user;
-      signupLink?.classList.toggle("hidden", loggedIn);
-      signinLink?.classList.toggle("hidden", loggedIn);
-      welcome && (welcome.textContent = loggedIn ? \`안녕하세요, \${user.displayName || '회원'}님\` : "");
-      closeDropdown();
-    });
-    menuBtn?.addEventListener("click",(e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown(); });
-    document.addEventListener('pointerdown',(e)=>{ if(dropdown.classList.contains('hidden')) return; if(!e.target.closest('#dropdownMenu, #menuBtn')) closeDropdown(); }, true);
-    document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDropdown(); });
-    dropdown?.addEventListener("click",(e)=> e.stopPropagation());
-    btnGoUpload ?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
-    btnMyUploads?.addEventListener("click", ()=>{ location.href = "manage-uploads.html"; closeDropdown(); });
-    btnAbout    ?.addEventListener("click", ()=>{ location.href = "about.html"; closeDropdown(); });
-    btnSignOut  ?.addEventListener("click", async ()=>{ await fbSignOut(auth); closeDropdown(); });
-
-    /* ---------- 공통 ---------- */
-    const GROUP_ORDER_KEY = 'groupOrderV1';
-    const PERSONAL_LABELS_KEY = 'personalLabels';
-    const isPersonal = (v)=> v==='personal1' || v==='personal2';
-
-    function applyGroupOrder(groups){
-      let saved=null; try{ saved=JSON.parse(localStorage.getItem(GROUP_ORDER_KEY)||'null'); }catch{}
-      const order = Array.isArray(saved)? saved : [];
-      if(!order.length) return groups.slice();
-      const byKey = new Map(groups.map(g=>[g.key,g]));
-      const sorted = order.map(k=> byKey.get(k)).filter(Boolean);
-      groups.forEach(g=>{ if(!order.includes(g.key)) sorted.push(g); });
-      return sorted;
-    }
-    function getPersonalLabels(){ try{ return JSON.parse(localStorage.getItem(PERSONAL_LABELS_KEY)||'{}'); }catch{ return {}; } }
-    function setPersonalLabel(key,label){
-      const map = getPersonalLabels();
-      map[key] = String(label||'').slice(0,12).replace(/[<>"]/g,'').trim();
-      localStorage.setItem(PERSONAL_LABELS_KEY, JSON.stringify(map));
-    }
-
-    const $      = (s)=>document.querySelector(s);
-    const catsBox= $('#cats');
-    const msg    = $('#msg');
-    const msgTop = $('#msgTop');
-    const urlsBox= $('#urls');
-    function setMsg(t){ if(msgTop) msgTop.textContent=t||''; if(msg) msg.textContent=t||''; }
-
-    /* ---------- 카테고리 렌더 (순서 적용) ---------- */
-    function renderCats(){
-      const personalLabels = getPersonalLabels();
-      const groups = applyGroupOrder(CATEGORY_GROUPS);
-
-      const html = groups.map(g=>{
-        const kids = g.children.map(c=>{
-          const labelText = (g.key==='personal' && personalLabels[c.value]) ? personalLabels[c.value] : c.label;
-          const renameBtn = (g.key==='personal') ? \` <button class="rename-btn" data-key="\${c.value}" type="button">이름변경</button>\` : '';
-          return \`<label><input type="checkbox" class="cat" value="\${c.value}"> \${labelText}\${renameBtn}</label>\`;
-        }).join('');
-        const legend = (g.key==='personal') ? \`\${g.label} <span class="subnote">(로컬저장소)</span>\` : g.label;
-        const note = (g.key==='personal') ? '<div class="muted" style="margin:6px 4px 2px;">개인자료는 <b>단독 등록/재생</b>만 가능합니다.</div>' : '';
-        return \`
-          <fieldset class="group" data-key="\${g.key}">
-            <legend>\${legend}</legend>
-            <div class="child-grid">\${kids}</div>
-            \${note}
-          </fieldset>\`;
-      }).join('');
-
-      catsBox.innerHTML = html;
-
-      // 이름변경
-      catsBox.querySelectorAll('.rename-btn').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-          const key = btn.getAttribute('data-key');
-          const cur = getPersonalLabels()[key] || (key==='personal1'?'자료1':'자료2');
-          const name = prompt('개인자료 이름(최대 12자):', cur);
-          if(!name) return;
-          setPersonalLabel(key, name);
-          renderCats(); // 즉시 반영
-        });
-      });
-
-      // 선택 제약
-      catsBox.querySelectorAll('input.cat').forEach(chk=>{
-        chk.addEventListener('change', ()=>{
-          const v = chk.value;
-          if(isPersonal(v) && chk.checked){
-            catsBox.querySelectorAll('input.cat').forEach(x=>{ if(x!==chk) x.checked=false; });
-            setMsg('개인자료는 단독으로만 등록/재생됩니다.');
-            return;
-          }
-          if(!isPersonal(v) && chk.checked){
-            catsBox.querySelectorAll('.group[data-key="personal"] input.cat:checked').forEach(x=> x.checked=false);
-            const normals = Array.from(catsBox.querySelectorAll('input.cat:checked')).map(x=>x.value).filter(x=>!isPersonal(x));
-            if(normals.length>3){ chk.checked=false; setMsg('카테고리는 최대 3개까지 선택 가능합니다.'); return; }
-          }
-          setMsg('');
-        });
-      });
-    }
-    renderCats();
-
-    /* ---------- URL utils ---------- */
-    function parseUrls(){ return urlsBox.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); }
-    function extractId(url){ const m=String(url).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/); return m?m[1]:''; }
-
-    /* ---------- 붙여넣기 ---------- */
-    document.getElementById('btnPaste')?.addEventListener('click', async ()=>{
-      try{
-        const txt = await navigator.clipboard.readText();
-        if(!txt){ setMsg('클립보드가 비어있습니다.'); return; }
-        urlsBox.value = (urlsBox.value.trim()? (urlsBox.value.replace(/\s*$/,'')+'\n') : '') + txt.trim();
-        setMsg('붙여넣기 완료.');
-      }catch{ setMsg('클립보드 접근이 차단되었습니다. 브라우저 설정에서 허용해 주세요.'); }
-    });
-
-    /* ---------- 제출 ---------- */
-    function getOrderValue(){ return document.querySelector('input[name="order"]:checked')?.value || 'bottom'; }
-
-    async function submitAll(){
-      setMsg('검사 중...');
-      const user = auth.currentUser;
-      if(!user){ setMsg('로그인 후 이용하세요.'); return; }
-
-      const lines = parseUrls();
-      if(!lines.length){ setMsg('URL을 한 줄에 하나씩 입력해 주세요.'); return; }
-
-      const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
-      if(!selected.length){ setMsg('카테고리를 최소 1개 선택해 주세요.'); return; }
-
-      const personals = selected.filter(v=> v==='personal1' || v==='personal2');
-      const normals   = selected.filter(v=> !personals.includes(v));
-
-      /* A) 개인자료 단독 → 로컬 저장 */
-      if(personals.length===1 && normals.length===0){
-        const slot = personals[0]; // personal1|2
-        const key  = `copytube_${slot}`;
-        let arr=[]; try{ arr=JSON.parse(localStorage.getItem(key)||'[]'); }catch{ arr=[]; }
-        let added=0;
-        for(const raw of lines){
-          if(!extractId(raw)) continue;
-          arr.push({ url: raw, savedAt: Date.now() });
-          added++;
-        }
-        localStorage.setItem(key, JSON.stringify(arr));
-        urlsBox.value='';
-        document.querySelectorAll('.cat:checked').forEach(c=> c.checked=false);
-        setMsg(`로컬 저장 완료: ${added}건 (${slot==='personal1'?'개인자료1':'개인자료2'})`);
-        return;
-      }
-
-      /* 혼합 금지 */
-      if(personals.length>=1 && normals.length>=1){ setMsg('개인자료는 다른 카테고리와 함께 선택할 수 없습니다.'); return; }
-
-      /* B) 일반 카테고리 → Firestore */
-      if(normals.length===0){ setMsg('카테고리를 최소 1개 선택해 주세요.'); return; }
-      if(normals.length>3){ setMsg('카테고리는 최대 3개까지 선택 가능합니다.'); return; }
-
-      const order = getOrderValue();
-      const list  = (order==='bottom') ? lines.slice().reverse() : lines.slice();
-
-      setMsg(`등록 중... (0/${list.length})`);
-      let ok=0, fail=0;
-      for(let i=0;i<list.length;i++){
-        const url = list[i];
-        if(!extractId(url)){ fail++; setMsg(`등록 중... (${ok+fail}/${list.length})`); continue; }
-        try{
-          await addDoc(collection(db,'videos'), { url, categories:normals, uid:user.uid, createdAt: serverTimestamp() });
-          ok++;
-        }catch{ fail++; }
-        setMsg(`등록 중... (${ok+fail}/${list.length})`);
-      }
-      setMsg(`완료: 성공 ${ok}건, 실패 ${fail}건`);
-      if(ok){ urlsBox.value=''; document.querySelectorAll('.cat:checked').forEach(c=> c.checked=false); }
-    }
-
-    document.getElementById('btnSubmitTop')   ?.addEventListener('click', submitAll);
-    document.getElementById('btnSubmitBottom')?.addEventListener('click', submitAll);
-  </script>
+  <!-- 모든 로직은 외부 모듈에서 처리 -->
+  <script type="module" src="js/upload.js?v=1.3.1"></script>
 </body>
 </html>
