@@ -49,8 +49,39 @@ function showTopbar(){ topbar.classList.remove('hide'); if(hideTimer) clearTimeo
   tgt.addEventListener(ev, ()=>{ if(!isMenuOpen) showTopbar(); }, {passive:true});
 });
 
-/* selection */
-function getSelectedCats(){ try{ return JSON.parse(localStorage.getItem('selectedCats')||'null'); }catch{ return "ALL"; } }
+/* selection (로컬스토리지 파서 강화) */
+function getSelectedCats(){
+  // 1) 쿼리스트링 우선(수동 테스트/디버그용): ?cats=a,b,c
+  try{
+    const params = new URLSearchParams(location.search);
+    const qsCats = params.get('cats');
+    if(qsCats){
+      const arr = qsCats.split(',').map(s=>s.trim()).filter(Boolean);
+      if(arr.length>0) return arr;
+    }
+  }catch{}
+
+  // 2) localStorage → JSON 파싱
+  const raw = localStorage.getItem('selectedCats');
+  if(raw == null) return "ALL";
+  try{
+    const v = JSON.parse(raw);
+    if(v === "ALL") return "ALL";
+    if(Array.isArray(v)) return v.filter(Boolean);
+    // 레거시: 단일 문자열을 저장했을 가능성
+    if(typeof v === 'string' && v && v !== 'ALL') return [v];
+  }catch{
+    // 레거시: 따옴표 없이 저장되었거나, 문자열 배열 모양이지만 JSON이 아닌 경우
+    if(raw && raw !== 'ALL'){
+      // 예: personal1,edu_child → 배열로 정규화
+      if(raw.includes(','))
+        return raw.split(',').map(s=>s.trim()).filter(Boolean);
+      // 예: 단일 카테고리값
+      return [raw.trim()];
+    }
+  }
+  return "ALL";
+}
 const AUTO_NEXT = localStorage.getItem('autonext')==='on';
 
 /* YouTube control */
@@ -168,25 +199,31 @@ function resetFeed(){
   document.querySelectorAll('#videoContainer .video').forEach(el=> activeIO.unobserve(el));
   videoContainer.innerHTML=""; isLoading=false; hasMore=true; lastDoc=null; loadedIds.clear(); currentActive=null;
 }
+
 async function loadMore(initial=false){
   if(isLoading || !hasMore) return;
   isLoading=true;
   const selected = getSelectedCats();
+
   try{
     const base = collection(db,"videos");
     const parts=[];
-    if(selected==="ALL" || !selected){ parts.push(orderBy("createdAt","desc")); }
-    else if(Array.isArray(selected) && selected.length){
-      const cats = selected.length>10 ? null : selected; // 10개 초과면 where를 생략(=전체에서 정렬). v1.0 동작.
+    if(selected==="ALL" || !selected || (Array.isArray(selected) && selected.length===0)){
+      parts.push(orderBy("createdAt","desc"));
+    }else if(Array.isArray(selected) && selected.length){
+      const cats = selected.length>10 ? null : selected; // v1.0 동작 유지(>10이면 전체 최신)
       if(cats) parts.push(where("categories","array-contains-any", cats));
       parts.push(orderBy("createdAt","desc"));
-    }else{ parts.push(orderBy("createdAt","desc")); }
+    }else{
+      parts.push(orderBy("createdAt","desc"));
+    }
     if(lastDoc) parts.push(startAfter(lastDoc));
     parts.push(limit(PAGE_SIZE));
     const snap = await getDocs(query(base, ...parts));
+
     if(snap.empty){
       if(initial) videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
-      hasMore=false; isLoading=false; return;
+      hasMore=false; return;
     }
     snap.docs.forEach(d=>{
       if(loadedIds.has(d.id)) return;
@@ -203,6 +240,7 @@ async function loadMore(initial=false){
     }
   }finally{ isLoading=false; }
 }
+
 videoContainer.addEventListener('scroll', ()=>{
   const nearBottom = videoContainer.scrollTop + videoContainer.clientHeight >= videoContainer.scrollHeight - 200;
   if(nearBottom) loadMore(false);
