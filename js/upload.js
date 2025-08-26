@@ -211,4 +211,82 @@ async function submitAll(){
   const urls = parseInputUrls();
   if(!urls.length){ setMsg('URL을 한 줄에 하나씩 입력해 주세요.'); return; }
 
-  c
+  const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
+  if (selected.length === 0){
+    setMsg('카테고리를 최소 1개 선택해 주세요.');
+    return;
+  }
+
+  const personals = selected.filter(isPersonalVal);
+  const normals   = selected.filter(v=> !isPersonalVal(v));
+
+  // 1) 개인자료 단독 선택: 로컬 저장으로 처리(서버 미업로드)
+  if (personals.length === 1 && normals.length === 0){
+    const slot = personals[0]; // 'personal1' | 'personal2'
+    const key  = `copytube_${slot}`;
+    let arr = [];
+    try{ arr = JSON.parse(localStorage.getItem(key) || '[]'); }catch{ arr = []; }
+    for (const raw of urls){
+      const id = extractId(raw);
+      if (!id) continue; // 무효 URL은 건너뜀
+      arr.push({ url: raw, savedAt: Date.now() });
+    }
+    localStorage.setItem(key, JSON.stringify(arr));
+    if (urlsBox){ urlsBox.value=''; }
+    document.querySelectorAll('.cat:checked').forEach(c=> c.checked=false);
+    setMsg(`로컬 저장 완료: ${arr.length}건 (${slot==='personal1'?'개인자료1':'개인자료2'})`);
+    return;
+  }
+
+  // 2) 혼합 선택 방지
+  if (personals.length >= 1 && normals.length >= 1){
+    setMsg('개인자료는 다른 카테고리와 함께 선택할 수 없습니다.');
+    return;
+  }
+
+  // 3) 일반 카테고리만 선택: Firestore 업로드
+  if (normals.length === 0){
+    // 여기로 떨어지면 = 개인자료도 없고, 일반도 0 → 에러
+    setMsg('카테고리를 최소 1개 선택해 주세요.');
+    return;
+  }
+  if (normals.length > 3){
+    setMsg('카테고리는 최대 3개까지 선택 가능합니다.');
+    return;
+  }
+
+  // 등록 순서 radio 이름 호환: order 또는 orderDir
+  const orderInput = document.querySelector('input[name="order"]:checked') || document.querySelector('input[name="orderDir"]:checked');
+  const order = orderInput ? orderInput.value : 'bottom';
+  const list  = (order==='bottom') ? urls.slice().reverse() : urls.slice();
+
+  setMsg(`등록 중... (0/${list.length})`);
+  let ok=0, fail=0;
+
+  for (let i=0;i<list.length;i++){
+    const url = list[i];
+    const id  = extractId(url);
+    if(!id){ fail++; setMsg(`등록 중... (${ok+fail}/${list.length})`); continue; }
+    try{
+      await addDoc(collection(db,'videos'),{
+        url, categories: normals, uid: user.uid, createdAt: serverTimestamp()
+      });
+      ok++;
+    }catch(e){
+      fail++;
+    }
+    setMsg(`등록 중... (${ok+fail}/${list.length})`);
+  }
+
+  setMsg(`완료: 성공 ${ok}건, 실패 ${fail}건`);
+  if (ok){
+    if (urlsBox) urlsBox.value='';
+    document.querySelectorAll('.cat:checked').forEach(c=> c.checked=false);
+  }
+}
+
+// 버튼 바인딩 (존재하는 것만)
+submitButtons.forEach(btn => btn.addEventListener('click', submitAll));
+
+// 디버그용(선택): 현재 저장된 groupOrder 보기
+try{ window.__order = () => JSON.parse(localStorage.getItem(GROUP_ORDER_KEY) || 'null'); }catch{}
