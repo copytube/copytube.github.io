@@ -4,6 +4,7 @@ import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 import { db } from './firebase-init.js';
 import { CATEGORY_GROUPS } from './categories.js';
+import { getPersonalLabel, setPersonalLabel } from './personal-labels.js';
 
 const $ = s => document.querySelector(s);
 
