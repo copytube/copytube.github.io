@@ -198,7 +198,10 @@ function makeCard(url, docId){
     </div>
     <div class="gesture-capture ${userSoundConsent ? 'hidden':''}" aria-label="tap to enable sound"></div>
   `;
-  card.querySelector('.gesture-capture')?.addEventListener('pointerdown',(e)=>{ e.preventDefault(); e.stopPropagation(); grantSoundFromCard(); }, { once:false });
+const tap = card.querySelector('.gesture-capture');
+tap?.addEventListener('pointerdown', ()=>{ grantSoundFromCard(); }, { passive:true }); // 스크롤 방해 X
+// (원하면 click으로 바꿔도 됨: tap?.addEventListener('click', grantSoundFromCard);)
+  
   activeIO.observe(card);
   return card;
 }
