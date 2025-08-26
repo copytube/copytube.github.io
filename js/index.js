@@ -1,18 +1,15 @@
-// js/index.js  (btnOpenOrder 클릭 안정화 + 순서 자동반영 유지)
+// js/index.js v1.3 (라벨 치환 + 실시간 반영 추가)
 import { CATEGORY_GROUPS } from './categories.js';
 import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
+import { getPersonalLabel } from './personal-labels.js';
 
 const GROUP_ORDER_KEY = 'groupOrderV1';
 
-function getSavedOrder(){
-  try{ const v = JSON.parse(localStorage.getItem(GROUP_ORDER_KEY) || 'null'); return Array.isArray(v) ? v : null; }catch{ return null; }
-}
-function orderSignature(arr){ return JSON.stringify(arr || []); }
-
 function applyGroupOrder(groups){
-  const saved = getSavedOrder();
-  const order = saved && saved.length ? saved : groups.map(g=>g.key);
+  let saved = null;
+  try{ saved = JSON.parse(localStorage.getItem(GROUP_ORDER_KEY) || 'null'); }catch{}
+  const order = Array.isArray(saved) && saved.length ? saved : groups.map(g=>g.key);
   const idx = new Map(order.map((k,i)=>[k,i]));
   return groups.slice().sort((a,b)=>(idx.get(a.key)??999) - (idx.get(b.key)??999));
 }
@@ -59,22 +56,13 @@ const cbAutoNext   = document.getElementById("cbAutoNext");
 const cbToggleAll  = document.getElementById("cbToggleAll");
 const catTitleBtn  = document.getElementById("btnOpenOrder");
 
-let lastAppliedSig = "";
-
-function currentCheckedSet(){
-  const set=new Set();
-  catsBox.querySelectorAll('.cat:checked').forEach(el=> set.add(el.value));
-  return set;
-}
-function restoreCheckedFromSet(set){
-  if(!set) return;
-  catsBox.querySelectorAll('.cat').forEach(el=> el.checked = set.has(el.value));
-}
-
 function renderGroups(){
   const groups = applyGroupOrder(CATEGORY_GROUPS);
   const html = groups.map(g=>{
-    const kids = g.children.map(c=> `<label><input type="checkbox" class="cat" value="${c.value}"> ${c.label}</label>`).join('');
+    const kids = g.children.map(c=>{
+      const label = (g.key==='personal') ? getPersonalLabel(c.value) : c.label; // ← 개인자료만 로컬 라벨 반영
+      return `<label><input type="checkbox" class="cat" value="${c.value}"> ${label}</label>`;
+    }).join('');
     return `
       <fieldset class="group" data-key="${g.key}">
         <legend>
@@ -89,21 +77,29 @@ function renderGroups(){
   }).join('');
   catsBox.innerHTML = html;
   bindGroupInteractions();
-  lastAppliedSig = orderSignature(getSavedOrder() || CATEGORY_GROUPS.map(g=>g.key));
 }
-
-function renderGroupsPreserveSelection(){
-  const before = currentCheckedSet();
-  renderGroups();
-  restoreCheckedFromSet(before);
-  refreshAllParentStates();
-  allSelected = computeAllSelected();
-  if (cbToggleAll) cbToggleAll.checked = allSelected;
-}
-
 renderGroups();
 
-/* 부모/자식 동기화 */
+/* personal 이름이 다른 탭/페이지에서 바뀌면 즉시 반영 */
+window.addEventListener('storage', (e)=>{
+  if(e.key==='personalLabelsV1' || e.key==='personalLabels'){
+    const checked = Array.from(document.querySelectorAll('.cat:checked')).map(i=>i.value);
+    renderGroups();
+    // 체크 상태 복원
+    const set = new Set(checked);
+    document.querySelectorAll('.cat').forEach(el=>{ el.checked = set.has(el.value); });
+    refreshAllParentStates();
+  }
+});
+window.addEventListener('personal-labels:changed', ()=>{ // 같은 탭 내에서 이벤트 사용 시
+  const checked = Array.from(document.querySelectorAll('.cat:checked')).map(i=>i.value);
+  renderGroups();
+  const set = new Set(checked);
+  document.querySelectorAll('.cat').forEach(el=>{ el.checked = set.has(el.value); });
+  refreshAllParentStates();
+});
+
+/* 부모/자식 동기화 등 기존 로직 그대로 */
 function setParentStateByChildren(groupEl){
   const children = Array.from(groupEl.querySelectorAll('input.cat'));
   const parent   = groupEl.querySelector('.group-check');
@@ -173,27 +169,11 @@ applySavedSelection();
 cbToggleAll?.addEventListener('change', ()=> selectAll(!!cbToggleAll.checked));
 btnWatch?.addEventListener('click', ()=>{
   const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
-  const filtered = selected.filter(v => v!=='personal1' && v!=='personal2');
+  const filtered = selected.filter(v => v!=='personal1' && v!=='personal2'); // 개인자료는 서버 공유 안 함
   const isAll = computeAllSelected();
   const valueToSave = (filtered.length===0 || isAll) ? "ALL" : filtered;
   localStorage.setItem('selectedCats', JSON.stringify(valueToSave));
   localStorage.setItem('autonext', cbAutoNext?.checked ? 'on' : 'off');
   location.href = 'watch.html';
 });
-
-/* 이 버튼이 ‘죽어보이는’ 문제 방지: 명시적 클릭 핸들러 */
-const openOrder = ()=>{ location.href='category-order.html'; };
-document.getElementById('btnOpenOrder')?.addEventListener('click', openOrder);
-
-function maybeRerenderIfOrderChanged(){
-  const sig = orderSignature(getSavedOrder() || CATEGORY_GROUPS.map(g=>g.key));
-  if(sig !== lastAppliedSig){
-    renderGroupsPreserveSelection();
-  }
-}
-window.addEventListener('storage', (e)=>{
-  if(e.key===GROUP_ORDER_KEY){ maybeRerenderIfOrderChanged(); }
-});
-document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState==='visible'){ maybeRerenderIfOrderChanged(); }
-});
+catTitleBtn?.addEventListener('click', ()=> location.href='category-order.html');
