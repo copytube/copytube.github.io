@@ -1,144 +1,98 @@
-// js/category-order.js  (모바일 3열 고정 + 드래그앤드롭/탭-스왑 + groupOrderV1 저장)
+// js/category-order.js v3.1
+// 스펙: 왼쪽(현재 순서)에서 탭→오른쪽(새 순서)로 이동. 오른쪽 항목 탭→왼쪽으로 복귀.
+// 저장: 최종 = 오른쪽(새 순서) + 왼쪽(남은 순서 그 자체) → index.html 이동
 import { CATEGORY_GROUPS } from './categories.js';
 
 const GROUP_ORDER_KEY = 'groupOrderV1';
-const grid = document.getElementById('grid');
+const listLeft  = document.getElementById('listLeft');   // 현재 순서(남은 것들)
+const listRight = document.getElementById('listRight');  // 새 순서(탭 순서대로 쌓임)
 
-function loadSavedOrder() {
-  try {
+const keyToLabel  = new Map(CATEGORY_GROUPS.map(g => [g.key, g.label]));
+const defaultOrder = CATEGORY_GROUPS.map(g => g.key);
+
+let baseOrder = []; // 왼쪽/오른쪽의 '기준 순서' (현재 저장된 순서). 되돌릴 때 위치 계산에 사용.
+let leftKeys  = []; // 아직 안 옮긴 것들(왼쪽)
+let rightKeys = []; // 새 순서(오른쪽)
+
+function loadSavedOrder(){
+  try{
     const raw = localStorage.getItem(GROUP_ORDER_KEY);
     const arr = JSON.parse(raw || 'null');
     if (Array.isArray(arr) && arr.length) return arr;
-  } catch {}
-  return CATEGORY_GROUPS.map(g => g.key); // 기본 순서
+  }catch{}
+  return defaultOrder.slice();
 }
-
-function saveOrder(keys) {
+function saveOrder(keys){
   localStorage.setItem(GROUP_ORDER_KEY, JSON.stringify(keys));
 }
 
-function buildTiles(orderKeys) {
-  const map = new Map(CATEGORY_GROUPS.map(g => [g.key, g]));
-  const frags = document.createDocumentFragment();
-  for (const key of orderKeys) {
-    const g = map.get(key);
-    if (!g) continue;
-    const item = document.createElement('div');
-    item.className = 'item';
-    item.draggable = true; // 데스크톱 DnD
-    item.dataset.key = g.key;
-    // (요청) 코딩값은 표시하지 않고, 라벨만
-    item.innerHTML = `<span class="title">${g.label}</span>`;
-    frags.appendChild(item);
-  }
-  grid.innerHTML = '';
-  grid.appendChild(frags);
+function render(){
+  // 왼쪽
+  listLeft.innerHTML = '';
+  leftKeys.forEach(k=>{
+    const el = document.createElement('div');
+    el.className = 'item';
+    el.textContent = keyToLabel.get(k) || k; // 라벨만 노출
+    el.dataset.key = k;
+    el.addEventListener('click', ()=> moveLeftToRight(k), { passive:true });
+    listLeft.appendChild(el);
+  });
+
+  // 오른쪽
+  listRight.innerHTML = '';
+  rightKeys.forEach(k=>{
+    const el = document.createElement('div');
+    el.className = 'item';
+    el.textContent = keyToLabel.get(k) || k;
+    el.dataset.key = k;
+    // ✅ 오른쪽 항목 탭 시 왼쪽으로 복귀
+    el.addEventListener('click', ()=> moveRightToLeft(k), { passive:true });
+    listRight.appendChild(el);
+  });
 }
 
-function currentOrder() {
-  return Array.from(grid.children).map(el => el.dataset.key);
+function moveLeftToRight(key){
+  const i = leftKeys.indexOf(key);
+  if (i < 0) return;
+  leftKeys.splice(i,1);
+  if (!rightKeys.includes(key)) rightKeys.push(key); // 중복 방지
+  render();
 }
 
-/* --- 드래그앤드롭 (데스크톱) --- */
-let draggingEl = null;
+function moveRightToLeft(key){
+  const i = rightKeys.indexOf(key);
+  if (i < 0) return;
+  rightKeys.splice(i,1);
 
-grid.addEventListener('dragstart', (e) => {
-  const target = e.target.closest('.item');
-  if (!target) return;
-  draggingEl = target;
-  target.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
-  // 파이어폭스 등 호환
-  e.dataTransfer.setData('text/plain', target.dataset.key);
-});
-
-grid.addEventListener('dragend', () => {
-  if (draggingEl) draggingEl.classList.remove('dragging');
-  draggingEl = null;
-  clearDropTargets();
-});
-
-grid.addEventListener('dragover', (e) => {
-  e.preventDefault(); // drop 허용
-  const target = e.target.closest('.item');
-  if (!target || target === draggingEl) return;
-  markDropTarget(target);
-  const rect = target.getBoundingClientRect();
-  const before = (e.clientY - rect.top) < (rect.height / 2);
-  if (before) grid.insertBefore(draggingEl, target);
-  else grid.insertBefore(draggingEl, target.nextSibling);
-});
-
-grid.addEventListener('drop', (e) => {
-  e.preventDefault();
-  clearDropTargets();
-});
-
-function markDropTarget(el){
-  grid.querySelectorAll('.drop-target').forEach(x=> x.classList.remove('drop-target'));
-  el.classList.add('drop-target');
-}
-function clearDropTargets(){
-  grid.querySelectorAll('.drop-target').forEach(x=> x.classList.remove('drop-target'));
+  if (!leftKeys.includes(key)) {
+    // baseOrder(저장된 기준 순서)에서의 상대 위치를 유지하며 왼쪽으로 복귀
+    const baseIdx = baseOrder.indexOf(key);
+    let insertAt = leftKeys.length; // 기본은 맨 끝
+    for (let j = 0; j < leftKeys.length; j++) {
+      const curBase = baseOrder.indexOf(leftKeys[j]);
+      if (curBase > baseIdx) { insertAt = j; break; }
+    }
+    leftKeys.splice(insertAt, 0, key);
+  }
+  render();
 }
 
-/* --- 모바일/터치: 탭 두 번으로 스왑 --- */
-let selectedEl = null;
+function resetFromSaved(){
+  baseOrder = loadSavedOrder();   // 기준 순서를 갱신
+  leftKeys  = baseOrder.slice();  // 모두 왼쪽으로
+  rightKeys = [];                 // 오른쪽 비움
+  render();
+}
 
-grid.addEventListener('click', (e) => {
-  const tile = e.target.closest('.item');
-  if (!tile) return;
-
-  if (!selectedEl) {
-    selectedEl = tile;
-    tile.classList.add('selected');
-    return;
-  }
-
-  if (selectedEl === tile) {
-    // 같은 타일 다시 탭 → 선택 해제
-    tile.classList.remove('selected');
-    selectedEl = null;
-    return;
-  }
-
-  // 서로 자리 바꾸기
-  const a = selectedEl;
-  const b = tile;
-
-  const aNext = a.nextSibling;
-  const bNext = b.nextSibling;
-  const parent = a.parentNode;
-
-  if (aNext === b) {
-    parent.insertBefore(b, a);
-  } else if (bNext === a) {
-    parent.insertBefore(a, b);
-  } else {
-    parent.insertBefore(a, bNext);
-    parent.insertBefore(b, aNext);
-  }
-
-  a.classList.remove('selected');
-  selectedEl = null;
+// 버튼
+document.getElementById('btnReset')?.addEventListener('click', resetFromSaved);
+document.getElementById('btnSave') ?.addEventListener('click', ()=>{
+  // 최종 = 오른쪽(새 순서) + 왼쪽(남은 순서 그대로)
+  const finalOrder = rightKeys.concat(leftKeys);
+  if (!finalOrder.length) { alert('순서를 비울 수 없습니다.'); return; }
+  saveOrder(finalOrder);
+  location.href = 'index.html';
 });
 
-/* --- 버튼 --- */
-document.getElementById('btnReset')?.addEventListener('click', () => {
-  const def = CATEGORY_GROUPS.map(g => g.key);
-  buildTiles(def);
-  saveOrder(def);
-});
-
-document.getElementById('btnSave')?.addEventListener('click', () => {
-  const ord = currentOrder();
-  saveOrder(ord);
-  // 가벼운 피드백
-  const btn = document.getElementById('btnSave');
-  const old = btn.textContent;
-  btn.textContent = '저장됨!';
-  setTimeout(()=> btn.textContent = old, 900);
-});
-
-/* --- 초기화 --- */
-buildTiles(loadSavedOrder());
+// 초기화
+resetFromSaved();
