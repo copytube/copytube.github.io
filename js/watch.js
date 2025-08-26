@@ -1,4 +1,7 @@
-// js/watch.js (v1.0.1: 1.0 기반 + 개인자료 로컬 재생 모드)
+// js/watch.js (v1.0.3)
+// - v1.0 기반 + iOS 제스처 방해 제거
+// - 개인저장소(personal1/personal2) 재생 지원: URL ?cats=personal1 또는 personal2 면 로컬 재생
+// - 비개인 카테고리 10개 초과 시 서버 최신순 가져오고 클라 필터
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { collection, getDocs, query, where, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -25,10 +28,10 @@ const videoContainer = document.getElementById("videoContainer");
 
 /* dropdown */
 let isMenuOpen=false;
-function openDropdown(){ isMenuOpen=true; dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); menuBackdrop.classList.add('show'); }
-function closeDropdown(){ isMenuOpen=false; dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"),180); menuBackdrop.classList.remove('show'); }
-onAuthStateChanged(auth,(user)=>{ const loggedIn=!!user; signupLink?.classList.toggle("hidden", loggedIn); signinLink?.classList.toggle("hidden", loggedIn); welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : ""; closeDropdown(); });
-menuBtn?.addEventListener("click",(e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown(); });
+function openDropdown(){ isMenuOpen=true; dropdown?.classList.remove("hidden"); requestAnimationFrame(()=> dropdown?.classList.add("show")); menuBackdrop?.classList.add('show'); }
+function closeDropdown(){ isMenuOpen=false; dropdown?.classList.remove("show"); setTimeout(()=> dropdown?.classList.add("hidden"),180); menuBackdrop?.classList.remove('show'); }
+onAuthStateChanged(auth,(user)=>{ const loggedIn=!!user; signupLink?.classList.toggle("hidden", loggedIn); signinLink?.classList.toggle("hidden", loggedIn); if(welcome) welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : ""; closeDropdown(); });
+menuBtn?.addEventListener("click",(e)=>{ e.stopPropagation(); dropdown?.classList.contains("hidden") ? openDropdown() : closeDropdown(); });
 dropdown?.addEventListener("click",(e)=> e.stopPropagation());
 menuBackdrop?.addEventListener('click', closeDropdown);
 addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDropdown(); });
@@ -43,29 +46,40 @@ brandHome    ?.addEventListener("click",(e)=>{ e.preventDefault(); location.href
 
 /* topbar auto hide */
 const HIDE_DELAY_MS=1000; let hideTimer=null;
-function showTopbar(){ topbar.classList.remove('hide'); if(hideTimer) clearTimeout(hideTimer); if(!isMenuOpen){ hideTimer=setTimeout(()=> topbar.classList.add('hide'), HIDE_DELAY_MS); } }
+function showTopbar(){ topbar?.classList.remove('hide'); if(hideTimer) clearTimeout(hideTimer); if(!isMenuOpen){ hideTimer=setTimeout(()=> topbar?.classList.add('hide'), HIDE_DELAY_MS); } }
 ['scroll','wheel','mousemove','keydown','pointermove','touchmove'].forEach(ev=>{
   const tgt = ev==='scroll' ? videoContainer : window;
   tgt.addEventListener(ev, ()=>{ if(!isMenuOpen) showTopbar(); }, {passive:true});
 });
 
 /* selection */
-function getSelectedCats(){ try{ return JSON.parse(localStorage.getItem('selectedCats')||'null'); }catch{ return "ALL"; } }
+function parseCatsFromQuery(){
+  try{
+    const p = new URL(location.href).searchParams.get('cats');
+    if(!p) return null;
+    const arr = p.split(',').map(s=>s.trim()).filter(Boolean);
+    return arr.length ? arr : null;
+  }catch{ return null; }
+}
+function getSelectedCats(){
+  const fromUrl = parseCatsFromQuery();
+  if (fromUrl) return fromUrl;
+  try{ return JSON.parse(localStorage.getItem('selectedCats')||'null'); }catch{ return "ALL"; }
+}
 const AUTO_NEXT = localStorage.getItem('autonext')==='on';
 
-/* 개인자료 재생 모드 판정 */
-const urlq = new URLSearchParams(location.search);
-const PERSONAL_MODE = urlq.has('personal');
-const PERSONAL_SLOT = localStorage.getItem('selectedPersonal'); // 'personal1' | 'personal2'
-function getPersonalList(){
-  const key = PERSONAL_SLOT==='personal2' ? 'copytube_personal2' : 'copytube_personal1';
-  try{ return JSON.parse(localStorage.getItem(key)||'[]'); }catch{ return []; }
-}
+/* ---- 개인자료 모드 판정 ---- */
+const sel = getSelectedCats();
+const SEL_SET = Array.isArray(sel) ? new Set(sel) : (sel==="ALL" ? null : null);
+const wantsPersonal1 = SEL_SET?.has?.('personal1') || parseCatsFromQuery()?.includes('personal1');
+const wantsPersonal2 = SEL_SET?.has?.('personal2') || parseCatsFromQuery()?.includes('personal2');
+const PERSONAL_MODE = (wantsPersonal1 || wantsPersonal2) && !(SEL_SET && ([...SEL_SET].some(v => v!=='personal1' && v!=='personal2')));
 
 /* YouTube control */
-let userSoundConsent=false;  // once tapped, unmute policy
+let userSoundConsent=false;
 let currentActive=null;
 const winToCard=new Map();
+
 function ytCmd(iframe, func, args=[]){ if(!iframe?.contentWindow) return; iframe.contentWindow.postMessage(JSON.stringify({event:"command", func, args}), "*"); }
 function applyAudioPolicy(iframe){ if(!iframe) return; if(userSoundConsent){ ytCmd(iframe,"setVolume",[100]); ytCmd(iframe,"unMute"); } else { ytCmd(iframe,"mute"); } }
 
@@ -87,7 +101,7 @@ addEventListener('message',(e)=>{
   }
 }, false);
 
-/* gesture capture on card */
+/* gesture capture on card — iOS 스크롤 방해 X */
 function grantSoundFromCard(){
   userSoundConsent=true;
   document.querySelectorAll('.gesture-capture').forEach(el=> el.classList.add('hidden'));
@@ -95,7 +109,7 @@ function grantSoundFromCard(){
   if(ifr){ ytCmd(ifr,"setVolume",[100]); ytCmd(ifr,"unMute"); ytCmd(ifr,"playVideo"); }
 }
 
-/* IO: activate current, preload only NEXT (one) */
+/* IO: activate current, preload NEXT */
 const activeIO = new IntersectionObserver((entries)=>{
   entries.forEach(entry=>{
     const card = entry.target;
@@ -134,7 +148,7 @@ function makeCard(url, docId){
     </div>
     <div class="gesture-capture ${userSoundConsent ? 'hidden':''}" aria-label="tap to enable sound"></div>
   `;
-  card.querySelector('.gesture-capture')?.addEventListener('pointerdown',(e)=>{ e.preventDefault(); e.stopPropagation(); grantSoundFromCard(); }, { once:false });
+  card.querySelector('.gesture-capture')?.addEventListener('pointerdown', ()=>{ grantSoundFromCard(); }, { once:false });
   activeIO.observe(card);
   return card;
 }
@@ -167,78 +181,180 @@ function ensureIframe(card, preload=false){
   thumb ? card.replaceChild(iframe, thumb) : card.appendChild(iframe);
 }
 
-/* feed */
+/* ---------- Feed (개인/공용) ---------- */
 const PAGE_SIZE=10;
 let isLoading=false, hasMore=true, lastDoc=null;
 const loadedIds=new Set();
+
+// 공용 카테고리 필터
+function resolveCatFilter(){
+  if(PERSONAL_MODE) return null; // 개인 모드일 땐 공용 필터 사용 안 함
+  const sel = getSelectedCats();
+  if (sel==="ALL" || !sel) return null;
+  if (Array.isArray(sel) && sel.length){
+    // personal 값은 무시(섞어보기 비활성)
+    const filtered = sel.filter(v=> v!=='personal1' && v!=='personal2');
+    return filtered.length ? new Set(filtered) : null;
+  }
+  return null;
+}
+let CAT_FILTER = resolveCatFilter();
+
+function matchesFilter(data){
+  if(!CAT_FILTER) return true;
+  const cats = Array.isArray(data?.categories) ? data.categories : [];
+  for(const v of cats){ if(CAT_FILTER.has(v)) return true; }
+  return false;
+}
 
 function resetFeed(){
   document.querySelectorAll('#videoContainer .video').forEach(el=> activeIO.unobserve(el));
   videoContainer.innerHTML=""; isLoading=false; hasMore=true; lastDoc=null; loadedIds.clear(); currentActive=null;
 }
 
-async function loadMorePublic(initial=false){
+/* ---- 개인모드: 로컬에서 읽어 페이징 ---- */
+let personalItems=[], personalOffset=0;
+const PERSONAL_PAGE_SIZE = 12;
+
+function loadPersonalInit(){
+  const slot = wantsPersonal1 ? 'personal1' : 'personal2';
+  const key  = `copytube_${slot}`;
+  try{
+    personalItems = JSON.parse(localStorage.getItem(key) || '[]');
+    if(!Array.isArray(personalItems)) personalItems=[];
+  }catch{ personalItems=[]; }
+  // 최신 저장 먼저 보이게 정렬(desc)
+  personalItems.sort((a,b)=> (b?.savedAt||0) - (a?.savedAt||0));
+  personalOffset = 0;
+  hasMore = personalItems.length > 0;
+}
+
+function loadMorePersonal(initial=false){
   if(isLoading || !hasMore) return;
   isLoading=true;
-  const selected = getSelectedCats();
+
+  if(initial && personalItems.length===0){
+    videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">개인자료가 없습니다. 업로드에서 개인자료에 저장해 보세요.</p></div>`;
+    isLoading=false; hasMore=false; return;
+  }
+
+  const end = Math.min(personalOffset + PERSONAL_PAGE_SIZE, personalItems.length);
+  for(let i=personalOffset; i<end; i++){
+    const u = personalItems[i]?.url;
+    if(!u) continue;
+    const fakeId = `local-${i}`;
+    if(loadedIds.has(fakeId)) continue;
+    loadedIds.add(fakeId);
+    videoContainer.appendChild(makeCard(u, fakeId));
+  }
+  personalOffset = end;
+  if(personalOffset >= personalItems.length) hasMore=false;
+  isLoading=false;
+}
+
+/* ---- 공용모드: Firestore ---- */
+async function loadMoreCommon(initial=false){
+  if(isLoading || !hasMore) return;
+  isLoading=true;
+
   try{
     const base = collection(db,"videos");
-    const parts=[];
-    if(selected==="ALL" || !selected){ parts.push(orderBy("createdAt","desc")); }
-    else if(Array.isArray(selected) && selected.length){
-      const cats = selected; // 공개 피드는 무제한 허용(단, Firestore array-contains-any는 10개 제한 → 필요시 페이지 파라미터 사용)
-      if(Array.isArray(cats) && cats.length<=10) parts.push(where("categories","array-contains-any", cats));
-      parts.push(orderBy("createdAt","desc"));
-    }else{ parts.push(orderBy("createdAt","desc")); }
-    if(lastDoc) parts.push(startAfter(lastDoc));
-    parts.push(limit(PAGE_SIZE));
-    const snap = await getDocs(query(base, ...parts));
-    if(snap.empty){
-      if(initial) videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
-      hasMore=false; isLoading=false; return;
+    const filterSize = CAT_FILTER ? CAT_FILTER.size : 0;
+
+    // ALL
+    if(!CAT_FILTER){
+      const parts=[ orderBy("createdAt","desc") ];
+      if(lastDoc) parts.push(startAfter(lastDoc));
+      parts.push(limit(PAGE_SIZE));
+      const snap = await getDocs(query(base, ...parts));
+      await appendFromSnap(snap, initial);
     }
-    snap.docs.forEach(d=>{
-      if(loadedIds.has(d.id)) return;
-      loadedIds.add(d.id);
-      const data = d.data();
-      videoContainer.appendChild(makeCard(data.url, d.id));
-    });
-    lastDoc = snap.docs[snap.docs.length-1] || lastDoc;
-    if(snap.size < PAGE_SIZE) hasMore=false;
+    // filter <= 10 → server-side contains-any
+    else if(filterSize <= 10){
+      const whereVals = Array.from(CAT_FILTER);
+      const parts=[ where("categories","array-contains-any", whereVals), orderBy("createdAt","desc") ];
+      if(lastDoc) parts.push(startAfter(lastDoc));
+      parts.push(limit(PAGE_SIZE));
+      const snap = await getDocs(query(base, ...parts));
+      await appendFromSnap(snap, initial, /*clientFilter*/false);
+    }
+    // filter > 10 → server 최신순 + client 필터
+    else{
+      let appended = 0;
+      let guardFetches = 0;
+      let localLast = lastDoc;
+
+      while(appended < PAGE_SIZE && hasMore && guardFetches < 3){
+        const parts=[ orderBy("createdAt","desc") ];
+        if(localLast) parts.push(startAfter(localLast));
+        parts.push(limit(PAGE_SIZE));
+        const snap = await getDocs(query(base, ...parts));
+        if(snap.empty){
+          hasMore=false;
+          if(initial && appended===0){
+            videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
+          }
+          break;
+        }
+        let addedThisRound = 0;
+        for(const d of snap.docs){
+          localLast = d;
+          if(loadedIds.has(d.id)) continue;
+          const data = d.data();
+          if(matchesFilter(data)){
+            loadedIds.add(d.id);
+            videoContainer.appendChild(makeCard(data.url, d.id));
+            appended++; addedThisRound++;
+            if(appended >= PAGE_SIZE) break;
+          }
+        }
+        lastDoc = localLast || lastDoc;
+        if(snap.size < PAGE_SIZE){ hasMore=false; }
+        guardFetches++;
+        if(addedThisRound===0 && snap.size < PAGE_SIZE){ hasMore=false; break; }
+      }
+      if(initial && videoContainer.children.length===0){
+        videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
+      }
+    }
+
   }catch(e){
     console.error(e);
     if(initial){
       videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">목록을 불러오지 못했습니다.</p></div>`;
     }
-  }finally{ isLoading=false; }
-}
-
-/* 개인자료: 로컬에서 페이징 */
-let personalOffset = 0;
-let personalList = [];
-function loadMorePersonal(initial=false){
-  if(isLoading || !hasMore) return;
-  isLoading = true;
-  if(initial){
-    personalList = (getPersonalList() || []).map(x=> x.url).filter(Boolean);
-    personalOffset = 0;
-    if(!personalList.length){
-      videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">개인자료가 비어 있습니다.</p></div>`;
-      hasMore=false; isLoading=false; return;
-    }
+  }finally{
+    isLoading=false;
   }
-  const slice = personalList.slice(personalOffset, personalOffset + PAGE_SIZE);
-  slice.forEach(u=> videoContainer.appendChild(makeCard(u, 'local')));
-  personalOffset += slice.length;
-  if(personalOffset >= personalList.length) hasMore=false;
-  isLoading=false;
 }
 
+async function appendFromSnap(snap, initial, clientFilter=false){
+  if(snap.empty){
+    if(initial) videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
+    hasMore=false; return;
+  }
+  let appended=0;
+  snap.docs.forEach(d=>{
+    if(loadedIds.has(d.id)) return;
+    const data=d.data();
+    if(clientFilter && !matchesFilter(data)) return;
+    loadedIds.add(d.id);
+    videoContainer.appendChild(makeCard(data.url, d.id));
+    appended++;
+  });
+  lastDoc = snap.docs[snap.docs.length-1] || lastDoc;
+  if(snap.size < PAGE_SIZE) hasMore=false;
+  if(initial && appended===0){
+    videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
+  }
+}
+
+/* scroll 페이징 */
 videoContainer.addEventListener('scroll', ()=>{
   const nearBottom = videoContainer.scrollTop + videoContainer.clientHeight >= videoContainer.scrollHeight - 200;
   if(nearBottom){
     if(PERSONAL_MODE) loadMorePersonal(false);
-    else loadMorePublic(false);
+    else loadMoreCommon(false);
   }
 });
 
@@ -249,7 +365,7 @@ async function goToNextCard(){
   if(!hasMore){ showTopbar(); return; }
   const before = videoContainer.querySelectorAll('.video').length;
   if(PERSONAL_MODE) loadMorePersonal(false);
-  else await loadMorePublic(false);
+  else await loadMoreCommon(false);
   const after  = videoContainer.querySelectorAll('.video').length;
   if(after>before){ videoContainer.querySelectorAll('.video')[before]?.scrollIntoView({ behavior:'smooth', block:'start' }); }
   else{ showTopbar(); }
@@ -257,6 +373,6 @@ async function goToNextCard(){
 
 /* start */
 resetFeed();
-if(PERSONAL_MODE){ loadMorePersonal(true); }
-else{ loadMorePublic(true); }
+if(PERSONAL_MODE){ loadPersonalInit(); loadMorePersonal(true); }
+else{ await loadMoreCommon(true); }
 showTopbar();
