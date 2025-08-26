@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>추천영상 등록 - CopyTube</title>
 
-  <!-- CSP (보안 강화) -->
+  <!-- CSP -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firebaseinstallations.googleapis.com https://www.gstatic.com https://www.youtube.com;
@@ -23,8 +23,8 @@
     /* ===== 상단 컨트롤 영역 (라디오 2줄 + 붙여넣기 + 등록) ===== */
     .controls-grid{
       display:grid;
-      grid-template-columns: minmax(160px, 40%) 1fr 1fr; /* 좌: 라디오, 우: 버튼 두 칸 */
-      grid-template-rows: auto auto; /* 라디오 2줄 */
+      grid-template-columns: minmax(160px, 40%) 1fr 1fr;
+      grid-template-rows: auto auto;
       gap:10px;
       align-items:stretch;
       margin:10px 0 8px;
@@ -47,29 +47,27 @@
       display:flex; align-items:center; justify-content:center; text-align:center;
       border:0; border-radius:12px; cursor:pointer;
       font-weight:800; line-height:1.2;
-      padding:0 12px;
-      min-height:96px;
+      padding:0 12px; min-height:96px;
     }
-    @media (min-width: 900px){
-      .btn-clip, .btn-submit{ min-height:110px; }
-    }
-    .btn-clip{
-      background:#22c55e; color:#fff; font-size:16px; white-space:normal; word-break:keep-all;
-    }
+    @media (min-width:900px){ .btn-clip, .btn-submit{ min-height:110px; } }
+    .btn-clip{ background:#22c55e; color:#fff; font-size:16px; white-space:normal; word-break:keep-all; }
     .btn-submit{ background:#4ea1ff; color:#fff; font-size:16px; }
 
-    /* 등록 결과/에러 메시지 */
     .msg{ margin-top:10px; font-size:13px; color:#ccc; white-space:pre-line; min-height:1.2em; }
 
-    /* 도움말 */
+    /* 도움말 토글 */
     details.help{ margin:10px 0 8px; }
     details.help summary{
-      cursor:pointer; user-select:none; font-weight:800; color:#e5e7eb; list-style: disclosure-closed;
+      display:flex; align-items:center; gap:8px;
+      cursor:pointer; user-select:none; font-weight:800; color:#e5e7eb;
+      list-style:none;
     }
-    details.help[open] summary{ list-style: disclosure-open; }
+    details.help summary::-webkit-details-marker{ display:none; }
+    .chev{ display:inline-block; transition:transform .2s ease; font-size:12px; opacity:.85; }
+    details.help[open] .chev{ transform:rotate(90deg); }
     .help-body{ margin-top:8px; color:#bfc6ce; font-size:14px; line-height:1.6; }
 
-    /* 카테고리 박스 (index와 동일 밀도) */
+    /* 카테고리 박스 */
     .group{
       border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
       padding:8px; margin:8px 0;
@@ -93,6 +91,7 @@
       margin-left:auto; font-size:12px; padding:4px 6px; border-radius:6px;
       border:1px solid #2a2a2a; background:#151515; color:#bfc6ce; cursor:pointer;
     }
+    .muted{ color:#9aa0a6; font-size:12px; }
   </style>
 </head>
 <body>
@@ -109,7 +108,6 @@
       <span id="welcome" class="welcome"></span>
       <button id="menuBtn" class="icon" aria-label="menu">三</button>
 
-      <!-- 드롭다운 -->
       <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
         <button id="btnAbout" type="button">CopyTube는…</button>
         <button id="btnMyUploads" type="button">내영상관리</button>
@@ -134,21 +132,30 @@
           <label class="pill-radio"><input type="radio" name="order" value="top"> 위부터 등록</label>
         </div>
 
-        <button id="btnPaste" class="btn-clip" type="button" title="클립보드에서 붙여넣기">
-          클립보드<br/>붙여넣기
-        </button>
-
+        <button id="btnPaste" class="btn-clip" type="button" title="클립보드에서 붙여넣기">클립보드<br/>붙여넣기</button>
         <button id="btnSubmitTop" class="btn-submit" type="button">등록</button>
       </div>
 
       <div id="msgTop" class="msg"></div>
 
+      <!-- ▼ 영상등록 도움말 (열기/닫기 아이콘 포함) -->
+      <details class="help" id="regHelp">
+        <summary><span class="chev">▶</span><span>영상등록 도움말</span></summary>
+        <div class="help-body">
+          • <b>URL 입력칸</b>에 직접 붙여넣거나, <b>오른쪽 “클립보드 붙여넣기”</b> 버튼을 사용하세요. (브라우저/OS 허용 필요)<br/>
+          • <b>URL 다중 등록:</b> URL 입력박스에 <b>한 줄에 1개의 URL</b>을 붙여넣고, <b>카테고리 선택 후 “등록”</b>을 누르면 한 번에 모두 등록됩니다.<br/>
+          • 위의 <b>“아래부터/위부터 등록”</b> 옵션으로 등록 순서를 결정합니다. (피드가 최신순이라 시리즈는 보통 <b>아래부터 등록</b>해야 차례대로 볼 수 있습니다.)<br/><br/>
+          • <b>HTTPS</b> 환경에서만 동작합니다. (GitHub Pages OK)<br/>
+          • <b>iPhone/iPad (iOS 16+)</b>: 처음 붙여넣기 때 <i>“이 앱에서 붙여넣기 허용”</i> 팝업에서 <b>허용</b>을 선택하세요.<br/>
+          • <b>안드로이드/데스크탑 Chrome</b>: <b>설정 → 사이트 설정 → 클립보드</b>에서 <code>https://copytube.github.io</code>를 <b>허용</b>으로 변경하세요.<br/>
+          • 또는 그냥, <b>길게 누르기 → 붙여넣기</b> 또는 <code>Ctrl/⌘+V</code>를 사용하면 됩니다.
+        </div>
+      </details>
+
       <p style="margin:10px 0 6px;color:#bfc6ce;">카테고리는 <b>최대 3개</b>까지 선택 가능합니다.</p>
       <div id="cats"><!-- JS로 카테고리 렌더링 --></div>
 
-      <!-- 하단 등록 버튼 (동일 기능) -->
       <button id="btnSubmitBottom" class="btn-submit" type="button" style="width:100%;margin-top:10px;min-height:56px;">등록</button>
-
       <div id="msg" class="msg"></div>
     </div>
   </main>
@@ -161,19 +168,18 @@
     import { CATEGORY_GROUPS } from './js/categories.js';
 
     /* ---------- 상단바/드롭다운 ---------- */
-    const signupLink   = document.getElementById("signupLink");
-    const signinLink   = document.getElementById("signinLink");
-    const welcome      = document.getElementById("welcome");
-    const menuBtn      = document.getElementById("menuBtn");
-    const dropdown     = document.getElementById("dropdownMenu");
-    const btnSignOut   = document.getElementById("btnSignOut");
-    const btnGoUpload  = document.getElementById("btnGoUpload");
-    const btnMyUploads = document.getElementById("btnMyUploads");
-    const btnAbout     = document.getElementById("btnAbout");
+    const signupLink = document.getElementById("signupLink");
+    const signinLink = document.getElementById("signinLink");
+    const welcome    = document.getElementById("welcome");
+    const menuBtn    = document.getElementById("menuBtn");
+    const dropdown   = document.getElementById("dropdownMenu");
+    const btnSignOut = document.getElementById("btnSignOut");
+    const btnGoUpload= document.getElementById("btnGoUpload");
+    const btnMyUploads=document.getElementById("btnMyUploads");
+    const btnAbout   = document.getElementById("btnAbout");
 
-    let isMenuOpen = false;
-    function openDropdown(){ isMenuOpen = true; dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); }
-    function closeDropdown(){ isMenuOpen = false; dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"), 180); }
+    function openDropdown(){ dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); }
+    function closeDropdown(){ dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"),180); }
 
     onAuthStateChanged(auth, (user)=>{
       const loggedIn = !!user;
@@ -182,15 +188,14 @@
       welcome && (welcome.textContent = loggedIn ? \`안녕하세요, \${user.displayName || '회원'}님\` : "");
       closeDropdown();
     });
-
     menuBtn?.addEventListener("click",(e)=>{ e.stopPropagation(); dropdown.classList.contains("hidden") ? openDropdown() : closeDropdown(); });
     document.addEventListener('pointerdown',(e)=>{ if(dropdown.classList.contains('hidden')) return; if(!e.target.closest('#dropdownMenu, #menuBtn')) closeDropdown(); }, true);
     document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDropdown(); });
     dropdown?.addEventListener("click",(e)=> e.stopPropagation());
-    btnGoUpload?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
+    btnGoUpload ?.addEventListener("click", ()=>{ location.href = "upload.html"; closeDropdown(); });
     btnMyUploads?.addEventListener("click", ()=>{ location.href = "manage-uploads.html"; closeDropdown(); });
-    btnAbout?.addEventListener("click", ()=>{ location.href = "about.html"; closeDropdown(); });
-    btnSignOut?.addEventListener("click", async ()=>{ await fbSignOut(auth); closeDropdown(); });
+    btnAbout    ?.addEventListener("click", ()=>{ location.href = "about.html"; closeDropdown(); });
+    btnSignOut  ?.addEventListener("click", async ()=>{ await fbSignOut(auth); closeDropdown(); });
 
     /* ---------- 공통 ---------- */
     const GROUP_ORDER_KEY = 'groupOrderV1';
@@ -198,32 +203,29 @@
     const isPersonal = (v)=> v==='personal1' || v==='personal2';
 
     function applyGroupOrder(groups){
-      let saved = null;
-      try{ saved = JSON.parse(localStorage.getItem(GROUP_ORDER_KEY) || 'null'); }catch{}
-      const order = Array.isArray(saved) ? saved : [];
+      let saved=null; try{ saved=JSON.parse(localStorage.getItem(GROUP_ORDER_KEY)||'null'); }catch{}
+      const order = Array.isArray(saved)? saved : [];
       if(!order.length) return groups.slice();
       const byKey = new Map(groups.map(g=>[g.key,g]));
-      const sorted = order.map(k=>byKey.get(k)).filter(Boolean);
+      const sorted = order.map(k=> byKey.get(k)).filter(Boolean);
       groups.forEach(g=>{ if(!order.includes(g.key)) sorted.push(g); });
       return sorted;
     }
-    function getPersonalLabels(){
-      try{ return JSON.parse(localStorage.getItem(PERSONAL_LABELS_KEY)||'{}'); }catch{ return {}; }
-    }
-    function setPersonalLabel(key, label){
+    function getPersonalLabels(){ try{ return JSON.parse(localStorage.getItem(PERSONAL_LABELS_KEY)||'{}'); }catch{ return {}; } }
+    function setPersonalLabel(key,label){
       const map = getPersonalLabels();
       map[key] = String(label||'').slice(0,12).replace(/[<>"]/g,'').trim();
       localStorage.setItem(PERSONAL_LABELS_KEY, JSON.stringify(map));
     }
 
-    const $ = sel => document.querySelector(sel);
-    const catsBox = $('#cats');
-    const msg     = $('#msg');
-    const msgTop  = $('#msgTop');
-    const urlsBox = $('#urls');
-    function setMsg(text){ if (msgTop) msgTop.textContent = text || ''; if (msg) msg.textContent = text || ''; }
+    const $      = (s)=>document.querySelector(s);
+    const catsBox= $('#cats');
+    const msg    = $('#msg');
+    const msgTop = $('#msgTop');
+    const urlsBox= $('#urls');
+    function setMsg(t){ if(msgTop) msgTop.textContent=t||''; if(msg) msg.textContent=t||''; }
 
-    /* ---------- 카테고리 렌더 ---------- */
+    /* ---------- 카테고리 렌더 (순서 적용) ---------- */
     function renderCats(){
       const personalLabels = getPersonalLabels();
       const groups = applyGroupOrder(CATEGORY_GROUPS);
@@ -234,22 +236,14 @@
           const renameBtn = (g.key==='personal') ? \` <button class="rename-btn" data-key="\${c.value}" type="button">이름변경</button>\` : '';
           return \`<label><input type="checkbox" class="cat" value="\${c.value}"> \${labelText}\${renameBtn}</label>\`;
         }).join('');
-
-        const legend = (g.key==='personal')
-          ? \`\${g.label} <span class="subnote">(로컬저장소)</span>\`
-          : g.label;
-
-        const note = (g.key==='personal')
-          ? '<div class="muted" style="margin:6px 4px 2px;">개인자료는 <b>단독 재생/등록</b>만 가능합니다.</div>'
-          : '';
-
+        const legend = (g.key==='personal') ? \`\${g.label} <span class="subnote">(로컬저장소)</span>\` : g.label;
+        const note = (g.key==='personal') ? '<div class="muted" style="margin:6px 4px 2px;">개인자료는 <b>단독 등록/재생</b>만 가능합니다.</div>' : '';
         return \`
           <fieldset class="group" data-key="\${g.key}">
             <legend>\${legend}</legend>
             <div class="child-grid">\${kids}</div>
             \${note}
-          </fieldset>
-        \`;
+          </fieldset>\`;
       }).join('');
 
       catsBox.innerHTML = html;
@@ -262,24 +256,21 @@
           const name = prompt('개인자료 이름(최대 12자):', cur);
           if(!name) return;
           setPersonalLabel(key, name);
-          renderCats();
+          renderCats(); // 즉시 반영
         });
       });
 
-      // 선택 제약: 개인 단독, 일반 3개
+      // 선택 제약
       catsBox.querySelectorAll('input.cat').forEach(chk=>{
         chk.addEventListener('change', ()=>{
           const v = chk.value;
           if(isPersonal(v) && chk.checked){
-            // 개인 체크 → 다른 모든 체크 해제
             catsBox.querySelectorAll('input.cat').forEach(x=>{ if(x!==chk) x.checked=false; });
             setMsg('개인자료는 단독으로만 등록/재생됩니다.');
             return;
           }
           if(!isPersonal(v) && chk.checked){
-            // 일반 체크 → 개인 해제
             catsBox.querySelectorAll('.group[data-key="personal"] input.cat:checked').forEach(x=> x.checked=false);
-            // 일반 3개 제한
             const normals = Array.from(catsBox.querySelectorAll('input.cat:checked')).map(x=>x.value).filter(x=>!isPersonal(x));
             if(normals.length>3){ chk.checked=false; setMsg('카테고리는 최대 3개까지 선택 가능합니다.'); return; }
           }
@@ -290,31 +281,21 @@
     renderCats();
 
     /* ---------- URL utils ---------- */
-    function parseUrls(){
-      return urlsBox.value.split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
-    }
-    function extractId(url){
-      const m = String(url).match(/(?:youtu\\.be\\/|v=|shorts\\/|embed\\/)([^?&\\/]+)/);
-      return m ? m[1] : '';
-    }
+    function parseUrls(){ return urlsBox.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); }
+    function extractId(url){ const m=String(url).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/); return m?m[1]:''; }
 
     /* ---------- 붙여넣기 ---------- */
     document.getElementById('btnPaste')?.addEventListener('click', async ()=>{
       try{
         const txt = await navigator.clipboard.readText();
         if(!txt){ setMsg('클립보드가 비어있습니다.'); return; }
-        urlsBox.value = (urlsBox.value.trim() ? (urlsBox.value.replace(/\\s*$/,'') + '\\n') : '') + txt.trim();
+        urlsBox.value = (urlsBox.value.trim()? (urlsBox.value.replace(/\s*$/,'')+'\n') : '') + txt.trim();
         setMsg('붙여넣기 완료.');
-      }catch{
-        setMsg('클립보드 접근이 차단되었습니다. 브라우저 설정에서 허용해 주세요.');
-      }
+      }catch{ setMsg('클립보드 접근이 차단되었습니다. 브라우저 설정에서 허용해 주세요.'); }
     });
 
     /* ---------- 제출 ---------- */
-    function getOrderValue(){
-      const r = document.querySelector('input[name="order"]:checked');
-      return r ? r.value : 'bottom';
-    }
+    function getOrderValue(){ return document.querySelector('input[name="order"]:checked')?.value || 'bottom'; }
 
     async function submitAll(){
       setMsg('검사 중...');
@@ -328,61 +309,49 @@
       if(!selected.length){ setMsg('카테고리를 최소 1개 선택해 주세요.'); return; }
 
       const personals = selected.filter(v=> v==='personal1' || v==='personal2');
-      const normals   = selected.filter(v=> v!=='personal1' && v!=='personal2');
+      const normals   = selected.filter(v=> !personals.includes(v));
 
-      /* --- A. 개인자료 단독 저장 (로컬) --- */
+      /* A) 개인자료 단독 → 로컬 저장 */
       if(personals.length===1 && normals.length===0){
-        const slot = personals[0]; // personal1 | personal2
-        const key  = \`copytube_\${slot}\`;
-        let arr = [];
-        try{ arr = JSON.parse(localStorage.getItem(key)||'[]'); }catch{ arr=[]; }
-
+        const slot = personals[0]; // personal1|2
+        const key  = `copytube_${slot}`;
+        let arr=[]; try{ arr=JSON.parse(localStorage.getItem(key)||'[]'); }catch{ arr=[]; }
         let added=0;
         for(const raw of lines){
-          const id = extractId(raw);
-          if(!id) continue;   // 무효 URL은 건너뜀
+          if(!extractId(raw)) continue;
           arr.push({ url: raw, savedAt: Date.now() });
           added++;
         }
         localStorage.setItem(key, JSON.stringify(arr));
         urlsBox.value='';
         document.querySelectorAll('.cat:checked').forEach(c=> c.checked=false);
-        setMsg(\`로컬 저장 완료: \${added}건 (\${slot==='personal1'?'개인자료1':'개인자료2'})\`);
+        setMsg(`로컬 저장 완료: ${added}건 (${slot==='personal1'?'개인자료1':'개인자료2'})`);
         return;
       }
 
-      /* --- 혼합 금지 --- */
-      if(personals.length>=1 && normals.length>=1){
-        setMsg('개인자료는 다른 카테고리와 함께 선택할 수 없습니다.');
-        return;
-      }
+      /* 혼합 금지 */
+      if(personals.length>=1 && normals.length>=1){ setMsg('개인자료는 다른 카테고리와 함께 선택할 수 없습니다.'); return; }
 
-      /* --- B. 일반 카테고리 업로드(Firestore) --- */
+      /* B) 일반 카테고리 → Firestore */
       if(normals.length===0){ setMsg('카테고리를 최소 1개 선택해 주세요.'); return; }
       if(normals.length>3){ setMsg('카테고리는 최대 3개까지 선택 가능합니다.'); return; }
 
       const order = getOrderValue();
       const list  = (order==='bottom') ? lines.slice().reverse() : lines.slice();
 
-      setMsg(\`등록 중... (0/\${list.length})\`);
+      setMsg(`등록 중... (0/${list.length})`);
       let ok=0, fail=0;
       for(let i=0;i<list.length;i++){
         const url = list[i];
-        const id  = extractId(url);
-        if(!id){ fail++; setMsg(\`등록 중... (\${ok+fail}/\${list.length})\`); continue; }
+        if(!extractId(url)){ fail++; setMsg(`등록 중... (${ok+fail}/${list.length})`); continue; }
         try{
-          await addDoc(collection(db,'videos'), {
-            url, categories: normals, uid: user.uid, createdAt: serverTimestamp()
-          });
+          await addDoc(collection(db,'videos'), { url, categories:normals, uid:user.uid, createdAt: serverTimestamp() });
           ok++;
         }catch{ fail++; }
-        setMsg(\`등록 중... (\${ok+fail}/\${list.length})\`);
+        setMsg(`등록 중... (${ok+fail}/${list.length})`);
       }
-      setMsg(\`완료: 성공 \${ok}건, 실패 \${fail}건\`);
-      if(ok){
-        urlsBox.value='';
-        document.querySelectorAll('.cat:checked').forEach(c=> c.checked=false);
-      }
+      setMsg(`완료: 성공 ${ok}건, 실패 ${fail}건`);
+      if(ok){ urlsBox.value=''; document.querySelectorAll('.cat:checked').forEach(c=> c.checked=false); }
     }
 
     document.getElementById('btnSubmitTop')   ?.addEventListener('click', submitAll);
