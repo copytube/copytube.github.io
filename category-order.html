@@ -19,38 +19,49 @@
   <link rel="stylesheet" href="css/style.css"/>
   <style>
     body{ padding-top:72px; }
-    main{ max-width:900px; margin:0 auto; padding:16px; }
+    main{ max-width:1100px; margin:0 auto; padding:16px; }
 
-    .toolbar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
-    .btn{ padding:8px 12px; border-radius:8px; border:1px solid #2a2a2a; background:#111; color:#fff; cursor:pointer; }
-    .btn-primary{ background:#4ea1ff; border:0; font-weight:800; }
-    .hint{ font-size:12px; color:#9aa0a6; }
+    .layout{
+      display:grid;
+      grid-template-columns: 1fr minmax(0,120px) 1fr; /* 가운데 슬림 */
+      gap:12px; align-items:start;
+    }
 
-    /* === 핵심: 모바일에서도 항상 3열 유지 === */
-.grid{
-  display:grid;
-  grid-template-columns: 1fr minmax(0, 160px) 1fr; /* 가운데 열만 160px로 좁게 */
-  gap:8px;
-}
+    h3{ margin:6px 0 10px; font-size:16px; }
 
-    .item{
-      user-select:none;
-      padding:12px;
+    .panel{
       border:1px solid var(--border);
       background:#101010;
       border-radius:10px;
-      text-align:center;
-      font-weight:800;
-      cursor:grab;
+      padding:10px;
+      min-height:340px;
     }
-    .item:active{ cursor:grabbing; }
-    .item.dragging{ opacity:.6; outline:2px dashed #4ea1ff; }
-    .item.selected{ outline:2px solid #4ea1ff; }
-    .item .title{ display:block; font-size:15px; color:#e5e7eb; }
-    /* (요청) 대분류 제목 옆 코딩값(키) 노출 안 함 */
 
-    /* 드롭 위치 시각화 */
-    .item.drop-target{ box-shadow:0 0 0 2px #4ea1ff inset; }
+    .list{
+      display:flex; flex-direction:column; gap:8px;
+      max-height:60vh; overflow:auto;
+    }
+    .item{
+      user-select:none;
+      padding:10px 12px;
+      border:1px solid var(--border);
+      background:#0f0f0f;
+      border-radius:8px;
+      font-weight:800;
+      text-align:left;
+      cursor:pointer;       /* 터치로 이동 */
+      min-width:0;
+    }
+    .item:active{ opacity:.85; }
+
+    .center{
+      display:flex; flex-direction:column; gap:10px; align-items:stretch; justify-content:flex-start;
+    }
+    .btn{ padding:10px 12px; border-radius:8px; border:1px solid #2a2a2a; background:#111; color:#fff; cursor:pointer; }
+    .btn-primary{ background:#4ea1ff; border:0; font-weight:800; }
+    .hint{ font-size:12px; color:#9aa0a6; text-align:center; }
+
+    /* 모바일도 3열 유지 (요청) */
   </style>
 </head>
 <body>
@@ -66,17 +77,33 @@
   </header>
 
   <main>
-    <h2 style="margin:6px 0 10px;">카테고리 순서 설정</h2>
-    <div class="toolbar">
-      <button id="btnReset"  class="btn">초기화</button>
-      <button id="btnSave"   class="btn btn-primary">확인(저장)</button>
-      <span class="hint">데스크톱: 드래그하여 순서 변경 • 모바일: <b>타일 두 번 탭</b>해서 서로 자리 바꾸기</span>
-    </div>
+    <div class="layout">
+      <!-- 왼쪽: 현재 순서(터치하면 오른쪽으로 이동) -->
+      <section>
+        <h3>현재 순서</h3>
+        <div class="panel">
+          <div id="listLeft" class="list" aria-label="현재 순서 목록"></div>
+        </div>
+      </section>
 
-    <div id="grid" class="grid" aria-label="카테고리 순서 그리드"></div>
+      <!-- 가운데: 슬림 버튼 -->
+      <section class="center">
+        <button id="btnReset" class="btn" type="button">Reset</button>
+        <button id="btnSave"  class="btn btn-primary" type="button">확인</button>
+        <div class="hint">왼쪽 항목을 <b>터치</b>하면 → 오른쪽으로 이동<br/>확인: 오른쪽 순서 + 왼쪽 남은 순서</div>
+      </section>
+
+      <!-- 오른쪽: 새 순서가 쌓이는 영역 -->
+      <section>
+        <h3>새 순서</h3>
+        <div class="panel">
+          <div id="listRight" class="list" aria-label="새 순서 목록"></div>
+        </div>
+      </section>
+    </div>
   </main>
 
   <script type="module" src="js/categories.js"></script>
-  <script type="module" src="js/category-order.js?v=1.3"></script>
+  <script type="module" src="js/category-order.js?v=3.0"></script>
 </body>
 </html>
