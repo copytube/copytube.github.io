@@ -1,13 +1,16 @@
-// js/watch.js  (stable 1.0: iOS에서 영상은 표시, 자동재생은 정책상 제한)
+// js/watch.js  (v1.0 base + category expansion & unlimited multi-select & exclude support)
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
-import { collection, getDocs, query, where, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+import { CATEGORY_GROUPS } from './categories.js';
+import {
+  collection, getDocs, query, where, orderBy, limit, startAfter
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-/* viewport fix */
+/* ---------- viewport fix ---------- */
 function updateVh(){ document.documentElement.style.setProperty('--app-vh', `${window.innerHeight}px`); }
 updateVh(); addEventListener('resize', updateVh, {passive:true}); addEventListener('orientationchange', updateVh, {passive:true});
 
-/* DOM */
+/* ---------- DOM ---------- */
 const topbar         = document.getElementById("topbar");
 const signupLink     = document.getElementById("signupLink");
 const signinLink     = document.getElementById("signinLink");
@@ -23,7 +26,7 @@ const btnAbout       = document.getElementById("btnAbout");
 const brandHome      = document.getElementById("brandHome");
 const videoContainer = document.getElementById("videoContainer");
 
-/* dropdown */
+/* ---------- dropdown ---------- */
 let isMenuOpen=false;
 function openDropdown(){ isMenuOpen=true; dropdown.classList.remove("hidden"); requestAnimationFrame(()=> dropdown.classList.add("show")); menuBackdrop.classList.add('show'); }
 function closeDropdown(){ isMenuOpen=false; dropdown.classList.remove("show"); setTimeout(()=> dropdown.classList.add("hidden"),180); menuBackdrop.classList.remove('show'); }
@@ -41,7 +44,7 @@ btnSignOut   ?.addEventListener("click", async ()=>{ if(!auth.currentUser){ loca
 btnGoUpload  ?.addEventListener("click", ()=>{ goOrSignIn("upload.html"); closeDropdown(); });
 brandHome    ?.addEventListener("click",(e)=>{ e.preventDefault(); location.href="index.html"; });
 
-/* topbar auto hide */
+/* ---------- topbar auto hide ---------- */
 const HIDE_DELAY_MS=1000; let hideTimer=null;
 function showTopbar(){ topbar.classList.remove('hide'); if(hideTimer) clearTimeout(hideTimer); if(!isMenuOpen){ hideTimer=setTimeout(()=> topbar.classList.add('hide'), HIDE_DELAY_MS); } }
 ['scroll','wheel','mousemove','keydown','pointermove','touchmove'].forEach(ev=>{
@@ -49,42 +52,80 @@ function showTopbar(){ topbar.classList.remove('hide'); if(hideTimer) clearTimeo
   tgt.addEventListener(ev, ()=>{ if(!isMenuOpen) showTopbar(); }, {passive:true});
 });
 
-/* selection (로컬스토리지 파서 강화) */
-function getSelectedCats(){
-  // 1) 쿼리스트링 우선(수동 테스트/디버그용): ?cats=a,b,c
+/* ---------- category maps (group -> children) ---------- */
+const groupToChildren = new Map(CATEGORY_GROUPS.map(g => [g.key, g.children.map(c=>c.value)]));
+const validChildren = new Set(CATEGORY_GROUPS.flatMap(g=> g.children.map(c=>c.value)));
+
+/* ---------- selection parsing ---------- */
+/* 읽기 순서:
+   1) ?cats=... 있으면 최우선 (쉼표구분, -또는! 접두어는 제외 의미)
+   2) localStorage('selectedCats') 사용 ("ALL" | 배열 | 문자열)
+   3) 결과를 group/child 토큰으로 해석 → { include:Set(child), exclude:Set(child) } 로 확장
+*/
+function rawSelectedFromStorage(){
+  // querystring 우선
   try{
-    const params = new URLSearchParams(location.search);
-    const qsCats = params.get('cats');
-    if(qsCats){
-      const arr = qsCats.split(',').map(s=>s.trim()).filter(Boolean);
-      if(arr.length>0) return arr;
+    const qs = new URLSearchParams(location.search);
+    const cats = qs.get('cats');
+    if(cats){
+      return cats.split(',').map(s=>s.trim()).filter(Boolean);
     }
   }catch{}
 
-  // 2) localStorage → JSON 파싱
+  // localStorage
   const raw = localStorage.getItem('selectedCats');
   if(raw == null) return "ALL";
   try{
     const v = JSON.parse(raw);
     if(v === "ALL") return "ALL";
     if(Array.isArray(v)) return v.filter(Boolean);
-    // 레거시: 단일 문자열을 저장했을 가능성
     if(typeof v === 'string' && v && v !== 'ALL') return [v];
   }catch{
-    // 레거시: 따옴표 없이 저장되었거나, 문자열 배열 모양이지만 JSON이 아닌 경우
     if(raw && raw !== 'ALL'){
-      // 예: personal1,edu_child → 배열로 정규화
-      if(raw.includes(','))
-        return raw.split(',').map(s=>s.trim()).filter(Boolean);
-      // 예: 단일 카테고리값
+      if(raw.includes(',')) return raw.split(',').map(s=>s.trim()).filter(Boolean);
       return [raw.trim()];
     }
   }
   return "ALL";
 }
+
+function resolveSelectionTokens(raw){
+  const include = new Set();
+  const exclude = new Set();
+
+  if(raw === "ALL") return { include, exclude };
+
+  const toks = Array.isArray(raw) ? raw : [raw];
+  for(let t of toks){
+    if(!t) continue;
+    let neg=false;
+    if(t[0]==='-' || t[0]==='!'){ neg=true; t=t.slice(1); }
+    if(!t) continue;
+
+    // group?
+    if(groupToChildren.has(t)){
+      const kids = groupToChildren.get(t);
+      kids.forEach(v => (neg ? exclude.add(v) : include.add(v)));
+      continue;
+    }
+    // child?
+    if(validChildren.has(t)){
+      neg ? exclude.add(t) : include.add(t);
+    }
+    // 모르는 토큰은 무시
+  }
+
+  // 로컬 개인자료 값은 강제 제외
+  exclude.add('personal1'); exclude.add('personal2');
+
+  return { include, exclude };
+}
+
+function getSelection(){ return resolveSelectionTokens(rawSelectedFromStorage()); }
+
 const AUTO_NEXT = localStorage.getItem('autonext')==='on';
 
-/* YouTube control */
+/* ---------- YouTube control ---------- */
 let userSoundConsent=false;  // once tapped, unmute policy
 let currentActive=null;
 const winToCard=new Map();
@@ -110,7 +151,7 @@ addEventListener('message',(e)=>{
   }
 }, false);
 
-/* gesture capture on card */
+/* gesture capture */
 function grantSoundFromCard(){
   userSoundConsent=true;
   document.querySelectorAll('.gesture-capture').forEach(el=> el.classList.add('hidden'));
@@ -190,55 +231,185 @@ function ensureIframe(card, preload=false){
   thumb ? card.replaceChild(iframe, thumb) : card.appendChild(iframe);
 }
 
-/* feed */
+/* ---------- feed ---------- */
 const PAGE_SIZE=10;
-let isLoading=false, hasMore=true, lastDoc=null;
+let isLoading=false, lastDoc=null, hasMore=true;
 const loadedIds=new Set();
+
+/* >10 include 대응용 */
+let chunkMode=false;
+let includeChunks=[];     // [[..10], [..10], ...]
+let chunkCursors=[];      // 각 청크 커서
+let chunkDone=[];         // 각 청크 완료 여부
+let bufferDocs=[];        // 머지 결과 중 아직 미표시
 
 function resetFeed(){
   document.querySelectorAll('#videoContainer .video').forEach(el=> activeIO.unobserve(el));
-  videoContainer.innerHTML=""; isLoading=false; hasMore=true; lastDoc=null; loadedIds.clear(); currentActive=null;
+  videoContainer.innerHTML="";
+  isLoading=false; hasMore=true; lastDoc=null;
+  loadedIds.clear(); currentActive=null;
+
+  chunkMode=false; includeChunks=[]; chunkCursors=[]; chunkDone=[]; bufferDocs=[];
+}
+
+function createdAtMs(v){
+  if(!v) return 0;
+  if(typeof v.toMillis === 'function') return v.toMillis();
+  if(typeof v.seconds === 'number') return v.seconds*1000 + (v.nanoseconds||0)/1e6;
+  if(v instanceof Date) return v.getTime();
+  if(typeof v === 'number') return v;
+  return 0;
+}
+function makeChunks(arr, n=10){ const out=[]; for(let i=0;i<arr.length;i+=n) out.push(arr.slice(i,i+n)); return out; }
+function docPassesExclude(data, excludeSet){
+  const cats = Array.isArray(data?.categories) ? data.categories : [];
+  for(const c of cats){ if(excludeSet.has(c)) return false; }
+  return true;
 }
 
 async function loadMore(initial=false){
   if(isLoading || !hasMore) return;
   isLoading=true;
-  const selected = getSelectedCats();
+  const sel = getSelection();
+  const base = collection(db,"videos");
 
   try{
-    const base = collection(db,"videos");
-    const parts=[];
-    if(selected==="ALL" || !selected || (Array.isArray(selected) && selected.length===0)){
-      parts.push(orderBy("createdAt","desc"));
-    }else if(Array.isArray(selected) && selected.length){
-      const cats = selected.length>10 ? null : selected; // v1.0 동작 유지(>10이면 전체 최신)
-      if(cats) parts.push(where("categories","array-contains-any", cats));
-      parts.push(orderBy("createdAt","desc"));
-    }else{
-      parts.push(orderBy("createdAt","desc"));
-    }
-    if(lastDoc) parts.push(startAfter(lastDoc));
-    parts.push(limit(PAGE_SIZE));
-    const snap = await getDocs(query(base, ...parts));
+    // ===== case A: include 아무것도 없음 (ALL 또는 exclude-only) =====
+    if(sel.include.size === 0){
+      // createdAt desc 순으로 긁되 exclude는 클라이언트에서 걸러냄
+      let appended=0;
+      while(appended < PAGE_SIZE && hasMore){
+        const parts=[orderBy("createdAt","desc")];
+        if(lastDoc) parts.push(startAfter(lastDoc));
+        parts.push(limit(PAGE_SIZE));
+        const snap = await getDocs(query(base, ...parts));
+        if(snap.empty){ hasMore=false; break; }
 
-    if(snap.empty){
-      if(initial) videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
-      hasMore=false; return;
+        lastDoc = snap.docs[snap.docs.length-1] || lastDoc;
+
+        for(const d of snap.docs){
+          if(loadedIds.has(d.id)) continue;
+          const data = d.data();
+          if(!docPassesExclude(data, sel.exclude)) continue; // 제외 카테고리 skip
+          loadedIds.add(d.id);
+          videoContainer.appendChild(makeCard(data.url, d.id));
+          appended++;
+          if(appended >= PAGE_SIZE) break;
+        }
+        if(snap.size < PAGE_SIZE){ hasMore=false; }
+        if(snap.size === 0) break;
+        // while 루프는 필요한 만큼만 추가 fetch
+      }
+      if(initial && videoContainer.children.length===0){
+        videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
+      }
+      return;
     }
-    snap.docs.forEach(d=>{
+
+    // ===== case B: include 1~10 (단일 where) =====
+    if(sel.include.size <= 10){
+      const parts=[ where("categories","array-contains-any", Array.from(sel.include)), orderBy("createdAt","desc") ];
+      if(lastDoc) parts.push(startAfter(lastDoc));
+      parts.push(limit(PAGE_SIZE));
+      const snap = await getDocs(query(base, ...parts));
+
+      if(snap.empty){
+        if(initial) videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
+        hasMore=false; return;
+      }
+
+      let appended=0;
+      for(const d of snap.docs){
+        if(loadedIds.has(d.id)) continue;
+        const data = d.data();
+        if(!docPassesExclude(data, sel.exclude)) continue;
+        loadedIds.add(d.id);
+        videoContainer.appendChild(makeCard(data.url, d.id));
+        appended++;
+      }
+      lastDoc = snap.docs[snap.docs.length-1] || lastDoc;
+      if(snap.size < PAGE_SIZE && appended===0) hasMore=false;
+      return;
+    }
+
+    // ===== case C: include 11+ (청크 병렬 머지) =====
+    if(!chunkMode){
+      chunkMode   = true;
+      includeChunks = makeChunks(Array.from(sel.include), 10);
+      chunkCursors  = new Array(includeChunks.length).fill(null);
+      chunkDone     = new Array(includeChunks.length).fill(false);
+      bufferDocs    = [];
+    }
+
+    // buffer 먼저 소진
+    if(bufferDocs.length > 0){
+      const slice = bufferDocs.splice(0, PAGE_SIZE);
+      slice.forEach(d=>{
+        if(loadedIds.has(d.id)) return;
+        loadedIds.add(d.id);
+        videoContainer.appendChild(makeCard(d.url, d.id));
+      });
+      hasMore = bufferDocs.length > 0 || chunkDone.some(done=>!done);
+      return;
+    }
+
+    // 각 청크에서 1페이지씩 병렬 수집
+    const promises = includeChunks.map((cats, idx)=>{
+      if(chunkDone[idx]) return Promise.resolve({ idx, snap:null });
+      const parts=[ where("categories","array-contains-any", cats), orderBy("createdAt","desc") ];
+      if(chunkCursors[idx]) parts.push(startAfter(chunkCursors[idx]));
+      parts.push(limit(PAGE_SIZE));
+      return getDocs(query(base, ...parts)).then(snap=>({ idx, snap }));
+    });
+
+    const results = await Promise.all(promises);
+    let merged = [];
+
+    results.forEach(({idx, snap})=>{
+      if(!snap){ return; }
+      if(snap.empty){ chunkDone[idx] = true; return; }
+
+      chunkCursors[idx] = snap.docs[snap.docs.length-1];
+      if(snap.size < PAGE_SIZE) chunkDone[idx] = true;
+
+      snap.docs.forEach(d=>{
+        const data = d.data();
+        if(!docPassesExclude(data, sel.exclude)) return;
+        merged.push({ id:d.id, url:data.url, createdAt:data.createdAt });
+      });
+    });
+
+    // 중복 제거 + 시간 역정렬
+    const seen = new Set();
+    merged = merged.filter(x=> (seen.has(x.id) ? false : (seen.add(x.id), true)));
+    merged.sort((a,b)=> createdAtMs(b.createdAt) - createdAtMs(a.createdAt));
+
+    if(merged.length===0){
+      if(initial && videoContainer.children.length===0){
+        videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
+      }
+      hasMore = chunkDone.some(done=>!done);
+      return;
+    }
+
+    const slice = merged.slice(0, PAGE_SIZE);
+    bufferDocs = merged.slice(PAGE_SIZE);
+
+    slice.forEach(d=>{
       if(loadedIds.has(d.id)) return;
       loadedIds.add(d.id);
-      const data = d.data();
-      videoContainer.appendChild(makeCard(data.url, d.id));
+      videoContainer.appendChild(makeCard(d.url, d.id));
     });
-    lastDoc = snap.docs[snap.docs.length-1] || lastDoc;
-    if(snap.size < PAGE_SIZE) hasMore=false;
+
+    hasMore = bufferDocs.length > 0 || chunkDone.some(done=>!done);
   }catch(e){
     console.error(e);
     if(initial){
       videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">목록을 불러오지 못했습니다.</p></div>`;
     }
-  }finally{ isLoading=false; }
+  }finally{
+    isLoading=false;
+  }
 }
 
 videoContainer.addEventListener('scroll', ()=>{
