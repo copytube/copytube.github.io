@@ -1,8 +1,7 @@
-// js/index.js v1.3 (라벨 치환 + 실시간 반영 추가)
+// js/index.js
 import { CATEGORY_GROUPS } from './categories.js';
 import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
-import { getPersonalLabel } from './personal-labels.js';
 
 const GROUP_ORDER_KEY = 'groupOrderV1';
 
@@ -59,10 +58,7 @@ const catTitleBtn  = document.getElementById("btnOpenOrder");
 function renderGroups(){
   const groups = applyGroupOrder(CATEGORY_GROUPS);
   const html = groups.map(g=>{
-    const kids = g.children.map(c=>{
-      const label = (g.key==='personal') ? getPersonalLabel(c.value) : c.label; // ← 개인자료만 로컬 라벨 반영
-      return `<label><input type="checkbox" class="cat" value="${c.value}"> ${label}</label>`;
-    }).join('');
+    const kids = g.children.map(c=> `<label><input type="checkbox" class="cat" value="${c.value}"> ${c.label}</label>`).join('');
     return `
       <fieldset class="group" data-key="${g.key}">
         <legend>
@@ -80,26 +76,7 @@ function renderGroups(){
 }
 renderGroups();
 
-/* personal 이름이 다른 탭/페이지에서 바뀌면 즉시 반영 */
-window.addEventListener('storage', (e)=>{
-  if(e.key==='personalLabelsV1' || e.key==='personalLabels'){
-    const checked = Array.from(document.querySelectorAll('.cat:checked')).map(i=>i.value);
-    renderGroups();
-    // 체크 상태 복원
-    const set = new Set(checked);
-    document.querySelectorAll('.cat').forEach(el=>{ el.checked = set.has(el.value); });
-    refreshAllParentStates();
-  }
-});
-window.addEventListener('personal-labels:changed', ()=>{ // 같은 탭 내에서 이벤트 사용 시
-  const checked = Array.from(document.querySelectorAll('.cat:checked')).map(i=>i.value);
-  renderGroups();
-  const set = new Set(checked);
-  document.querySelectorAll('.cat').forEach(el=>{ el.checked = set.has(el.value); });
-  refreshAllParentStates();
-});
-
-/* 부모/자식 동기화 등 기존 로직 그대로 */
+/* 부모/자식 동기화 */
 function setParentStateByChildren(groupEl){
   const children = Array.from(groupEl.querySelectorAll('input.cat'));
   const parent   = groupEl.querySelector('.group-check');
@@ -117,6 +94,7 @@ function refreshAllParentStates(){
   catsBox.querySelectorAll('.group').forEach(setParentStateByChildren);
 }
 function computeAllSelected(){
+  // 'personal' 그룹은 전체선택 계산에서 제외
   const real = Array.from(catsBox.querySelectorAll('.group:not([data-key="personal"]) input.cat'));
   return real.length>0 && real.every(c=>c.checked);
 }
@@ -152,15 +130,24 @@ function selectAll(on){
 function applySavedSelection(){
   let saved = null;
   try{ saved = JSON.parse(localStorage.getItem('selectedCats')||'null'); }catch{}
-  if (!saved || saved==="ALL"){ selectAll(true); }
-  else{
+  if (!saved || saved==="ALL"){
+    selectAll(true);
+  }else if (Array.isArray(saved)){
     selectAll(false);
     const set = new Set(saved);
     catsBox.querySelectorAll('.cat').forEach(ch=>{ if (set.has(ch.value)) ch.checked=true; });
     refreshAllParentStates();
-    allSelected = computeAllSelected();
-    if (cbToggleAll) cbToggleAll.checked = allSelected;
+  }else if (saved && typeof saved==='object' && saved.personal){
+    // 개인자료만 선택되어 저장된 경우
+    selectAll(false);
+    const v = saved.personal;
+    const el = catsBox.querySelector(`.cat[value="${v}"]`);
+    if(el) el.checked = true;
+    refreshAllParentStates();
+  }else{
+    selectAll(true);
   }
+  // autonext
   const auto = localStorage.getItem('autonext')==='on';
   if (cbAutoNext) cbAutoNext.checked = auto;
 }
@@ -169,10 +156,21 @@ applySavedSelection();
 cbToggleAll?.addEventListener('change', ()=> selectAll(!!cbToggleAll.checked));
 btnWatch?.addEventListener('click', ()=>{
   const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
-  const filtered = selected.filter(v => v!=='personal1' && v!=='personal2'); // 개인자료는 서버 공유 안 함
-  const isAll = computeAllSelected();
-  const valueToSave = (filtered.length===0 || isAll) ? "ALL" : filtered;
-  localStorage.setItem('selectedCats', JSON.stringify(valueToSave));
+  const hasPersonal1 = selected.includes('personal1');
+  const hasPersonal2 = selected.includes('personal2');
+  const normals = selected.filter(v => v!=='personal1' && v!=='personal2');
+
+  let toSave = null;
+  if ((hasPersonal1 ^ hasPersonal2) && normals.length===0){
+    // 개인자료만 단독 선택
+    toSave = { personal: hasPersonal1 ? 'personal1' : 'personal2' };
+  }else{
+    // 일반 카테고리만 저장(개인자료와 혼합된 경우 개인자료는 무시)
+    const isAll = computeAllSelected();
+    toSave = (normals.length===0 || isAll) ? "ALL" : normals;
+  }
+
+  localStorage.setItem('selectedCats', JSON.stringify(toSave));
   localStorage.setItem('autonext', cbAutoNext?.checked ? 'on' : 'off');
   location.href = 'watch.html';
 });
