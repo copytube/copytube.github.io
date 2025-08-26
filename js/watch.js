@@ -1,4 +1,4 @@
-// js/watch.js (v1.0 + personal mode)
+// js/watch.js (v1.0.1: 1.0 기반 + 개인자료 로컬 재생 모드)
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { collection, getDocs, query, where, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -50,26 +50,22 @@ function showTopbar(){ topbar.classList.remove('hide'); if(hideTimer) clearTimeo
 });
 
 /* selection */
-function getSavedSelection(){
-  // URL 파라미터 cats(디버그용) 우선
-  const p = new URL(location.href).searchParams.get('cats');
-  if(p){
-    const arr = p.split(',').map(s=>s.trim()).filter(Boolean);
-    if(arr.length===1 && (arr[0]==='personal1' || arr[0]==='personal2')){
-      return { personal: arr[0] };
-    }
-    return arr.length ? arr : "ALL";
-  }
-  try{ return JSON.parse(localStorage.getItem('selectedCats')||'null'); }catch{ return "ALL"; }
-}
-const SELECTED = getSavedSelection();
+function getSelectedCats(){ try{ return JSON.parse(localStorage.getItem('selectedCats')||'null'); }catch{ return "ALL"; } }
 const AUTO_NEXT = localStorage.getItem('autonext')==='on';
+
+/* 개인자료 재생 모드 판정 */
+const urlq = new URLSearchParams(location.search);
+const PERSONAL_MODE = urlq.has('personal');
+const PERSONAL_SLOT = localStorage.getItem('selectedPersonal'); // 'personal1' | 'personal2'
+function getPersonalList(){
+  const key = PERSONAL_SLOT==='personal2' ? 'copytube_personal2' : 'copytube_personal1';
+  try{ return JSON.parse(localStorage.getItem(key)||'[]'); }catch{ return []; }
+}
 
 /* YouTube control */
 let userSoundConsent=false;  // once tapped, unmute policy
 let currentActive=null;
 const winToCard=new Map();
-
 function ytCmd(iframe, func, args=[]){ if(!iframe?.contentWindow) return; iframe.contentWindow.postMessage(JSON.stringify({event:"command", func, args}), "*"); }
 function applyAudioPolicy(iframe){ if(!iframe) return; if(userSoundConsent){ ytCmd(iframe,"setVolume",[100]); ytCmd(iframe,"unMute"); } else { ytCmd(iframe,"mute"); } }
 
@@ -99,7 +95,7 @@ function grantSoundFromCard(){
   if(ifr){ ytCmd(ifr,"setVolume",[100]); ytCmd(ifr,"unMute"); ytCmd(ifr,"playVideo"); }
 }
 
-/* IO: activate current, preload next(1) */
+/* IO: activate current, preload only NEXT (one) */
 const activeIO = new IntersectionObserver((entries)=>{
   entries.forEach(entry=>{
     const card = entry.target;
@@ -171,7 +167,7 @@ function ensureIframe(card, preload=false){
   thumb ? card.replaceChild(iframe, thumb) : card.appendChild(iframe);
 }
 
-/* ---------- Firestore feed ---------- */
+/* feed */
 const PAGE_SIZE=10;
 let isLoading=false, hasMore=true, lastDoc=null;
 const loadedIds=new Set();
@@ -180,16 +176,18 @@ function resetFeed(){
   document.querySelectorAll('#videoContainer .video').forEach(el=> activeIO.unobserve(el));
   videoContainer.innerHTML=""; isLoading=false; hasMore=true; lastDoc=null; loadedIds.clear(); currentActive=null;
 }
-async function loadMore(initial=false){
+
+async function loadMorePublic(initial=false){
   if(isLoading || !hasMore) return;
   isLoading=true;
+  const selected = getSelectedCats();
   try{
     const base = collection(db,"videos");
     const parts=[];
-    if(SELECTED==="ALL" || !SELECTED){ parts.push(orderBy("createdAt","desc")); }
-    else if(Array.isArray(SELECTED) && SELECTED.length){
-      const cats = SELECTED.length>10 ? null : SELECTED; // v1.0 동작 유지
-      if(cats) parts.push(where("categories","array-contains-any", cats));
+    if(selected==="ALL" || !selected){ parts.push(orderBy("createdAt","desc")); }
+    else if(Array.isArray(selected) && selected.length){
+      const cats = selected; // 공개 피드는 무제한 허용(단, Firestore array-contains-any는 10개 제한 → 필요시 페이지 파라미터 사용)
+      if(Array.isArray(cats) && cats.length<=10) parts.push(where("categories","array-contains-any", cats));
       parts.push(orderBy("createdAt","desc"));
     }else{ parts.push(orderBy("createdAt","desc")); }
     if(lastDoc) parts.push(startAfter(lastDoc));
@@ -214,31 +212,35 @@ async function loadMore(initial=false){
     }
   }finally{ isLoading=false; }
 }
-videoContainer.addEventListener('scroll', ()=>{
-  if(!hasMore) return;
-  const nearBottom = videoContainer.scrollTop + videoContainer.clientHeight >= videoContainer.scrollHeight - 200;
-  if(nearBottom) loadMore(false);
-});
 
-/* ---------- Personal feed ---------- */
-function renderPersonal(slot){
-  resetFeed();
-  const key = `copytube_${slot}`;
-  let arr=[];
-  try{ arr = JSON.parse(localStorage.getItem(key)||'[]'); }catch{ arr=[]; }
-  if(!Array.isArray(arr) || arr.length===0){
-    videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">개인자료에 저장된 영상이 없습니다. 업로드에서 ${slot==='personal1'?'자료1':'자료2'}로 저장해 보세요.</p></div>`;
-    hasMore=false;
-    return;
+/* 개인자료: 로컬에서 페이징 */
+let personalOffset = 0;
+let personalList = [];
+function loadMorePersonal(initial=false){
+  if(isLoading || !hasMore) return;
+  isLoading = true;
+  if(initial){
+    personalList = (getPersonalList() || []).map(x=> x.url).filter(Boolean);
+    personalOffset = 0;
+    if(!personalList.length){
+      videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">개인자료가 비어 있습니다.</p></div>`;
+      hasMore=false; isLoading=false; return;
+    }
   }
-  // 최신 저장 순으로
-  arr.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
-  for(const it of arr){
-    if(!it?.url) continue;
-    videoContainer.appendChild(makeCard(it.url, ''));
-  }
-  hasMore=false; // 로컬 모드에선 페이지 없음
+  const slice = personalList.slice(personalOffset, personalOffset + PAGE_SIZE);
+  slice.forEach(u=> videoContainer.appendChild(makeCard(u, 'local')));
+  personalOffset += slice.length;
+  if(personalOffset >= personalList.length) hasMore=false;
+  isLoading=false;
 }
+
+videoContainer.addEventListener('scroll', ()=>{
+  const nearBottom = videoContainer.scrollTop + videoContainer.clientHeight >= videoContainer.scrollHeight - 200;
+  if(nearBottom){
+    if(PERSONAL_MODE) loadMorePersonal(false);
+    else loadMorePublic(false);
+  }
+});
 
 /* auto-next */
 async function goToNextCard(){
@@ -246,16 +248,15 @@ async function goToNextCard(){
   if(next && next.classList.contains('video')){ next.scrollIntoView({behavior:'smooth', block:'start'}); return; }
   if(!hasMore){ showTopbar(); return; }
   const before = videoContainer.querySelectorAll('.video').length;
-  await loadMore(false);
+  if(PERSONAL_MODE) loadMorePersonal(false);
+  else await loadMorePublic(false);
   const after  = videoContainer.querySelectorAll('.video').length;
   if(after>before){ videoContainer.querySelectorAll('.video')[before]?.scrollIntoView({ behavior:'smooth', block:'start' }); }
   else{ showTopbar(); }
 }
 
 /* start */
-if(SELECTED && typeof SELECTED==='object' && SELECTED.personal){
-  renderPersonal(SELECTED.personal);
-  showTopbar();
-}else{
-  resetFeed(); loadMore(true); showTopbar();
-}
+resetFeed();
+if(PERSONAL_MODE){ loadMorePersonal(true); }
+else{ loadMorePublic(true); }
+showTopbar();
