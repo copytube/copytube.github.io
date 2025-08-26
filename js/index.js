@@ -1,4 +1,4 @@
-// js/index.js (v1.2.4)
+// js/index.js (v1.2.5)
 import { CATEGORY_GROUPS } from './categories.js';
 import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
@@ -88,7 +88,7 @@ function renderGroups(){
            </label>
          </legend>`;
 
-    // 안내문은 "아래"로 이동
+    // 안내문은 "아래"로
     const noteHTML = isPersonalGroup
       ? `<div class="muted" style="margin:6px 4px 2px;">개인자료는 <b>단독 재생만</b> 가능합니다.</div>`
       : '';
@@ -175,7 +175,14 @@ function bindGroupInteractions(){
 
 /* ---------- select all & load saved ---------- */
 function selectAll(on){
-  catsBox.querySelectorAll('.group:not([data-key="personal"]) input.cat').forEach(b => b.checked = !!on);
+  // 일반 카테고리 전체 on/off
+  catsBox.querySelectorAll('.group:not([data-key="personal"]) input.cat')
+    .forEach(b => { b.checked = !!on; });
+
+  // ✅ 전체선택 시 개인자료는 항상 해제
+  catsBox.querySelectorAll('.group[data-key="personal"] input.cat:checked')
+    .forEach(c => { c.checked = false; });
+
   refreshAllParentStates();
   allSelected = !!on;
   if (cbToggleAll) cbToggleAll.checked = allSelected;
@@ -228,3 +235,11 @@ btnWatch?.addEventListener('click', ()=>{
 });
 
 catTitleBtn?.addEventListener('click', ()=> location.href='category-order.html');
+
+/* ---------- storage listener: other-tab updates ---------- */
+window.addEventListener('storage', (e)=>{
+  if (e.key === 'personalLabels' || e.key === 'groupOrderV1') {
+    renderGroups();
+    applySavedSelection();
+  }
+});
