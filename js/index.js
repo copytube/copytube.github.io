@@ -1,4 +1,4 @@
-// js/index.js (v1.2.3)
+// js/index.js (v1.2.4)
 import { CATEGORY_GROUPS } from './categories.js';
 import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
@@ -115,7 +115,6 @@ function renderGroups(){
 
   catsBox.innerHTML = html;
   bindGroupInteractions();
-  // 기존 저장된 선택 복원
   applySavedSelection();
 }
 renderGroups();
@@ -170,7 +169,17 @@ cbToggleAll?.addEventListener('change', ()=> selectAll(!!cbToggleAll.checked));
 
 btnWatch?.addEventListener('click', ()=>{
   const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
-  // personal은 시청 대상에서 제외 (공개 피드만)
+
+  // ---- [핵심] 개인자료만 선택된 경우: 로컬 재생 모드로 전환 ----
+  const onlyPersonal = (selected.length===1) && (selected[0]==='personal1' || selected[0]==='personal2');
+  if (onlyPersonal){
+    localStorage.setItem('selectedPersonal', selected[0]); // 'personal1' | 'personal2'
+    localStorage.setItem('autonext', cbAutoNext?.checked ? 'on' : 'off');
+    location.href = 'watch.html?personal=1';
+    return;
+  }
+
+  // 그 외: 공개 피드 재생(개인자료는 제외)
   const filtered = selected.filter(v => v!=='personal1' && v!=='personal2');
   const isAll = computeAllSelected();
   const valueToSave = (filtered.length===0 || isAll) ? "ALL" : filtered;
