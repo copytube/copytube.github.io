@@ -55,10 +55,24 @@ const cbAutoNext   = document.getElementById("cbAutoNext");
 const cbToggleAll  = document.getElementById("cbToggleAll");
 const catTitleBtn  = document.getElementById("btnOpenOrder");
 
+// 추가: 개인 라벨 로더
+function getPersonalLabels(){
+  try{ return JSON.parse(localStorage.getItem('personalLabels')||'{}'); }
+  catch{ return {}; }
+}
+
 function renderGroups(){
-  const groups = applyGroupOrder(CATEGORY_GROUPS);
+  const personalLabels = getPersonalLabels();
+  const groups = applyGroupOrder(CATEGORY_GROUPS); // 기존 함수 그대로 사용
+
   const html = groups.map(g=>{
-    const kids = g.children.map(c=> `<label><input type="checkbox" class="cat" value="${c.value}"> ${c.label}</label>`).join('');
+    const kids = g.children.map(c=>{
+      const isPersonal = (g.key === 'personal');
+      const fallback   = (c.value==='personal1') ? '자료1' : (c.value==='personal2' ? '자료2' : c.label);
+      const labelText  = isPersonal && personalLabels[c.value] ? personalLabels[c.value] : fallback;
+      return `<label><input type="checkbox" class="cat" value="${c.value}"> ${labelText}</label>`;
+    }).join('');
+
     return `
       <fieldset class="group" data-key="${g.key}">
         <legend>
@@ -71,10 +85,15 @@ function renderGroups(){
       </fieldset>
     `;
   }).join('');
+
   catsBox.innerHTML = html;
-  bindGroupInteractions();
+  bindGroupInteractions(); // 기존 함수 그대로 호출
 }
-renderGroups();
+
+// (선택) 다른 탭/페이지에서 개인자료 이름 변경 시 자동 반영
+window.addEventListener('storage', (e)=>{
+  if(e.key==='personalLabels') renderGroups();
+});
 
 /* 부모/자식 동기화 */
 function setParentStateByChildren(groupEl){
