@@ -56,6 +56,21 @@
     #topbar.hide{ transform:translateY(-100%); }
     #menuBackdrop{ position:fixed; inset:0; background:transparent; z-index:900; display:none; }
     #menuBackdrop.show{ display:block; }
+    /* 기본: 최신 뷰포트 단위 우선 */
+@supports (height: 100dvh){
+  #videoContainer, .video { height: 100dvh; }
+}
+@supports (height: 100svh){
+  #videoContainer, .video { height: 100svh; }
+}
+
+/* Samsung Internet 전용: 카드 높이를 스크롤 컨테이너의 실제 보이는 높이로 고정 */
+.ua-sbrowser .video { height: var(--snap-h, 100dvh); }
+/* 혹시 svh 사용 가능하면 그걸 기본값으로 */
+@supports (height: 100svh){
+  .ua-sbrowser .video { height: var(--snap-h, 100svh); }
+}
+
   </style>
 </head>
 <body>
