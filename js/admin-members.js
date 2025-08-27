@@ -1,9 +1,10 @@
-// js/admin-members.js
+// js/admin-members.js (console-only admin tools)
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged } from './auth.js';
 import { isAdminCurrentUser, escapeHTML, fmtDate } from './admin-common.js';
 import {
-  collection, getDocs, query, orderBy, limit, doc, getDoc, setDoc, deleteDoc
+  collection, getDocs, query, orderBy, limit, doc, getDoc, setDoc, deleteDoc,
+  where, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 
 /* 드롭다운 */
@@ -16,12 +17,13 @@ document.getElementById('btnBack')?.addEventListener('click', ()=> location.href
 document.addEventListener('pointerdown', (e)=>{ if(dropdown.classList.contains('hidden')) return; if(!e.target.closest('#dropdownMenu,#menuBtn')) close(); }, true);
 
 /* DOM */
-const usersBox = document.getElementById('users');
-const usersMsg = document.getElementById('usersMsg');
-const logsMsg  = document.getElementById('logsMsg');
-const logsTbody= document.querySelector('#logsTbl tbody');
+const usersBox  = document.getElementById('users');
+const usersMsg  = document.getElementById('usersMsg');
+const logsMsg   = document.getElementById('logsMsg');
+const logsTbody = document.querySelector('#logsTbl tbody');
 
 onAuthStateChanged(auth, async (user)=>{
+  // 관리자만 접근
   if (!user || !(await isAdminCurrentUser())){ location.href='about.html'; return; }
   await Promise.all([loadUsers(), loadLogs()]);
 });
@@ -29,14 +31,15 @@ onAuthStateChanged(auth, async (user)=>{
 async function loadUsers(){
   usersMsg.textContent = '로딩중...';
   try{
-    // users 컬렉션 전체 (규칙상 read 허용)
-    const snap = await getDocs(collection(db,'users'));
+    const snap = await getDocs(collection(db,'users')); // 전체 사용자
     usersBox.innerHTML='';
     if (snap.empty){ usersBox.innerHTML='<div class="msg">사용자가 없습니다.</div>'; usersMsg.textContent=''; return; }
 
     for (const d of snap.docs){
       const u = d.data();
       const uid = d.id;
+
+      // 밴 여부
       const bannedSnap = await getDoc(doc(db,'banned_users', uid));
       const isBanned = bannedSnap.exists();
 
@@ -54,14 +57,16 @@ async function loadUsers(){
         <div class="actions">
           ${isBanned
             ? `<button class="btn" data-act="unban" data-uid="${uid}">밴 해제</button>`
-            : `<button class="btn btn-danger" data-act="ban" data-uid="${uid}">밴</button>`}
-          <button class="btn" data-act="dropnick" data-uid="${uid}" data-nick="${escapeHTML((u.displayName||'').toLowerCase())}">닉 지우기</button>
+            : `<button class="btn btn-danger" data-act="ban"  data-uid="${uid}">밴</button>`}
+          <button class="btn" data-act="dropnick" data-uid="${uid}">닉 지우기</button>
+          <button class="btn btn-danger" data-act="force" data-uid="${uid}">강제탈퇴(소프트)</button>
         </div>
       `;
       // 핸들러
       row.querySelector('[data-act="ban"]')?.addEventListener('click', ()=> doBan(uid, true));
       row.querySelector('[data-act="unban"]')?.addEventListener('click', ()=> doBan(uid, false));
-      row.querySelector('[data-act="dropnick"]')?.addEventListener('click', ()=> dropNick(uid, (u.displayName||'').toLowerCase()));
+      row.querySelector('[data-act="dropnick"]')?.addEventListener('click', ()=> dropNick(uid));
+      row.querySelector('[data-act="force"]')?.addEventListener('click', ()=> forceDeleteSoft(uid));
       usersBox.appendChild(row);
     }
     usersMsg.textContent='';
@@ -101,12 +106,57 @@ async function doBan(uid, on){
   }catch(e){ alert('처리 실패: ' + (e.message || e)); }
 }
 
-async function dropNick(uid, nickLower){
-  if (!nickLower) { alert('닉네임이 없습니다.'); return; }
-  if (!confirm(`닉네임 "${nickLower}" 맵을 삭제할까요? (사용자 계정 자체 삭제는 아님)`)) return;
+async function dropNick(uid){
   try{
-    // usernames/{nickLower} 삭제 (rules: isAdmin만 허용)
-    await deleteDoc(doc(db, 'usernames', nickLower));
-    alert('삭제되었습니다.');
-  }catch(e){ alert('삭제 실패: ' + (e.message || e)); }
+    const uSnap = await getDoc(doc(db,'users', uid));
+    if (!uSnap.exists()){ alert('사용자 문서가 없습니다.'); return; }
+    const dn = String(uSnap.data().displayName || '').toLowerCase();
+    if (!dn){ alert('닉네임이 없습니다.'); return; }
+    if (!confirm(`닉네임 "${dn}" 맵을 삭제할까요? (계정 삭제 아님)`)) return;
+    await deleteDoc(doc(db,'usernames', dn));
+    alert('닉네임 맵이 삭제되었습니다.');
+  }catch(e){ alert('실패: ' + (e.message || e)); }
+}
+
+async function forceDeleteSoft(uid){
+  if (!confirm('강제탈퇴(소프트)를 진행할까요?\n- 밴 적용\n- 해당 사용자의 영상 삭제\n- users 문서 삭제\n- usernames 맵 삭제\n\n※ Auth 계정 삭제는 콘솔에서 별도 수행')) return;
+
+  usersMsg.textContent = '강제탈퇴 작업 중...';
+  try{
+    // 1) 밴
+    await setDoc(doc(db,'banned_users', uid), { at: new Date(), by: auth.currentUser?.uid||'admin' });
+
+    // 2) 닉네임 맵 준비
+    let nickLower = '';
+    try{
+      const uSnap = await getDoc(doc(db,'users', uid));
+      if (uSnap.exists()){
+        const dn = (uSnap.data().displayName || '').toString();
+        nickLower = dn ? dn.toLowerCase() : '';
+      }
+    }catch(_){}
+
+    // 3) 영상 일괄 삭제 (루프 배치)
+    while(true){
+      const snap = await getDocs(query(collection(db,'videos'), where('uid','==',uid), limit(300)));
+      if (snap.empty) break;
+      const batch = writeBatch(db);
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      // 많은 데이터라도 반복 처리
+    }
+
+    // 4) users 문서 삭제
+    await deleteDoc(doc(db,'users', uid)).catch(()=>{});
+
+    // 5) usernames 맵 삭제
+    if (nickLower){
+      await deleteDoc(doc(db,'usernames', nickLower)).catch(()=>{});
+    }
+
+    usersMsg.textContent = '강제탈퇴(소프트) 완료. Auth 계정은 콘솔(Authentication)에서 삭제하세요.';
+    await loadUsers();
+  }catch(e){
+    usersMsg.textContent = '실패: ' + (e.message || e);
+  }
 }
