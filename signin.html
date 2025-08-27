@@ -1,41 +1,48 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>로그인 - copytube</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>로그인 - CopyTube</title>
 
   <!-- CSP -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    connect-src 'self'
-      https://identitytoolkit.googleapis.com
-      https://securetoken.googleapis.com
-      https://firebaseinstallations.googleapis.com
-      https://www.googleapis.com
-      https://www.gstatic.com
-      https://firestore.googleapis.com;
-    img-src 'self' data:;
-    frame-src https://www.youtube.com https://www.youtube-nocookie.com;
+    connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firebaseinstallations.googleapis.com https://www.gstatic.com https://www.youtube.com;
+    img-src 'self' data: https://i.ytimg.com;
+    frame-src https://www.youtube.com;
     script-src 'self' https://www.gstatic.com 'unsafe-inline';
     style-src 'self' 'unsafe-inline';
     object-src 'none';
     base-uri 'self';
   ">
+
   <link rel="stylesheet" href="css/style.css"/>
   <style>
-    main { max-width:420px; margin:96px auto 40px; padding:0 16px; }
-    label { display:block; margin-top:14px; font-size:14px; }
-    input { width:100%; padding:10px; margin-top:6px; box-sizing:border-box; border:1px solid #333; border-radius:6px; background:#000; color:#fff; }
-    button { margin-top:18px; width:100%; padding:12px; border:0; border-radius:8px; background:#0366d6; color:#fff; font-weight:600; cursor:pointer; }
-    button[disabled]{ opacity:.6; cursor:default; }
-    .msg { margin-top:10px; font-size:13px; color:#ccc; white-space:pre-line; min-height:1.2em; }
+    body{ padding-top:84px; }
+    main{ max-width:520px; margin:0 auto; padding:16px; }
+    .field{ margin:10px 0 14px; }
+    .field label{ display:block; font-weight:800; margin-bottom:6px; }
+    .field input{
+      width:100%; padding:12px; border-radius:10px;
+      border:1px solid #333; background:#000; color:#fff; box-sizing:border-box;
+    }
+    .btn-primary{
+      width:100%; padding:12px; border-radius:10px; border:0;
+      background:#4ea1ff; color:#fff; font-weight:800; cursor:pointer;
+    }
+    .muted{ color:#9aa0a6; font-size:13px; }
+    .links{ margin-top:12px; font-size:14px; }
+    .links a{ color:#9ecbff; }
+    header #menuBtn, header #dropdownMenu{ display:none; }
   </style>
 </head>
 <body>
   <header id="topbar">
     <div class="brand">
-      <a href="./"><img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/></a>
+      <a href="./" aria-label="CopyTube 홈으로">
+        <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
+      </a>
     </div>
     <div class="right">
       <a class="link" href="signup.html">Sign up</a>
@@ -44,123 +51,33 @@
 
   <main>
     <h2>로그인</h2>
+    <p class="muted" style="margin:6px 0 14px;">
+      아이디는 <b>영어 소문자</b>만 가능합니다. (이메일 로그인도 가능)
+    </p>
 
-    <!-- ✅ 폼으로 감싸고, 버튼은 type="submit" -->
-    <form id="loginForm" novalidate>
-      <label>아이디 (닉네임 또는 이메일)
-        <input id="loginId" name="loginId"
-               placeholder="예: coolboy 또는 coolboy@example.com"
-               autocomplete="username"
-               enterkeyhint="next" />
-      </label>
+    <form id="signinForm" autocomplete="on">
+      <div class="field">
+        <label for="signinIdOrEmail">아이디(영소문자) 또는 이메일</label>
+        <input id="signinIdOrEmail" type="text" inputmode="email" autocomplete="username"
+               placeholder="예) timelord 또는 timelord@example.com" required/>
+      </div>
 
-      <label>비밀번호
-        <input id="password" name="password"
-               type="password"
-               autocomplete="current-password"
-               enterkeyhint="go" />
-      </label>
+      <div class="field">
+        <label for="signinPassword">비밀번호</label>
+        <input id="signinPassword" type="password" autocomplete="current-password"
+               placeholder="비밀번호" required/>
+      </div>
 
-      <button id="submitBtn" type="submit">로그인</button>
+      <button class="btn-primary" type="submit">로그인</button>
     </form>
 
-    <div class="msg" id="msg"></div>
-    <p style="margin-top:12px;">처음이신가요? <a class="link" href="signup.html">Sign up</a></p>
+    <div class="links">
+      아직 계정이 없으신가요? <a href="signup.html">회원가입하기</a>
+    </div>
   </main>
 
+  <!-- 모듈 스크립트 -->
   <script type="module" src="js/firebase-init.js"></script>
-  <script type="module" src="js/auth.js"></script>
-  <script type="module">
-    import { auth, signInWithEmailAndPassword } from './js/auth.js';
-    import { normalizeLoginId } from './js/auth.js';
-    const $ = (id) => document.getElementById(id);
-    const form = $('loginForm');
-    const msg = $('msg');
-    const btn = $('submitBtn');
-    const idInput = $('loginId');
-    const pwInput = $('password');
-
-    // 아이디 필드에서 엔터 치면 비밀번호로 포커스 (모바일 UX 개선)
-    idInput.addEventListener('keydown', (e)=>{
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        pwInput.focus();
-      }
-    });
-
-    let submitting = false;
-    async function handleSubmit(e){
-      e?.preventDefault();
-      if (submitting) return;
-      submitting = true;
-      btn.disabled = true;
-      msg.textContent = '로그인 중...';
-
-      const rawId = idInput.value.trim();
-      const password = pwInput.value;
-      if (!rawId || !password) {
-        msg.textContent = '아이디와 비밀번호를 입력해 주세요.';
-        submitting = false; btn.disabled = false; return;
-      }
-
-      try {
-        const { emailLike } = normalizeLoginId(rawId);
-        await signInWithEmailAndPassword(auth, emailLike, password);
-        location.href = './';
-      } catch (e) {
-        msg.textContent = `오류: ${e.message || e}`;
-        submitting = false; btn.disabled = false;
-      }
-    }
-
-    // ✅ 폼 제출로 PC/모바일 엔터 동작 통일
-    form.addEventListener('submit', handleSubmit);
-    // 클릭으로도 동작 (중복 방지용으로 handleSubmit 재사용)
-    btn.addEventListener('click', handleSubmit);
-  </script>
-  <!-- (signin.html 맨 아래 스크립트 내부) -->
-<script type="module">
-  import { auth, signInWithEmailAndPassword, db } from './js/auth.js'; /* 만약 auth.js가 db를 export하지 않으면 아래처럼: */
-  // import { auth } from './js/auth.js';
-  // import { db } from './js/firebase-init.js';
-  import { normalizeLoginId } from './js/auth.js';
-  import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
-  ...
-  async function handleSubmit(e){
-    ...
-    try {
-      const { emailLike } = normalizeLoginId(rawId);
-      await signInWithEmailAndPassword(auth, emailLike, password);
-
-      // ✅ 로그인 기록
-      try{
-        await addDoc(collection(db,'login_logs'), {
-          uid: auth.currentUser.uid,
-          displayName: auth.currentUser.displayName || '',
-          at: serverTimestamp(),
-          ua: navigator.userAgent || ''
-        });
-      }catch(_) {}
-
-      // ✅ users 프로필 보정(없으면 생성/갱신)
-      try{
-        const { doc, getDoc, setDoc, updateDoc } = await import('https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js');
-        const ref = doc(db,'users', auth.currentUser.uid);
-        const snap = await getDoc(ref);
-        if (snap.exists()){
-          await updateDoc(ref, { displayName: auth.currentUser.displayName || '', lastLoginAt: serverTimestamp() });
-        }else{
-          await setDoc(ref, { displayName: auth.currentUser.displayName || '', createdAt: serverTimestamp(), lastLoginAt: serverTimestamp() });
-        }
-      }catch(_){}
-
-      location.href = './';
-    } catch (e) {
-      ...
-    }
-  }
-  ...
-</script>
-
+  <script type="module" src="js/signin.js"></script>
 </body>
 </html>
