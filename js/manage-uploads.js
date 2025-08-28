@@ -1,6 +1,6 @@
 // js/manage-uploads.js
-import { auth, db } from './firebase-init.js';
-import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
+import { auth, db } from './firebase-init.js?v=1.5.1';
+import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import {
   collection, query, where, orderBy, limit, startAfter, getDocs,
   getDoc, doc, updateDoc, deleteDoc, serverTimestamp
