@@ -5,7 +5,7 @@ import {
   collection, query, where, orderBy, limit, startAfter, getDocs,
   getDoc, doc, updateDoc, deleteDoc, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
-import { CATEGORY_GROUPS } from './categories.js?v=1.5.1';
+import { CATEGORY_GROUPS } from './categories.js?v-1.5.1';
 
 const $ = s => document.querySelector(s);
 
