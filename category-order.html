@@ -55,7 +55,7 @@
       background:#0f0f0f;
       border-radius:8px;
       font-weight:800;
-      text-align:left;     /* ← 카테고리는 좌측 정렬 유지 */
+      text-align:left;     /* 카테고리는 좌측 정렬 유지 */
       cursor:pointer;
       min-width:0;
     }
@@ -67,14 +67,15 @@
       align-items:center;            /* 버튼 가로 중앙정렬 */
       justify-content:flex-start;
       padding:0;
+      /* ✅ 두 버튼을 동시에 5칸 내려주기 */
+      padding-top: calc(5 * var(--btn-step));
     }
     .btn{ padding:10px 12px; border-radius:8px; border:1px solid #2a2a2a; background:#111; color:#fff; cursor:pointer; }
     .btn-primary{ background:#4ea1ff; border:0; font-weight:800; }
     .hint{ font-size:12px; color:#9aa0a6; text-align:center; }
 
-    /* 확인 버튼만 버튼 한 칸 아래로 (Reset은 그대로) */
+    /* 버튼 개별 마진은 0 (컨테이너 패딩으로만 위치 조정) */
     .center .btn{ margin:0; }
-    .center .btn.btn-primary{ margin-top: var(--btn-step); }
 
     /* ===== 데스크톱(PC): 리스트 스크롤 제거, 전체 펼침 ===== */
     @media (min-width: 1024px){
@@ -90,14 +91,15 @@
         grid-template-columns: 1fr minmax(36px, 15vw) 1fr;
         gap:8px;
       }
-      .center{ gap:0; padding:0; min-height:180px; }
-      .center .btn{ margin:0; }            /* 버튼 주변 여백 0 */
-      .center .btn.btn-primary{ margin-top: var(--btn-step); } /* 확인만 한 칸 아래 */
+      .center{
+        gap:0; padding:0; min-height:180px;
+        /* ✅ 모바일에서도 두 버튼을 동시에 5칸 내려주기 */
+        padding-top: calc(5 * var(--btn-step));
+      }
+      .center .btn{ margin:0; }   /* 버튼 주변 여백 0 */
+      .hint{ display:none; }      /* 설명 제거 */
 
-      /* 설명 제거 */
-      .hint{ display:none; }
-
-      /* 글꼴 크기: 좌/우 카테고리 14px(왼쪽 굵게 유지), 버튼 크기는 기존 그대로 */
+      /* 글꼴 크기: 좌/우 카테고리 14px(왼쪽 굵게), 버튼 크기는 기존 유지 */
       #listLeft  .item{ font-size:14px; font-weight:800; }
       #listRight .item{ font-size:14px; }
 
