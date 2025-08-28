@@ -1,11 +1,11 @@
-// js/manage-uploads.js
+// js/manage-uploads.js (v1.5.2)
 import { auth, db } from './firebase-init.js?v=1.5.1';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import {
   collection, query, where, orderBy, limit, startAfter, getDocs,
   getDoc, doc, updateDoc, deleteDoc, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
-import { CATEGORY_GROUPS } from './categories.js?v-1.5.1';
+import { CATEGORY_GROUPS } from './categories.js?v=1.5.1';
 
 const $ = s => document.querySelector(s);
 
@@ -58,8 +58,8 @@ function escapeHTML(s){
   return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 function catChipsHTML(arr){
-  if (!Array.isArray(arr) || !arr.length) return '<span class="sub">(카테고리 없음)</span>';
-  return `<div class="cats">${arr.map(v=>`<span class="chip">${escapeHTML(labelOf(v))}</span>`).join('')}</div>`;
+  if (!Array.isArray(arr) || !arr.length) return '<div class="cats"><span class="sub">(카테고리 없음)</span></div>';
+  return `<div class="cats" tabindex="0" role="button" aria-label="카테고리 변경 펼치기">${arr.map(v=>`<span class="chip">${escapeHTML(labelOf(v))}</span>`).join('')}</div>`;
 }
 function buildSelect(name){
   // personal 그룹(로컬 전용)은 제외
@@ -116,6 +116,14 @@ async function getUploaderDisplay(uid){
   }
 }
 
+/* ---------- 펼침 토글 유틸 ---------- */
+function closeAllRows(){
+  document.querySelectorAll('.row.open').forEach(r=>{
+    r.classList.remove('open');
+    r.removeAttribute('aria-expanded');
+  });
+}
+
 /* ---------- 1행 렌더 ---------- */
 function renderRow(docId, data){
   const cats  = Array.isArray(data.categories) ? data.categories : [];
@@ -150,20 +158,14 @@ function renderRow(docId, data){
   const sels = Array.from(row.querySelectorAll('select.sel'));
   cats.slice(0,3).forEach((v, i) => { if (sels[i]) sels[i].value = v; });
 
-  // 제목이 비어있으면 비동기로 가져오고, 가져오면 Firestore에 title 저장(권한 허용 시)
+  // 제목 비어있으면 비동기 로드 + 저장 시도
   if (!title && url){
     (async ()=>{
       const t = await fetchYouTubeTitle(url);
+      const tEl = row.querySelector('.js-title');
+      if (tEl) tEl.textContent = t || url;
       if (t){
-        const tEl = row.querySelector('.js-title');
-        if (tEl) tEl.textContent = t;
-        // 문서에 title 저장(소유자 또는 관리자만 성공)
-        try{
-          await updateDoc(doc(db,'videos', docId), { title: t, updatedAt: serverTimestamp() });
-        }catch{/* 권한 안되면 무시 */}
-      }else{
-        const tEl = row.querySelector('.js-title');
-        if (tEl) tEl.textContent = url; // 최소한 url 노출
+        try{ await updateDoc(doc(db,'videos', docId), { title: t, updatedAt: serverTimestamp() }); }catch{}
       }
     })();
   }
@@ -177,7 +179,26 @@ function renderRow(docId, data){
     })();
   }
 
-  // 카테고리 적용
+  // ✅ 칩 클릭/키보드로 펼침 토글 (해당 행만)
+  const catsEl = row.querySelector('.cats');
+  if (catsEl){
+    const toggle = ()=>{
+      const willOpen = !row.classList.contains('open');
+      closeAllRows();                     // 하나만 열리게 (원하면 제거)
+      if (willOpen){
+        row.classList.add('open');
+        row.setAttribute('aria-expanded','true');
+      }
+    };
+    catsEl.addEventListener('click', toggle);
+    catsEl.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter' || e.key === ' '){
+        e.preventDefault(); toggle();
+      }
+    });
+  }
+
+  // 적용
   row.querySelector('.btn-apply').addEventListener('click', async ()=>{
     const chosen = Array.from(row.querySelectorAll('select.sel')).map(s=>s.value).filter(Boolean);
     const uniq = [...new Set(chosen)].slice(0,3);
@@ -190,6 +211,12 @@ function renderRow(docId, data){
       const oldCats = meta.querySelector('.cats');
       if (oldCats) oldCats.remove();
       meta.insertAdjacentHTML('beforeend', catChipsHTML(uniq));
+      // 갱신한 칩에 다시 토글 이벤트 연결
+      const newCatsEl = row.querySelector('.cats');
+      if (newCatsEl){
+        newCatsEl.addEventListener('click', ()=>{ closeAllRows(); row.classList.add('open'); row.setAttribute('aria-expanded','true'); });
+        newCatsEl.addEventListener('keydown', (e)=>{ if (e.key==='Enter'||e.key===' '){ e.preventDefault(); closeAllRows(); row.classList.add('open'); row.setAttribute('aria-expanded','true'); }});
+      }
     }catch(e){
       alert('변경 실패: ' + (e.message || e));
     }
@@ -297,3 +324,5 @@ onAuthStateChanged(auth, async (user)=>{
   cursors = []; page = 1; reachedEnd = false;
   loadPage(page);
 });
+
+// End of js/manage-uploads.js (v1.5.2)
