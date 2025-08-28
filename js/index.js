@@ -1,10 +1,13 @@
-// js/index.js (v1.2.5)
+// js/index.js (v1.5.1)
 import { CATEGORY_GROUPS } from './categories.js';
 import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 
 const GROUP_ORDER_KEY = 'groupOrderV1';
 const isPersonalVal = (v)=> v==='personal1' || v==='personal2';
+
+// helper: "전체선택"에서 제외할 그룹 키
+const EXCLUDED_GROUPS_FOR_ALL = new Set(['personal','series']);
 
 /* ---------- group order ---------- */
 function applyGroupOrder(groups){
@@ -125,7 +128,8 @@ function refreshAllParentStates(){
   catsBox.querySelectorAll('.group').forEach(setParentStateByChildren);
 }
 function computeAllSelected(){
-  const real = Array.from(catsBox.querySelectorAll('.group:not([data-key="personal"]) input.cat'));
+  // 전체선택 비교는 personal/series 제외
+  const real = Array.from(catsBox.querySelectorAll('.group:not([data-key="personal"]):not([data-key="series"]) input.cat'));
   return real.length>0 && real.every(c=>c.checked);
 }
 let allSelected=false;
@@ -175,12 +179,13 @@ function bindGroupInteractions(){
 
 /* ---------- select all & load saved ---------- */
 function selectAll(on){
-  // 일반 카테고리 전체 on/off
-  catsBox.querySelectorAll('.group:not([data-key="personal"]) input.cat')
+  // 일반 카테고리 전체 on/off (personal/series 제외)
+  catsBox
+    .querySelectorAll('.group:not([data-key="personal"]):not([data-key="series"]) input.cat')
     .forEach(b => { b.checked = !!on; });
 
-  // ✅ 전체선택 시 개인자료는 항상 해제
-  catsBox.querySelectorAll('.group[data-key="personal"] input.cat:checked')
+  // ✅ 전체선택 시 personal/series는 항상 해제
+  catsBox.querySelectorAll('.group[data-key="personal"] input.cat:checked, .group[data-key="series"] input.cat:checked')
     .forEach(c => { c.checked = false; });
 
   refreshAllParentStates();
@@ -227,7 +232,7 @@ btnWatch?.addEventListener('click', ()=>{
   }
 
   // normal only (no personals mixed)
-  const isAll = computeAllSelected();
+  const isAll = computeAllSelected(); // personal/series 제외 기준으로 판정
   const valueToSave = (normals.length===0 || isAll) ? "ALL" : normals;
   localStorage.setItem('selectedCats', JSON.stringify(valueToSave));
   localStorage.setItem('autonext', cbAutoNext?.checked ? 'on' : 'off');
@@ -243,3 +248,5 @@ window.addEventListener('storage', (e)=>{
     applySavedSelection();
   }
 });
+
+// End of js/index.js (v1.5.1)
