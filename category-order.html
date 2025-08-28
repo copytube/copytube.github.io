@@ -18,6 +18,9 @@
 
   <link rel="stylesheet" href="css/style.css"/>
   <style>
+    /* 버튼 높이 스텝(“버튼 1칸”) */
+    :root{ --btn-step: 44px; } /* PC 기본값 */
+
     body{ padding-top:72px; }
     main{ max-width:1100px; margin:0 auto; padding:16px; }
 
@@ -39,7 +42,7 @@
 
     .list{
       display:flex; flex-direction:column; gap:8px;
-      max-height:60vh; overflow:auto;  /* 기본: 태블릿 등에서 내부 스크롤 */
+      max-height:60vh; overflow:auto;  /* 태블릿 등에서 내부 스크롤 */
     }
     .item{
       user-select:none;
@@ -55,44 +58,49 @@
     .item:active{ opacity:.85; }
 
     .center{
-      display:flex; flex-direction:column; gap:10px; align-items:stretch; justify-content:flex-start;
+      display:flex; flex-direction:column;
+      gap:10px;
+      align-items:center;            /* ← 버튼을 가로 중앙정렬 */
+      justify-content:flex-start;
+      padding:0;
     }
     .btn{ padding:10px 12px; border-radius:8px; border:1px solid #2a2a2a; background:#111; color:#fff; cursor:pointer; }
     .btn-primary{ background:#4ea1ff; border:0; font-weight:800; }
     .hint{ font-size:12px; color:#9aa0a6; text-align:center; }
 
+    /* 버튼을 “버튼 5칸”만큼 아래로 */
+    .center .btn:first-of-type{ margin-top: calc(5 * var(--btn-step)); }
+    .center .btn{ margin-left:0; margin-right:0; } /* 혹시 남아있는 좌우 여백 제거 */
+
     /* ===== 데스크톱(PC): 리스트 스크롤 제거, 전체 펼침 ===== */
     @media (min-width: 1024px){
-      .list{ max-height:none; overflow:visible; } /* 내부 스크롤 막대바 안 보이도록 */
+      .list{ max-height:none; overflow:visible; }
     }
 
     /* ===== 모바일: 요청사항 반영 ===== */
     @media (max-width: 640px){
-      /* 중앙 Reset/확인 열: 지금의 절반 너비로, 주변 padding 0 */
+      :root{ --btn-step: 40px; } /* 모바일 버튼 1칸 기준 */
+
+      /* 중앙 Reset/확인 열: 절반 너비, 주변 padding 0 */
       .layout{
-        grid-template-columns: 1fr minmax(36px, 15vw) 1fr; /* 절반으로 축소 */
+        grid-template-columns: 1fr minmax(36px, 15vw) 1fr;
         gap:8px;
       }
-      .center{ gap:0; padding:0; }
+      .center{ gap:0; padding:0; min-height:180px; }
       .center .btn{ margin:0; }             /* 버튼 주변 여백 0 */
-      .center{ min-height: 180px; }         /* 버튼 2개 더 들어올 수 있게 여유 확보 */
-
-      /* 설명 제거 */
-      .hint{ display:none; }
+      .hint{ display:none; }                /* 설명 제거 */
 
       /* 글꼴 크기 통일: Reset 버튼/왼쪽/오른쪽 아이템 */
-      .center .btn{ font-size:14px; }
-      #listLeft  .item{ font-size:14px; font-weight:800; }
-      #listRight .item{ font-size:14px; }   /* ← 오른쪽도 왼쪽과 같은 크기 */
+      .center .btn{ font-size:12px; }
+      #listLeft  .item{ font-size:12px; font-weight:800; }
+      #listRight .item{ font-size:12px; }   /* 오른쪽도 동일 크기 */
 
-      /* 현재순서 아이템 padding 절반으로 축소 */
+      /* 왼쪽(현재순서) 패딩/간격 축소 */
       #listLeft .item{ padding:5px 6px; }
-
-      /* 현재순서 패널 padding 절반으로 축소 */
       .layout > section:first-child .panel{ padding:5px; }
 
-      /* 모바일은 내부 스크롤 막대바를 유지(현재순서/새순서 모두) */
-      .list{ max-height:70vh; overflow:auto; } /* ← 70vh로 상향 */
+      /* 모바일은 내부 스크롤 막대 유지(현재/새 순서 모두) */
+      .list{ max-height:70vh; overflow:auto; } /* 70vh로 조정 */
     }
   </style>
 </head>
