@@ -1,8 +1,8 @@
-// js/upload.js v1.3.1
-import { auth, db } from './firebase-init.js?v-1.5.1';
-import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v-1.5.1';
+// js/upload.js (v1.5.2)
+import { auth, db } from './firebase-init.js?v=1.5.1';
+import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
-import { CATEGORY_GROUPS } from './categories.js?v-1.5.1';
+import { CATEGORY_GROUPS } from './categories.js?v=1.5.1';
 
 /* ------- 상단바/드롭다운 ------- */
 const $ = (s)=>document.querySelector(s);
@@ -228,3 +228,60 @@ try{
   console.debug('[upload] CATEGORY_GROUPS keys:', CATEGORY_GROUPS.map(g=>g.key));
   console.debug('[upload] groupOrderV1:', localStorage.getItem('groupOrderV1'));
 }catch{}
+
+/* ===================== */
+/* Swipe Navigation + CSS inject (v1.5.2) */
+/* ===================== */
+(function injectSlideCSS(){
+  if (document.getElementById('slide-css-152')) return;
+  const style = document.createElement('style');
+  style.id = 'slide-css-152';
+  style.textContent = `
+@keyframes pageSlideLeft { from { transform: translateX(0); opacity:1; } to { transform: translateX(-22%); opacity:.92; } }
+@keyframes pageSlideRight{ from { transform: translateX(0); opacity:1; } to { transform: translateX(22%);  opacity:.92; } }
+:root.slide-out-left  body { animation: pageSlideLeft 0.26s ease forwards; }
+:root.slide-out-right body { animation: pageSlideRight 0.26s ease forwards; }
+@media (prefers-reduced-motion: reduce){
+  :root.slide-out-left  body,
+  :root.slide-out-right body { animation:none; }
+}`;
+  document.head.appendChild(style);
+})();
+
+function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {}){
+  let sx=0, sy=0, t0=0, tracking=false;
+  const THRESH_X = 70;
+  const MAX_OFF_Y = 80;
+  const MAX_TIME  = 600;
+
+  const getPoint = (e) => e.touches?.[0] || e.changedTouches?.[0] || e;
+
+  function onStart(e){
+    const p = getPoint(e); sx = p.clientX; sy = p.clientY; t0 = Date.now(); tracking = true;
+  }
+  function onEnd(e){
+    if(!tracking) return; tracking = false;
+    const p = getPoint(e);
+    const dx = p.clientX - sx;
+    const dy = p.clientY - sy;
+    const dt = Date.now() - t0;
+    if (Math.abs(dy) > MAX_OFF_Y || dt > MAX_TIME) return;
+
+    if (dx <= -THRESH_X && goLeftHref){
+      document.documentElement.classList.add('slide-out-left');
+      setTimeout(()=> location.href = goLeftHref, animateMs);
+    } else if (dx >= THRESH_X && goRightHref){
+      document.documentElement.classList.add('slide-out-right');
+      setTimeout(()=> location.href = goRightHref, animateMs);
+    }
+  }
+  document.addEventListener('touchstart', onStart, { passive:true });
+  document.addEventListener('touchend',   onEnd,   { passive:true });
+  document.addEventListener('pointerdown',onStart, { passive:true });
+  document.addEventListener('pointerup',  onEnd,   { passive:true });
+}
+
+// upload: 왼→오 → index
+initSwipeNav({ goLeftHref: null, goRightHref: 'index.html' });
+
+// End of js/upload.js (v1.5.2)
