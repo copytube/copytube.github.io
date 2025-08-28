@@ -38,8 +38,8 @@
     }
 
     .list{
-      display:flex; flex-direction:column; gap:8px;
-      max-height:60vh; overflow:auto;  /* 기본: 모바일 유지용(아래 미디어쿼리에서 데스크톱은 해제) */
+      display:flex; flex-direction:column; gap:4px;
+      max-height:80vh; overflow:auto;  /* 기본: 모바일 유지용(아래 미디어쿼리에서 데스크톱은 해제) */
     }
     .item{
       user-select:none;
@@ -78,10 +78,11 @@
       h3{ font-size:14px; }
 
       /* 현재순서(왼쪽 리스트) 텍스트: Reset 버튼 크기 수준으로 축소 + 굵게 */
-      #listLeft .item{ font-size:14px; font-weight:800; }
-
+      #listLeft .item{ font-size:12px; font-weight:800; }
+      /* 현재순서 아이템 padding 절반으로 축소 */
+      #listLeft .item{ padding:5px 6px; }
       /* 모바일은 내부 스크롤 막대바를 유지(현재순서/새순서 모두) */
-      .list{ max-height:58vh; overflow:auto; }
+      .list{ max-height:75vh; overflow:auto; }
     }
   </style>
 </head>
