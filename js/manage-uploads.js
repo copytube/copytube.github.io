@@ -1,11 +1,11 @@
-// js/manage-uploads.js (v1.5.2)
-import { auth, db } from './firebase-init.js?v=1.5.1';
-import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
+// js/manage-uploads.js
+import { auth, db } from './firebase-init.js';
+import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import {
   collection, query, where, orderBy, limit, startAfter, getDocs,
   getDoc, doc, updateDoc, deleteDoc, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
-import { CATEGORY_GROUPS } from './categories.js?v=1.5.1';
+import { CATEGORY_GROUPS } from './categories.js';
 
 const $ = s => document.querySelector(s);
 
@@ -37,21 +37,21 @@ const labelMap = new Map(CATEGORY_GROUPS.flatMap(g => g.children.map(c => [c.val
 const labelOf  = (v) => labelMap.get(v) || `(${String(v)})`;
 
 /* ---------- DOM ---------- */
-const listEl   = $('#list');
-const statusEl = $('#status');
+const listEl     = $('#list');
+const statusEl   = $('#status');
 const adminBadge = $('#adminBadge');
-const prevBtn  = $('#prevBtn');
-const nextBtn  = $('#nextBtn');
-const pageInfo = $('#pageInfo');
+const prevBtn    = $('#prevBtn');
+const nextBtn    = $('#nextBtn');
+const pageInfo   = $('#pageInfo');
 const refreshBtn = $('#refreshBtn');
 
 /* ---------- 상태 ---------- */
 const PAGE_SIZE = 30;
 let currentUser = null;
-let isAdmin = false;
-let cursors = [];
-let page = 1;
-let reachedEnd = false;
+let isAdmin     = false;
+let cursors     = [];
+let page        = 1;
+let reachedEnd  = false;
 
 /* ---------- 유틸 ---------- */
 function escapeHTML(s){
@@ -59,6 +59,7 @@ function escapeHTML(s){
 }
 function catChipsHTML(arr){
   if (!Array.isArray(arr) || !arr.length) {
+    // 빈 경우에도 .cats 래퍼를 유지해야 터치가 가능
     return '<div class="cats" tabindex="0" role="button" aria-label="카테고리 변경 펼치기"><span class="sub">(카테고리 없음)</span></div>';
   }
   return `<div class="cats" tabindex="0" role="button" aria-label="카테고리 변경 펼치기">
@@ -74,24 +75,31 @@ function buildSelect(name){
   }
   return `<select class="sel" data-name="${name}">${opts.join('')}</select>`;
 }
+function extractId(url){
+  const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
+  return m ? m[1] : '';
+}
 
-/* ---------- 드롭다운 토글: .row.open on/off ---------- */
+/* ---------- [ADDED] 칩 터치 → 같은 행에서 아래로 ‘펼침’ ---------- */
 function wireRowDropdown(row){
   const catsEl = row.querySelector('.cats');
   if (!catsEl) return;
   catsEl.style.cursor = 'pointer';
+
   const toggle = ()=>{
     const willOpen = !row.classList.contains('open');
-    document.querySelectorAll('.row.open').forEach(r=>{ if(r!==row) r.classList.remove('open'); });
+    // 하나만 열리게 하려면 아래 유지 / 다중열림 원하면 다음 줄 삭제
+    document.querySelectorAll('.row.open').forEach(r=>{ if (r!==row) r.classList.remove('open'); });
     row.classList.toggle('open', willOpen);
   };
+
   catsEl.addEventListener('click', toggle);
   catsEl.addEventListener('keydown', (e)=>{
     if (e.key==='Enter' || e.key===' ') { e.preventDefault(); toggle(); }
   });
 }
 
-/* ---------- 1행 ---------- */
+/* ---------- 1행 렌더 ---------- */
 function renderRow(docId, data){
   const cats  = Array.isArray(data.categories) ? data.categories : [];
   const url   = data.url || '';
@@ -121,10 +129,11 @@ function renderRow(docId, data){
     </div>
   `;
 
+  // 초기 프리셀렉트
   const sels = Array.from(row.querySelectorAll('select.sel'));
-  cats.slice(0,3).forEach((v,i)=>{ if(sels[i]) sels[i].value = v; });
+  cats.slice(0,3).forEach((v,i)=>{ if (sels[i]) sels[i].value = v; });
 
-  // 제목 비었으면 oEmbed로 보강
+  // 제목 비었으면 oEmbed로 보강 (원본 로직 유지)
   if (!title && url){
     (async ()=>{
       try{
@@ -142,83 +151,104 @@ function renderRow(docId, data){
     })();
   }
 
+  // 업로더 닉네임 (관리자 전용)
   if (isAdmin && uid){
     (async ()=>{
       try{
         const snap = await getDoc(doc(db,'users', uid));
-        const name = snap.exists() ? (snap.data().displayName || snap.data().nickname || `uid:${uid.slice(0,6)}…`) : `uid:${uid.slice(0,6)}…`;
+        const d = snap.exists() ? (snap.data() || {}) : {};
+        const name = d.displayName || d.nickname || `uid:${uid.slice(0,6)}…`;
         const uEl = row.querySelector('.js-uploader');
         if (uEl) uEl.textContent = name;
       }catch{}
     })();
   }
 
+  // 적용 (원본 로직 유지)
   row.querySelector('.btn-apply').addEventListener('click', async ()=>{
     const chosen = Array.from(row.querySelectorAll('select.sel')).map(s=>s.value).filter(Boolean);
     const uniq = [...new Set(chosen)].slice(0,3);
-    if (uniq.length===0){ alert('최소 1개의 카테고리를 선택하세요.'); return; }
+    if (uniq.length === 0){ alert('최소 1개의 카테고리를 선택하세요.'); return; }
     try{
       await updateDoc(doc(db,'videos', docId), { categories: uniq, updatedAt: serverTimestamp() });
       statusEl.textContent = '변경 완료';
-      // 칩 갱신 + 드롭다운 이벤트 재연결
+
+      // 칩 갱신 (원본 로직 유지)
       const meta = row.querySelector('.meta');
-      const old = meta.querySelector('.cats');
-      if (old) old.remove();
+      const oldCats = meta.querySelector('.cats');
+      if (oldCats) oldCats.remove();
       meta.insertAdjacentHTML('beforeend', catChipsHTML(uniq));
+
+      // [ADDED] 새 칩에도 드롭다운 다시 연결
       wireRowDropdown(row);
+
     }catch(e){
       alert('변경 실패: ' + (e.message || e));
     }
   });
 
+  // 삭제 (원본 로직 유지)
   row.querySelector('.btn-del').addEventListener('click', async ()=>{
     if (!confirm('정말 삭제하시겠습니까?')) return;
-    try{ await deleteDoc(doc(db,'videos', docId)); row.remove(); }
-    catch(e){ alert('삭제 실패: ' + (e.message || e)); }
+    try{
+      await deleteDoc(doc(db,'videos', docId));
+      row.remove();
+    }catch(e){
+      alert('삭제 실패: ' + (e.message || e));
+    }
   });
 
+  // [ADDED] 칩 터치시 펼침 연결
   wireRowDropdown(row);
   return row;
 }
 
-/* ---------- 렌더/페이지 ---------- */
-function clearList(){ listEl.innerHTML=''; }
+/* ---------- 리스트 렌더 ---------- */
+function clearList(){ listEl.innerHTML = ''; }
 
+/* ---------- 페이지 로드 (원본 로직 그대로) ---------- */
 async function loadPage(p){
   if (!currentUser){ statusEl.textContent = '로그인 후 이용하세요.'; clearList(); return; }
   statusEl.textContent = '읽는 중...';
 
   try{
     const parts = [];
-    const base = collection(db,'videos');
+    const base  = collection(db,'videos');
+
     if (!isAdmin) parts.push(where('uid','==', currentUser.uid));
     parts.push(orderBy('createdAt','desc'));
     parts.push(limit(PAGE_SIZE));
-    if (p>1 && cursors[p-2]) parts.push(startAfter(cursors[p-2]));
+    if (p > 1){
+      const cursor = cursors[p-2];
+      if (cursor) parts.push(startAfter(cursor));
+    }
 
     const snap = await getDocs(query(base, ...parts));
+
     clearList();
     if (snap.empty){
       listEl.innerHTML = '<div class="sub">목록이 없습니다.</div>';
       reachedEnd = true;
     }else{
       snap.docs.forEach(d => listEl.appendChild(renderRow(d.id, d.data())));
-      cursors[p-1] = snap.docs[snap.docs.length-1];
+      cursors[p-1] = snap.docs[snap.docs.length - 1];
       reachedEnd = (snap.size < PAGE_SIZE);
     }
+
     pageInfo.textContent = String(p);
     statusEl.textContent = '';
+
   }catch(e){
-    // 오류 표시 (디버깅에 도움)
+    // 원본처럼 에러만 표시 (인덱스 미생성 등은 콘솔 링크로 처리)
     statusEl.textContent = '읽기 실패: ' + (e.message || e);
     console.error(e);
   }
 }
 
 /* ---------- 페이징 ---------- */
-prevBtn.addEventListener('click', ()=>{ if (page<=1) return; page-=1; loadPage(page); });
-nextBtn.addEventListener('click', ()=>{ if (reachedEnd) return; page+=1; loadPage(page); });
-refreshBtn.addEventListener('click', ()=>{ cursors=[]; page=1; reachedEnd=false; loadPage(page); });
+prevBtn.addEventListener('click', ()=>{ if (page <= 1) return; page -= 1; loadPage(page); });
+nextBtn.addEventListener('click', ()=>{ if (reachedEnd) return; page += 1; loadPage(page); });
+refreshBtn.addEventListener('click', ()=>{ cursors = []; page = 1; reachedEnd = false; loadPage(page); });
 
 /* ---------- 시작 ---------- */
 onAuthStateChanged(auth, async (user)=>{
@@ -242,14 +272,6 @@ onAuthStateChanged(auth, async (user)=>{
   }catch{ isAdmin = false; }
   adminBadge.style.display = isAdmin ? '' : 'none';
 
-  cursors=[]; page=1; reachedEnd=false;
+  cursors = []; page = 1; reachedEnd = false;
   loadPage(page);
-});
-
-/* ---------- 전역 오류를 화면에 표시(디버깅용, 필요 없으면 지워도 됨) ---------- */
-window.addEventListener('error', (e)=>{
-  if (statusEl) statusEl.textContent = '오류: ' + (e.message || 'unknown');
-});
-window.addEventListener('unhandledrejection', (e)=>{
-  if (statusEl) statusEl.textContent = '오류: ' + (e.reason?.message || String(e.reason||''));
 });
