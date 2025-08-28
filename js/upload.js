@@ -1,6 +1,6 @@
 // js/upload.js v1.3.1
-import { auth, db } from './firebase-init.js';
-import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
+import { auth, db } from './firebase-init.js?v-1.5.1';
+import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v-1.5.1';
 import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 import { CATEGORY_GROUPS } from './categories.js?v-1.5.1';
 
