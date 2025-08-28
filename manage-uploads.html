@@ -9,7 +9,6 @@
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firebaseinstallations.googleapis.com https://www.gstatic.com https://www.youtube.com;
-
     img-src 'self' data: https://i.ytimg.com;
     frame-src https://www.youtube.com;
     script-src 'self' https://www.gstatic.com 'unsafe-inline';
@@ -56,7 +55,8 @@
       display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
     }
     .sub { font-size:12px; color:#9aa0a6; word-break:break-all; }
-    .cats { display:flex; flex-direction:column; gap:4px; font-size:12px; }
+    .cats { display:flex; flex-wrap:wrap; gap:4px; font-size:12px; cursor:pointer; }
+    .cats:focus { outline:2px solid #4ea1ff; outline-offset:2px; border-radius:6px; }
     .cats .chip {
       display:inline-block; background:#0f0f0f; border:1px solid #2a2a2a; border-radius:6px;
       padding:4px 6px; width:max-content;
@@ -89,13 +89,10 @@
     /* 모바일 최적화 */
     @media (max-width:720px){
       .row { grid-template-columns: 1fr; }
-
-      /* 목록 행 내부 오른쪽 패널만 조정 */
       .row .right { align-items:flex-end; min-width:0; }
-
       .actions { justify-content:flex-end; width:100%; }
 
-      /* 모바일: 카테고리 선택 3개를 가로 3열로 */
+      /* 모바일: 오른쪽 셀렉터는 그대로 두되, 칩 탭 → 팝오버 추천 */
       .cat-editor{
         display:grid;
         grid-template-columns: repeat(3, 1fr);
@@ -107,10 +104,46 @@
         min-width:0;
       }
     }
+
+    /* ===== 카테고리 팝오버 ===== */
+    .dim{
+      position:fixed; inset:0; background:rgba(0,0,0,.5); backdrop-filter:saturate(80%) blur(2px);
+      z-index: 900; opacity:1; transition: opacity .18s;
+    }
+    .dim.hidden{ opacity:0; pointer-events:none; }
+
+    .cat-popover{
+      position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
+      width:min(560px, calc(100vw - 24px));
+      background:#111; border:1px solid #2a2a2a; border-radius:12px; box-shadow:0 12px 36px rgba(0,0,0,.6);
+      z-index: 901; opacity:1; transition: opacity .18s, transform .18s;
+    }
+    .cat-popover.hidden{ opacity:0; pointer-events:none; transform:translate(-50%,-46%); }
+
+    .cat-popover .pop-head{
+      display:flex; align-items:center; justify-content:space-between; gap:8px;
+      padding:12px 14px; border-bottom:1px solid #2a2a2a;
+    }
+    .cat-popover .pop-head .t{ font-weight:800; }
+    .cat-popover .pop-head .close{
+      width:32px; height:32px; border:0; border-radius:8px; background:#1b1b1b; color:#ddd; cursor:pointer;
+    }
+
+    .cat-popover .pop-body{ padding:12px 14px; display:flex; flex-direction:column; gap:10px; }
+    .cat-popover .pop-title{ color:#9aa0a6; }
+    .cat-popover .pop-editor{ display:grid; grid-template-columns:1fr; gap:8px; }
+    .cat-popover .pop-editor select{
+      background:#0f0f0f; color:#fff; border:1px solid #2a2a2a; border-radius:8px; padding:10px 12px;
+      width:100%;
+    }
+
+    .cat-popover .pop-actions{
+      display:flex; justify-content:flex-end; gap:8px; padding:12px 14px; border-top:1px solid #2a2a2a;
+    }
   </style>
 </head>
 <body>
-  <!-- 상단바 -->
+  <!-- 상단바 (초기 기준 유지) -->
   <header id="topbar">
     <div class="brand">
       <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
