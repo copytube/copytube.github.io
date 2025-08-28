@@ -20,81 +20,98 @@ export const CATEGORY_GROUPS = [
     key: 'music_listen',
     label: '음악감상',
     children: [
-      { value: 'music_kpop',          label: 'K-pop' },
-      { value: 'music_kayo',          label: 'K가요' },
-      { value: 'music_ballad',        label: '발라드' },
-      { value: 'music_rock',          label: 'Rock' },
-      { value: 'music_hiphop_rnb',    label: '힙합 & R&B' },
-      { value: 'music_pop',           label: 'Pop' },
-      { value: 'music_classic',       label: '클래식' },
-      { value: 'music_ost_musical',   label: '영화/뮤지컬' },
-      { value: 'music_ani',           label: '애니메이션' },
-      { value: 'music_children',      label: '동요/어린이' },
-      { value: 'music_internet',      label: '인터넷/Creator' },
-      { value: 'music_jazz',          label: '재즈(Jazz)' },
-      { value: 'music_newage_healing',label: '뉴에이지/힐링' },
-      { value: 'music_gospel',        label: '가스펠' },
+      { value: 'music_kpop',           label: 'K-pop' },
+      { value: 'music_kayo',           label: 'K가요' },
+      { value: 'music_ballad',         label: '발라드' },
+      { value: 'music_rock',           label: 'Rock' },
+      { value: 'music_hiphop_rnb',     label: '힙합 & R&B' },
+      { value: 'music_pop',            label: 'Pop' },
+      { value: 'music_classic',        label: '클래식' },
+      { value: 'music_ost_musical',    label: '영화/뮤지컬' },
+      { value: 'music_ani',            label: '애니메이션' },
+      { value: 'music_children',       label: '동요/어린이' },
+      { value: 'music_internet',       label: '인터넷/Creator' },
+      { value: 'music_jazz',           label: '재즈(Jazz)' },
+      { value: 'music_newage_healing', label: '뉴에이지/힐링' },
+      { value: 'music_gospel',         label: '가스펠' },
     ],
   },
 
-  /* 일상 (자연 다음에 ‘밈’, ‘국뽕’ 추가) */
+  /* 일상 (스포츠 제거, 뉴스 추가) */
   {
     key: 'daily',
     label: '일상',
     children: [
-      { value: 'fun',        label: '유머' },
-      { value: 'saida',      label: '사이다' },
-      { value: 'person',     label: '인물' },
-      { value: 'touch',      label: '감동' },
-      { value: 'variety',    label: '예능' },
-      { value: 'celeb',      label: '연예' },
-      { value: 'sports',     label: '스포츠' },
-      { value: 'nature',     label: '자연' },
-      { value: 'meme',       label: '밈' },
+      { value: 'fun',            label: '유머' },
+      { value: 'saida',          label: '사이다' },
+      { value: 'person',         label: '인물' },
+      { value: 'touch',          label: '감동' },
+      { value: 'variety',        label: '예능' },
+      { value: 'celeb',          label: '연예' },
+      { value: 'news',           label: '뉴스' },     // ★ 신규
+      { value: 'nature',         label: '자연' },
+      { value: 'meme',           label: '밈' },
       { value: 'national_pride', label: '국뽕' },
-      { value: 'baby',       label: '아기' },
-      { value: 'animal',     label: '동물' },
+      { value: 'baby',           label: '아기' },
+      { value: 'animal',         label: '동물' },
     ],
   },
 
-  /* 생활정보 (요청 순서) */
+  /* 생활정보 */
   {
     key: 'lifeinfo',
     label: '생활정보',
     children: [
-      { value: 'common',  label: '상식' },
-      { value: 'life',  label: '생활팁' },
+      { value: 'common',     label: '상식' },
+      { value: 'life',       label: '생활팁' },
       { value: 'beauty',     label: '미용' },
-      { value: 'housework',     label: '가사' },
-      { value: 'health',       label: '건강' },
-      { value: 'exercise',     label: '운동' },
-      { value: 'self',     label: '자기관리' },
+      { value: 'housework',  label: '가사' },
+      { value: 'health',     label: '건강' },
+      { value: 'exercise',   label: '운동' },
+      { value: 'self',       label: '자기관리' },
       { value: 'social',     label: '사회생활' },
-      { value: 'law',          label: '법률' },
-      { value: 'estate',       label: '부동산' },
-      { value: 'parenting',    label: '육아' },
-      { value: 'misinfo',      label: '가짜정보' },
+      { value: 'law',        label: '법률' },
+      { value: 'estate',     label: '부동산' },
+      { value: 'parenting',  label: '육아' },
+      { value: 'misinfo',    label: '가짜정보' },
     ],
   },
 
-  /* 여가·미식 */
+  /* 여가·미식 (게임 이동, 독서/악기연주 추가, 집꾸미기 라벨 변경) */
   {
     key: 'leisure_food',
     label: '여가·미식',
     children: [
-      { value: 'cook',     label: '요리' },
-      { value: 'foodie',   label: '맛집' },
-      { value: 'travel',   label: '여행' },
-      { value: 'activity', label: '액티비티' },
-      { value: 'proart',    label: '예술' },
-      { value: 'hobby',    label: '취미' },
-      { value: 'making',     label: '제작수리' },
-      { value: 'mobility',     label: '모빌리티' },
-      { value: 'interior',   label: '집꾸미기' },
+      { value: 'cook',            label: '요리' },
+      { value: 'foodie',          label: '맛집' },
+      { value: 'travel',          label: '여행' },
+      { value: 'activity',        label: '액티비티' },
+      { value: 'proart',          label: '예술' },
+      { value: 'hobby',           label: '취미' },
+      { value: 'making',          label: '제작수리' },
+      { value: 'mobility',        label: '모빌리티' },
+      { value: 'interior',        label: '인테리어건축' }, // ★ 라벨만 변경(키 유지)
+      { value: 'reading',         label: '독서' },          // ★ 신규
+      { value: 'instrument_play', label: '악기연주' },      // ★ 신규
+      { value: 'game',            label: '게임' },          // ★ (정보·IT → 이동)
     ],
   },
 
-  /* 정보·IT */
+  /* 스포츠 (신규 대분류) */
+  {
+    key: 'sports',
+    label: '스포츠',
+    children: [
+      { value: 'sports_fight',      label: '격투' },                  // 격투vs → 격투
+      { value: 'sports_soccer',     label: '축구' },
+      { value: 'sports_basketball', label: '농구' },
+      { value: 'sports_baseball',   label: '야구' },
+      { value: 'sports_fishing',    label: '낚시' },
+      { value: 'sports_racket',     label: '탁구/테니스/배드민턴' }, // 탁테배
+    ],
+  },
+
+  /* 정보·IT (게임 제거) */
   {
     key: 'infoit',
     label: '정보·IT',
@@ -103,9 +120,8 @@ export const CATEGORY_GROUPS = [
       { value: 'tech_future', label: '기술미래' },
       { value: 'computer',    label: '컴퓨터' },
       { value: 'coding',      label: '코딩' },
-      { value: 'graphic',    label: '그래픽영상' },
+      { value: 'graphic',     label: '그래픽영상' },
       { value: 'app',         label: '앱·어플' },
-      { value: 'game',        label: '게임' },
     ],
   },
 
@@ -129,7 +145,7 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
-  /* 생존 (정보·IT 아래, 교육 위) */
+  /* 생존 */
   {
     key: 'survival',
     label: '생존',
@@ -141,15 +157,15 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
-  /* 사회 (정보·IT 아래, 교육 위) */
+  /* 사회 */
   {
     key: 'society',
     label: '사회',
     children: [
-      { value: 'politics',   label: '시사정치' },
-      { value: 'finance',    label: '금융경제' },
-      { value: 'era_insight',label: '시대통찰' },
-      { value: 'christian',  label: '기독교' },
+      { value: 'politics',    label: '시사정치' },
+      { value: 'finance',     label: '금융경제' },
+      { value: 'era_insight', label: '시대통찰' },
+      { value: 'christian',   label: '기독교' },
     ],
   },
 
@@ -164,7 +180,7 @@ export const CATEGORY_GROUPS = [
       { value: 'math',        label: '수학' },
       { value: 'english',     label: '영어' },
       { value: 'korean',      label: '국어' },
-      { value: 'edu_social',      label: '사회' },
+      { value: 'edu_social',  label: '사회' }, // 충돌 방지용 확정 키
       { value: 'history',     label: '역사' },
       { value: 'art',         label: '미술' },
       { value: 'music',       label: '음악' },
@@ -179,18 +195,18 @@ export const CATEGORY_GROUPS = [
     label: '의학',
     children: [
       { value: 'med_general', label: '일반' },
-      { value: 'internal',  label: '내과' },
-      { value: 'surgery',  label: '외과' },
+      { value: 'internal',    label: '내과' },
+      { value: 'surgery',     label: '외과' },
       { value: 'pediatrics',  label: '소아과' },
-      { value: 'obgy',  label: '산부인과' },
-      { value: 'urology',  label: '신비뇨기과' },
-      { value: 'os',  label: '근골격계' },
-      { value: 'dermacos',  label: '피부성형' },
-      { value: 'neuro',  label: '신경' },
-      { value: 'ophthalmo',  label: '안과' },
-      { value: 'ent',  label: '이비인후과' },
-      { value: 'dental',  label: '구강치과' },
-      { value: 'saib',  label: '대체의학' },
+      { value: 'obgy',        label: '산부인과' },
+      { value: 'urology',     label: '신비뇨기과' },
+      { value: 'os',          label: '근골격계' },
+      { value: 'dermacos',    label: '피부성형' },
+      { value: 'neuro',       label: '신경' },
+      { value: 'ophthalmo',   label: '안과' },
+      { value: 'ent',         label: '이비인후과' },
+      { value: 'dental',      label: '구강치과' },
+      { value: 'saib',        label: '대체의학' },
     ],
   },
 
@@ -203,7 +219,29 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
-  /* 개인자료 (로컬 저장 전용) — 기본은 하단 */
+  /* 성별·연령 (신규 대분류) */
+  {
+    key: 'demographics',
+    label: '성별·연령',
+    children: [
+      { value: 'female', label: '여성용' },
+      { value: 'male',   label: '남성용' },
+      { value: 'youth',  label: '잼민이' },
+      { value: 'senior', label: '노인' },
+    ],
+  },
+
+  /* 시리즈 — ★ 개인자료 바로 앞에 배치 */
+  {
+    key: 'series',
+    label: '시리즈',
+    children: [
+      { value: 'series_miraculous', label: '미라큘러스' },
+      { value: 'series_marvel',     label: '마블' },
+    ],
+  },
+
+  /* 개인자료 (로컬 저장 전용) — 항상 최하단 */
   {
     key: 'personal',
     label: '개인자료',
