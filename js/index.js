@@ -1,5 +1,5 @@
 // js/index.js (v1.5.1)
-import { CATEGORY_GROUPS } from './categories.js';
+import { CATEGORY_GROUPS } from './categories.js?v-1.5.1';
 import { auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 
