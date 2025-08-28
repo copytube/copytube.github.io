@@ -28,7 +28,9 @@
     .badge { font-size:12px; color:#9ef01a; font-weight:700; }
 
     /* 헤더 오른쪽: 모바일에서도 가로 정렬 + 메뉴버튼 보이기 */
-    #topbar .right{ display:flex; flex-direction:row; align-items:center; gap:8px; }
+    #topbar .right{
+      display:flex; flex-direction:row; align-items:center; gap:8px;
+    }
     .hidden{ display:none !important; }
     #topbar #menuBtn.icon:not(.hidden){
       display:inline-flex; align-items:center; justify-content:center;
@@ -55,7 +57,7 @@
 
     .cats {
       display:flex; flex-direction:column; gap:4px; font-size:12px;
-      cursor:pointer; /* ← 칩 영역을 터치 가능하게 */
+      /* 커서는 JS에서 pointer로 지정됨(최소 변경) */
     }
     .cats .chip {
       display:inline-block; background:#0f0f0f; border:1px solid #2a2a2a; border-radius:6px;
@@ -67,11 +69,6 @@
       min-width:260px;
     }
 
-    /* ▼▼▼ 펼침(dropdown) 동작: 기본 감춤 / .row.open에서만 표시 */
-    .row .right{ display:none; }
-    .row.open .right{ display:flex; animation: drop .18s ease; }
-    @keyframes drop { from { opacity:.0; transform: translateY(-4px);} to { opacity:1; transform: translateY(0);} }
-
     /* 카테고리 에디터 (기본: PC = 세로 배치) */
     .cat-editor { display:flex; flex-direction:column; gap:6px; }
     .cat-editor select {
@@ -80,7 +77,9 @@
 
     /* 버튼 영역은 항상 오른쪽 정렬 */
     .actions { display:flex; gap:6px; justify-content:flex-end; }
-    .btn { padding:8px 10px; border:0; border-radius:8px; cursor:pointer; font-weight:700; }
+    .btn {
+      padding:8px 10px; border:0; border-radius:8px; cursor:pointer; font-weight:700;
+    }
     .btn-primary { background:#4ea1ff; color:#fff; }
     .btn-danger  { background:#dc2626; color:#fff; }
     .btn-ghost   { background:#1b1b1b; color:#ddd; border:1px solid #2a2a2a; }
@@ -91,7 +90,9 @@
 
     /* 모바일 최적화 */
     @media (max-width:720px){
-      .row { grid-template-columns: 1fr; }            /* 오른쪽 패널이 자연스레 아래로 */
+      .row { grid-template-columns: 1fr; }
+
+      /* 목록 행 내부 오른쪽 패널만 조정 */
       .row .right { align-items:flex-end; min-width:0; }
 
       .actions { justify-content:flex-end; width:100%; }
@@ -105,6 +106,10 @@
       }
       .cat-editor select{ width:100%; min-width:0; }
     }
+
+    /* 펼침 동작: 기본 감춤, 행이 열릴 때만 표시 */
+    .row .right { display:none; }
+    .row.open .right { display:flex; }
   </style>
 </head>
 <body>
@@ -151,9 +156,9 @@
     </div>
   </main>
 
-  <!-- 모듈 스크립트 (캐시 무력화) -->
-  <script type="module" src="js/firebase-init.js?v=1.5.1"></script>
-  <script type="module" src="js/auth.js?v=1.5.1"></script>
+  <!-- 모듈 스크립트 -->
+  <script type="module" src="js/firebase-init.js"></script>
+  <script type="module" src="js/auth.js"></script>
   <script type="module" src="js/manage-uploads.js?v=1.5.2"></script>
 </body>
 </html>
