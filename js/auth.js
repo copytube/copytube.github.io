@@ -1,5 +1,5 @@
-// js/auth.js  (clean re-export version)
-import { auth, db } from './firebase-init.js';
+// js/auth.js  (?v=1.5.1)
+import { auth, db } from './firebase-init.js?v=1.5.1';
 export { auth, db };
 
 import {
