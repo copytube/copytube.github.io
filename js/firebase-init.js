@@ -1,4 +1,4 @@
-// js/firebase-init.js  (iOS Safari 대비: 확실한 폴백 + 중복 초기화 방지)
+// js/firebase-init.js ?v=1.5.1 (iOS Safari 대비: 확실한 폴백 + 중복 초기화 방지)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 import {
   initializeAuth,
