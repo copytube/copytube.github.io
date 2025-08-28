@@ -1,11 +1,11 @@
 // js/manage-uploads.js
-import { auth, db } from './firebase-init.js';
-import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
+import { auth, db } from './firebase-init.js?v=1.5.1';
+import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import {
   collection, query, where, orderBy, limit, startAfter, getDocs,
   getDoc, doc, updateDoc, deleteDoc, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
-import { CATEGORY_GROUPS } from './categories.js';
+import { CATEGORY_GROUPS } from './categories.js?v-1.5.1';
 
 const $ = s => document.querySelector(s);
 
@@ -32,7 +32,7 @@ btnMyUploads?.addEventListener('click', ()=>{ location.href = 'manage-uploads.ht
 btnAbout    ?.addEventListener('click', ()=>{ location.href = 'about.html'; closeDropdown(); });
 btnSignOut  ?.addEventListener('click', async ()=>{ await fbSignOut(auth); closeDropdown(); });
 
-/* ---------- 카테고리 라벨 ---------- */
+/* ---------- 카테고리 라벨 맵 ---------- */
 const labelMap = new Map(CATEGORY_GROUPS.flatMap(g => g.children.map(c => [c.value, c.label])));
 const labelOf  = (v) => labelMap.get(v) || `(${String(v)})`;
 
@@ -49,7 +49,7 @@ const refreshBtn = $('#refreshBtn');
 const PAGE_SIZE = 30;
 let currentUser = null;
 let isAdmin     = false;
-let cursors     = [];
+let cursors     = [];   // 각 페이지 마지막 문서 스냅샷
 let page        = 1;
 let reachedEnd  = false;
 
@@ -58,18 +58,14 @@ function escapeHTML(s){
   return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 function catChipsHTML(arr){
-  if (!Array.isArray(arr) || !arr.length) {
-    // 빈 경우에도 .cats 래퍼를 유지해야 터치가 가능
-    return '<div class="cats" tabindex="0" role="button" aria-label="카테고리 변경 펼치기"><span class="sub">(카테고리 없음)</span></div>';
-  }
-  return `<div class="cats" tabindex="0" role="button" aria-label="카테고리 변경 펼치기">
-            ${arr.map(v=>`<span class="chip">${escapeHTML(labelOf(v))}</span>`).join('')}
-          </div>`;
+  if (!Array.isArray(arr) || !arr.length) return '<span class="sub">(카테고리 없음)</span>';
+  return `<div class="cats">${arr.map(v=>`<span class="chip">${escapeHTML(labelOf(v))}</span>`).join('')}</div>`;
 }
 function buildSelect(name){
+  // personal 그룹(로컬 전용)은 제외
   const opts = ['<option value="">선택안함</option>'];
   for (const g of CATEGORY_GROUPS){
-    if (g.personal) continue; // 개인자료 제외
+    if (g.personal) continue;
     const inner = g.children.map(c => `<option value="${c.value}">${escapeHTML(c.label)}</option>`).join('');
     opts.push(`<optgroup label="${escapeHTML(g.label)}">${inner}</optgroup>`);
   }
@@ -80,23 +76,44 @@ function extractId(url){
   return m ? m[1] : '';
 }
 
-/* ---------- [ADDED] 칩 터치 → 같은 행에서 아래로 ‘펼침’ ---------- */
-function wireRowDropdown(row){
-  const catsEl = row.querySelector('.cats');
-  if (!catsEl) return;
-  catsEl.style.cursor = 'pointer';
+/* ---------- YouTube 제목(oEmbed) with 캐시 ---------- */
+const titleCache = new Map(); // url -> title
+async function fetchYouTubeTitle(url){
+  if (titleCache.has(url)) return titleCache.get(url);
+  try{
+    const endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+    const res = await fetch(endpoint, { mode:'cors' });
+    if (!res.ok) throw new Error('oEmbed fetch failed');
+    const j = await res.json();
+    const title = String(j.title || '').trim();
+    if (title) titleCache.set(url, title);
+    return title || '';
+  }catch(_){
+    return '';
+  }
+}
 
-  const toggle = ()=>{
-    const willOpen = !row.classList.contains('open');
-    // 하나만 열리게 하려면 아래 유지 / 다중열림 원하면 다음 줄 삭제
-    document.querySelectorAll('.row.open').forEach(r=>{ if (r!==row) r.classList.remove('open'); });
-    row.classList.toggle('open', willOpen);
-  };
+/* ---------- 관리자 여부 ---------- */
+async function checkAdmin(uid){
+  try{
+    const s = await getDoc(doc(db,'admins', uid)); // 규칙상: 관리자면 읽힘, 아니면 PERMISSION_DENIED
+    return s.exists();
+  }catch{
+    return false;
+  }
+}
 
-  catsEl.addEventListener('click', toggle);
-  catsEl.addEventListener('keydown', (e)=>{
-    if (e.key==='Enter' || e.key===' ') { e.preventDefault(); toggle(); }
-  });
+/* ---------- 업로더 닉네임 ---------- */
+async function getUploaderDisplay(uid){
+  try{
+    const snap = await getDoc(doc(db,'users', uid));
+    if (!snap.exists()) return `uid:${uid.slice(0,6)}…`;
+    const d = snap.data() || {};
+    const nick = d.displayName || d.nickname || '';
+    return nick ? nick : `uid:${uid.slice(0,6)}…`;
+  }catch{
+    return `uid:${uid.slice(0,6)}…`;
+  }
 }
 
 /* ---------- 1행 렌더 ---------- */
@@ -129,42 +146,38 @@ function renderRow(docId, data){
     </div>
   `;
 
-  // 초기 프리셀렉트
+  // 카테고리 프리셀렉트
   const sels = Array.from(row.querySelectorAll('select.sel'));
-  cats.slice(0,3).forEach((v,i)=>{ if (sels[i]) sels[i].value = v; });
+  cats.slice(0,3).forEach((v, i) => { if (sels[i]) sels[i].value = v; });
 
-  // 제목 비었으면 oEmbed로 보강 (원본 로직 유지)
+  // 제목이 비어있으면 비동기로 가져오고, 가져오면 Firestore에 title 저장(권한 허용 시)
   if (!title && url){
     (async ()=>{
-      try{
-        const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
-        if (res.ok){
-          const j = await res.json();
-          const t = String(j.title || '').trim();
-          if (t){
-            const tEl = row.querySelector('.js-title');
-            if (tEl) tEl.textContent = t;
-            try{ await updateDoc(doc(db,'videos', docId), { title: t, updatedAt: serverTimestamp() }); }catch{}
-          }
-        }
-      }catch{}
+      const t = await fetchYouTubeTitle(url);
+      if (t){
+        const tEl = row.querySelector('.js-title');
+        if (tEl) tEl.textContent = t;
+        // 문서에 title 저장(소유자 또는 관리자만 성공)
+        try{
+          await updateDoc(doc(db,'videos', docId), { title: t, updatedAt: serverTimestamp() });
+        }catch{/* 권한 안되면 무시 */}
+      }else{
+        const tEl = row.querySelector('.js-title');
+        if (tEl) tEl.textContent = url; // 최소한 url 노출
+      }
     })();
   }
 
   // 업로더 닉네임 (관리자 전용)
   if (isAdmin && uid){
     (async ()=>{
-      try{
-        const snap = await getDoc(doc(db,'users', uid));
-        const d = snap.exists() ? (snap.data() || {}) : {};
-        const name = d.displayName || d.nickname || `uid:${uid.slice(0,6)}…`;
-        const uEl = row.querySelector('.js-uploader');
-        if (uEl) uEl.textContent = name;
-      }catch{}
+      const name = await getUploaderDisplay(uid);
+      const uEl = row.querySelector('.js-uploader');
+      if (uEl) uEl.textContent = name;
     })();
   }
 
-  // 적용 (원본 로직 유지)
+  // 카테고리 적용
   row.querySelector('.btn-apply').addEventListener('click', async ()=>{
     const chosen = Array.from(row.querySelectorAll('select.sel')).map(s=>s.value).filter(Boolean);
     const uniq = [...new Set(chosen)].slice(0,3);
@@ -172,22 +185,17 @@ function renderRow(docId, data){
     try{
       await updateDoc(doc(db,'videos', docId), { categories: uniq, updatedAt: serverTimestamp() });
       statusEl.textContent = '변경 완료';
-
-      // 칩 갱신 (원본 로직 유지)
+      // 칩 갱신
       const meta = row.querySelector('.meta');
       const oldCats = meta.querySelector('.cats');
       if (oldCats) oldCats.remove();
       meta.insertAdjacentHTML('beforeend', catChipsHTML(uniq));
-
-      // [ADDED] 새 칩에도 드롭다운 다시 연결
-      wireRowDropdown(row);
-
     }catch(e){
       alert('변경 실패: ' + (e.message || e));
     }
   });
 
-  // 삭제 (원본 로직 유지)
+  // 삭제
   row.querySelector('.btn-del').addEventListener('click', async ()=>{
     if (!confirm('정말 삭제하시겠습니까?')) return;
     try{
@@ -198,15 +206,13 @@ function renderRow(docId, data){
     }
   });
 
-  // [ADDED] 칩 터치시 펼침 연결
-  wireRowDropdown(row);
   return row;
 }
 
 /* ---------- 리스트 렌더 ---------- */
 function clearList(){ listEl.innerHTML = ''; }
 
-/* ---------- 페이지 로드 (원본 로직 그대로) ---------- */
+/* ---------- 페이지 로드 ---------- */
 async function loadPage(p){
   if (!currentUser){ statusEl.textContent = '로그인 후 이용하세요.'; clearList(); return; }
   statusEl.textContent = '읽는 중...';
@@ -239,9 +245,29 @@ async function loadPage(p){
     statusEl.textContent = '';
 
   }catch(e){
-    // 원본처럼 에러만 표시 (인덱스 미생성 등은 콘솔 링크로 처리)
-    statusEl.textContent = '읽기 실패: ' + (e.message || e);
-    console.error(e);
+    // 인덱스/권한 문제 등 → 전체를 받아 로컬 정렬(최대 1000개 안전장치)
+    try{
+      const all = await getDocs(collection(db,'videos'));
+      let rows = all.docs.map(d => ({ id:d.id, ...d.data() }));
+      if (!isAdmin) rows = rows.filter(r => r.uid === currentUser.uid);
+      rows.sort((a,b)=>{
+        const am = a.createdAt?.toMillis?.() || 0;
+        const bm = b.createdAt?.toMillis?.() || 0;
+        return bm - am;
+      });
+      const start = (p-1)*PAGE_SIZE;
+      const slice = rows.slice(start, start+PAGE_SIZE);
+
+      clearList();
+      slice.forEach(v => listEl.appendChild(renderRow(v.id, v)));
+      reachedEnd = (start + PAGE_SIZE >= rows.length);
+      pageInfo.textContent = String(p);
+      statusEl.textContent = '(로컬 정렬 표시)';
+
+    }catch(e2){
+      console.error(e, e2);
+      statusEl.textContent = '읽기 실패: ' + (e.message || e);
+    }
   }
 }
 
@@ -265,11 +291,7 @@ onAuthStateChanged(auth, async (user)=>{
     return;
   }
   currentUser = user;
-
-  try{
-    const s = await getDoc(doc(db,'admins', user.uid));
-    isAdmin = s.exists();
-  }catch{ isAdmin = false; }
+  isAdmin = await checkAdmin(user.uid);
   adminBadge.style.display = isAdmin ? '' : 'none';
 
   cursors = []; page = 1; reachedEnd = false;
