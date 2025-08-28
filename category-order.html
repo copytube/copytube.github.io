@@ -32,6 +32,10 @@
 
     h3{ margin:6px 0 10px; font-size:16px; }
 
+    /* 제목만 가운데 정렬 (좌:첫 섹션 / 우:마지막 섹션) */
+    .layout > section:first-child h3,
+    .layout > section:last-child  h3{ text-align:center; }
+
     .panel{
       border:1px solid var(--border);
       background:#101010;
@@ -51,7 +55,7 @@
       background:#0f0f0f;
       border-radius:8px;
       font-weight:800;
-      text-align:left;
+      text-align:left;     /* ← 카테고리는 좌측 정렬 유지 */
       cursor:pointer;
       min-width:0;
     }
@@ -60,7 +64,7 @@
     .center{
       display:flex; flex-direction:column;
       gap:10px;
-      align-items:center;            /* ← 버튼을 가로 중앙정렬 */
+      align-items:center;            /* 버튼 가로 중앙정렬 */
       justify-content:flex-start;
       padding:0;
     }
@@ -68,39 +72,41 @@
     .btn-primary{ background:#4ea1ff; border:0; font-weight:800; }
     .hint{ font-size:12px; color:#9aa0a6; text-align:center; }
 
-    /* 버튼을 “버튼 5칸”만큼 아래로 */
-    .center .btn:first-of-type{ margin-top: calc(5 * var(--btn-step)); }
-    .center .btn{ margin-left:0; margin-right:0; } /* 혹시 남아있는 좌우 여백 제거 */
+    /* 확인 버튼만 버튼 한 칸 아래로 (Reset은 그대로) */
+    .center .btn{ margin:0; }
+    .center .btn.btn-primary{ margin-top: var(--btn-step); }
 
     /* ===== 데스크톱(PC): 리스트 스크롤 제거, 전체 펼침 ===== */
     @media (min-width: 1024px){
       .list{ max-height:none; overflow:visible; }
     }
 
-    /* ===== 모바일: 요청사항 반영 ===== */
+    /* ===== 모바일: 요청사항 및 이전 설정 유지 ===== */
     @media (max-width: 640px){
       :root{ --btn-step: 40px; } /* 모바일 버튼 1칸 기준 */
 
-      /* 중앙 Reset/확인 열: 절반 너비, 주변 padding 0 */
+      /* 중앙 Reset/확인 열: 15vw, 주변 padding 0 */
       .layout{
         grid-template-columns: 1fr minmax(36px, 15vw) 1fr;
         gap:8px;
       }
       .center{ gap:0; padding:0; min-height:180px; }
-      .center .btn{ margin:0; }             /* 버튼 주변 여백 0 */
-      .hint{ display:none; }                /* 설명 제거 */
+      .center .btn{ margin:0; }            /* 버튼 주변 여백 0 */
+      .center .btn.btn-primary{ margin-top: var(--btn-step); } /* 확인만 한 칸 아래 */
 
-      /* 글꼴 크기 통일: Reset 버튼/왼쪽/오른쪽 아이템 */
-      .center .btn{ font-size:12px; }
-      #listLeft  .item{ font-size:12px; font-weight:800; }
-      #listRight .item{ font-size:12px; }   /* 오른쪽도 동일 크기 */
+      /* 설명 제거 */
+      .hint{ display:none; }
 
-      /* 왼쪽(현재순서) 패딩/간격 축소 */
+      /* 글꼴 크기: 좌/우 카테고리 14px(왼쪽 굵게 유지), 버튼 크기는 기존 그대로 */
+      #listLeft  .item{ font-size:14px; font-weight:800; }
+      #listRight .item{ font-size:14px; }
+
+      /* 왼쪽(현재순서) 패딩/간격 축소 유지 */
       #listLeft .item{ padding:5px 6px; }
       .layout > section:first-child .panel{ padding:5px; }
 
       /* 모바일은 내부 스크롤 막대 유지(현재/새 순서 모두) */
-      .list{ max-height:70vh; overflow:auto; } /* 70vh로 조정 */
+      .list{ max-height:70vh; overflow:auto; }
     }
   </style>
 </head>
