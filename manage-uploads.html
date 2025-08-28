@@ -1,299 +1,161 @@
-// js/manage-uploads.js
-import { auth, db } from './firebase-init.js?v=1.5.1';
-import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
-import {
-  collection, query, where, orderBy, limit, startAfter, getDocs,
-  getDoc, doc, updateDoc, deleteDoc, serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
-import { CATEGORY_GROUPS } from './categories.js?v=1.5.1';
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>내영상관리 - CopyTube</title>
 
-const $ = s => document.querySelector(s);
+  <!-- CSP (보안 강화) -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firebaseinstallations.googleapis.com https://www.gstatic.com https://www.youtube.com;
 
-/* ---------- 상단바 / 드롭다운 ---------- */
-const signupLink   = $('#signupLink');
-const signinLink   = $('#signinLink');
-const welcome      = $('#welcome');
-const menuBtn      = $('#menuBtn');
-const dropdown     = $('#dropdownMenu');
-const btnSignOut   = $('#btnSignOut');
-const btnGoUpload  = $('#btnGoUpload');
-const btnMyUploads = $('#btnMyUploads');
-const btnAbout     = $('#btnAbout');
+    img-src 'self' data: https://i.ytimg.com;
+    frame-src https://www.youtube.com;
+    script-src 'self' https://www.gstatic.com 'unsafe-inline';
+    style-src 'self' 'unsafe-inline';
+    object-src 'none';
+    base-uri 'self';
+  ">
 
-let isMenuOpen = false;
-function openDropdown(){ isMenuOpen = true; dropdown.classList.remove('hidden'); requestAnimationFrame(()=> dropdown.classList.add('show')); }
-function closeDropdown(){ isMenuOpen = false; dropdown.classList.remove('show'); setTimeout(()=> dropdown.classList.add('hidden'), 180); }
-menuBtn?.addEventListener('click', (e)=>{ e.stopPropagation(); dropdown.classList.contains('hidden') ? openDropdown() : closeDropdown(); });
-document.addEventListener('pointerdown', (e)=>{ if (dropdown.classList.contains('hidden')) return; if (!e.target.closest('#dropdownMenu, #menuBtn')) closeDropdown(); }, true);
-document.addEventListener('keydown', (e)=>{ if (e.key==='Escape') closeDropdown(); });
-dropdown?.addEventListener('click', (e)=> e.stopPropagation());
-btnGoUpload ?.addEventListener('click', ()=>{ location.href = 'upload.html'; closeDropdown(); });
-btnMyUploads?.addEventListener('click', ()=>{ location.href = 'manage-uploads.html'; closeDropdown(); });
-btnAbout    ?.addEventListener('click', ()=>{ location.href = 'about.html'; closeDropdown(); });
-btnSignOut  ?.addEventListener('click', async ()=>{ await fbSignOut(auth); closeDropdown(); });
+  <link rel="stylesheet" href="css/style.css"/>
 
-/* ---------- 카테고리 라벨 맵 ---------- */
-const labelMap = new Map(CATEGORY_GROUPS.flatMap(g => g.children.map(c => [c.value, c.label])));
-const labelOf  = (v) => labelMap.get(v) || `(${String(v)})`;
+  <style>
+    /* 레이아웃 */
+    body { padding-top: 72px; }
+    main { max-width: 1000px; margin: 0 auto; padding: 0 16px 40px; }
+    h2 { display:flex; align-items:center; gap:10px; }
+    .badge { font-size:12px; color:#9ef01a; font-weight:700; }
 
-/* ---------- DOM ---------- */
-const listEl     = $('#list');
-const statusEl   = $('#status');
-const adminBadge = $('#adminBadge');
-const prevBtn    = $('#prevBtn');
-const nextBtn    = $('#nextBtn');
-const pageInfo   = $('#pageInfo');
-const refreshBtn = $('#refreshBtn');
+    /* 헤더 오른쪽: 모바일에서도 가로 정렬 + 메뉴버튼 보이기 */
+    #topbar .right{
+      display:flex; flex-direction:row; align-items:center; gap:8px;
+    }
+    .hidden{ display:none !important; }
+    #topbar #menuBtn.icon:not(.hidden){
+      display:inline-flex; align-items:center; justify-content:center;
+      width:36px; height:36px; font-size:18px; line-height:1;
+    }
 
-/* ---------- 상태 ---------- */
-const PAGE_SIZE = 30;
-let currentUser = null;
-let isAdmin     = false;
-let cursors     = [];   // 각 페이지 마지막 문서 스냅샷
-let page        = 1;
-let reachedEnd  = false;
+    .toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:10px 0 14px; }
+    .toolbar .msg { color:#9aa0a6; font-size:13px; min-height:1.2em; }
 
-/* ---------- 유틸 ---------- */
-function escapeHTML(s){
-  return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-}
-function catChipsHTML(arr){
-  if (!Array.isArray(arr) || !arr.length) return '<span class="sub">(카테고리 없음)</span>';
-  return `<div class="cats">${arr.map(v=>`<span class="chip">${escapeHTML(labelOf(v))}</span>`).join('')}</div>`;
-}
-function buildSelect(name){
-  // personal 그룹(로컬 전용)은 제외
-  const opts = ['<option value="">선택안함</option>'];
-  for (const g of CATEGORY_GROUPS){
-    if (g.personal) continue;
-    const inner = g.children.map(c => `<option value="${c.value}">${escapeHTML(c.label)}</option>`).join('');
-    opts.push(`<optgroup label="${escapeHTML(g.label)}">${inner}</optgroup>`);
-  }
-  return `<select class="sel" data-name="${name}">${opts.join('')}</select>`;
-}
-function extractId(url){
-  const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
-  return m ? m[1] : '';
-}
+    .list { display:flex; flex-direction:column; gap:10px; }
 
-/* ---------- YouTube 제목(oEmbed) with 캐시 ---------- */
-const titleCache = new Map(); // url -> title
-async function fetchYouTubeTitle(url){
-  if (titleCache.has(url)) return titleCache.get(url);
-  try{
-    const endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
-    const res = await fetch(endpoint, { mode:'cors' });
-    if (!res.ok) throw new Error('oEmbed fetch failed');
-    const j = await res.json();
-    const title = String(j.title || '').trim();
-    if (title) titleCache.set(url, title);
-    return title || '';
-  }catch(_){
-    return '';
-  }
-}
+    .row {
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:10px;
+      border:1px solid var(--border); border-radius:10px; background:#111; padding:10px;
+    }
+    .row .meta {
+      display:flex; flex-direction:column; gap:6px; min-width:0;
+    }
+    .title {
+      font-weight:700; overflow:hidden; text-overflow:ellipsis;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    }
+    .sub { font-size:12px; color:#9aa0a6; word-break:break-all; }
+    .cats { display:flex; flex-direction:column; gap:4px; font-size:12px; }
+    .cats .chip {
+      display:inline-block; background:#0f0f0f; border:1px solid #2a2a2a; border-radius:6px;
+      padding:4px 6px; width:max-content;
+    }
 
-/* ---------- 관리자 여부 ---------- */
-async function checkAdmin(uid){
-  try{
-    const s = await getDoc(doc(db,'admins', uid)); // 규칙상: 관리자면 읽힘, 아니면 PERMISSION_DENIED
-    return s.exists();
-  }catch{
-    return false;
-  }
-}
+    .right {
+      display:flex; flex-direction:column; gap:6px; align-items:flex-end; justify-content:space-between;
+      min-width:260px;
+    }
 
-/* ---------- 업로더 닉네임 ---------- */
-async function getUploaderDisplay(uid){
-  try{
-    const snap = await getDoc(doc(db,'users', uid));
-    if (!snap.exists()) return `uid:${uid.slice(0,6)}…`;
-    const d = snap.data() || {};
-    const nick = d.displayName || d.nickname || '';
-    return nick ? nick : `uid:${uid.slice(0,6)}…`;
-  }catch{
-    return `uid:${uid.slice(0,6)}…`;
-  }
-}
+    /* 카테고리 에디터 (기본: PC = 세로 배치) */
+    .cat-editor { display:flex; flex-direction:column; gap:6px; }
+    .cat-editor select {
+      background:#0f0f0f; color:#fff; border:1px solid #2a2a2a; border-radius:8px; padding:6px 8px; min-width:150px;
+    }
 
-/* ---------- 1행 렌더 ---------- */
-function renderRow(docId, data){
-  const cats  = Array.isArray(data.categories) ? data.categories : [];
-  const url   = data.url || '';
-  const uid   = data.uid || '';
-  const title = data.title || '';
+    /* 버튼 영역은 항상 오른쪽 정렬 */
+    .actions { display:flex; gap:6px; justify-content:flex-end; }
+    .btn {
+      padding:8px 10px; border:0; border-radius:8px; cursor:pointer; font-weight:700;
+    }
+    .btn-primary { background:#4ea1ff; color:#fff; }
+    .btn-danger { background:#dc2626; color:#fff; }
+    .btn-ghost  { background:#1b1b1b; color:#ddd; border:1px solid #2a2a2a; }
 
-  const row = document.createElement('div');
-  row.className = 'row';
-  row.dataset.id = docId;
-  row.innerHTML = `
-    <div class="meta">
-      <div class="title js-title">${escapeHTML(title || '제목 불러오는 중…')}</div>
-      <div class="sub"><a href="${escapeHTML(url)}" target="_blank" rel="noopener" class="js-url">${escapeHTML(url)}</a></div>
-      ${catChipsHTML(cats)}
-      ${isAdmin ? `<div class="sub __uploader">업로더: <span class="js-uploader">불러오는 중…</span></div>` : ''}
-    </div>
-    <div class="right">
-      <div class="cat-editor">
-        ${buildSelect('s1')}
-        ${buildSelect('s2')}
-        ${buildSelect('s3')}
-      </div>
-      <div class="actions">
-        <button class="btn btn-primary btn-apply" type="button">카테고리변환</button>
-        <button class="btn btn-danger btn-del" type="button">삭제</button>
-      </div>
-    </div>
-  `;
+    .pager { display:flex; gap:6px; align-items:center; justify-content:center; margin-top:16px; }
+    .pager button { padding:6px 10px; border-radius:8px; border:1px solid #2a2a2a; background:#111; color:#ddd; cursor:pointer; }
+    .pager .now { font-weight:800; color:#fff; }
 
-  // 카테고리 프리셀렉트
-  const sels = Array.from(row.querySelectorAll('select.sel'));
-  cats.slice(0,3).forEach((v, i) => { if (sels[i]) sels[i].value = v; });
+    /* 모바일 최적화 */
+    @media (max-width:720px){
+      .row { grid-template-columns: 1fr; }
 
-  // 제목이 비어있으면 비동기로 가져오고, 가져오면 Firestore에 title 저장(권한 허용 시)
-  if (!title && url){
-    (async ()=>{
-      const t = await fetchYouTubeTitle(url);
-      if (t){
-        const tEl = row.querySelector('.js-title');
-        if (tEl) tEl.textContent = t;
-        // 문서에 title 저장(소유자 또는 관리자만 성공)
-        try{
-          await updateDoc(doc(db,'videos', docId), { title: t, updatedAt: serverTimestamp() });
-        }catch{/* 권한 안되면 무시 */}
-      }else{
-        const tEl = row.querySelector('.js-title');
-        if (tEl) tEl.textContent = url; // 최소한 url 노출
+      /* 목록 행 내부 오른쪽 패널만 조정 */
+      .row .right { align-items:flex-end; min-width:0; }
+
+      .actions { justify-content:flex-end; width:100%; }
+
+      /* 모바일: 카테고리 선택 3개를 가로 3열로 */
+      .cat-editor{
+        display:grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap:6px;
+        width:100%;
       }
-    })();
-  }
-
-  // 업로더 닉네임 (관리자 전용)
-  if (isAdmin && uid){
-    (async ()=>{
-      const name = await getUploaderDisplay(uid);
-      const uEl = row.querySelector('.js-uploader');
-      if (uEl) uEl.textContent = name;
-    })();
-  }
-
-  // 카테고리 적용
-  row.querySelector('.btn-apply').addEventListener('click', async ()=>{
-    const chosen = Array.from(row.querySelectorAll('select.sel')).map(s=>s.value).filter(Boolean);
-    const uniq = [...new Set(chosen)].slice(0,3);
-    if (uniq.length === 0){ alert('최소 1개의 카테고리를 선택하세요.'); return; }
-    try{
-      await updateDoc(doc(db,'videos', docId), { categories: uniq, updatedAt: serverTimestamp() });
-      statusEl.textContent = '변경 완료';
-      // 칩 갱신
-      const meta = row.querySelector('.meta');
-      const oldCats = meta.querySelector('.cats');
-      if (oldCats) oldCats.remove();
-      meta.insertAdjacentHTML('beforeend', catChipsHTML(uniq));
-    }catch(e){
-      alert('변경 실패: ' + (e.message || e));
+      .cat-editor select{
+        width:100%;
+        min-width:0;
+      }
     }
-  });
+  </style>
+</head>
+<body>
+  <!-- 상단바 -->
+  <header id="topbar">
+    <div class="brand">
+      <a id="brandHome" href="./" aria-label="CopyTube 홈으로">
+        <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
+      </a>
+    </div>
+    <div class="right" style="position:relative;">
+      <a id="signupLink" class="link" href="signup.html">Sign up</a>
+      <a id="signinLink" class="link" href="signin.html">Sign in</a>
+      <span id="welcome" class="welcome"></span>
+      <button id="menuBtn" class="icon hidden" aria-label="menu">三</button>
 
-  // 삭제
-  row.querySelector('.btn-del').addEventListener('click', async ()=>{
-    if (!confirm('정말 삭제하시겠습니까?')) return;
-    try{
-      await deleteDoc(doc(db,'videos', docId));
-      row.remove();
-    }catch(e){
-      alert('삭제 실패: ' + (e.message || e));
-    }
-  });
+      <!-- 드롭다운 -->
+      <div id="dropdownMenu" class="dropdown hidden" role="menu" aria-hidden="true">
+        <button id="btnAbout" type="button">CopyTube는…</button>
+        <button id="btnMyUploads" type="button">내영상관리</button>
+        <button id="btnSignOut" type="button">Sign out</button>
+        <button id="btnGoUpload" class="menu-strong" type="button">추천영상등록</button>
+      </div>
+    </div>
+  </header>
 
-  return row;
-}
+  <main>
+    <h2>
+      내 영상 관리
+      <small id="adminBadge" class="badge" style="display:none;">(관리자 모드: 전체 표시)</small>
+    </h2>
 
-/* ---------- 리스트 렌더 ---------- */
-function clearList(){ listEl.innerHTML = ''; }
+    <div class="toolbar">
+      <button id="refreshBtn" class="btn btn-ghost" type="button">새로고침</button>
+      <span id="status" class="msg"></span>
+    </div>
 
-/* ---------- 페이지 로드 ---------- */
-async function loadPage(p){
-  if (!currentUser){ statusEl.textContent = '로그인 후 이용하세요.'; clearList(); return; }
-  statusEl.textContent = '읽는 중...';
+    <div id="list" class="list"></div>
 
-  try{
-    const parts = [];
-    const base  = collection(db,'videos');
+    <div class="pager">
+      <button id="prevBtn" type="button">이전</button>
+      <span id="pageInfo" class="now">1</span>
+      <button id="nextBtn" type="button">다음</button>
+    </div>
+  </main>
 
-    if (!isAdmin) parts.push(where('uid','==', currentUser.uid));
-    parts.push(orderBy('createdAt','desc'));
-    parts.push(limit(PAGE_SIZE));
-    if (p > 1){
-      const cursor = cursors[p-2];
-      if (cursor) parts.push(startAfter(cursor));
-    }
-
-    const snap = await getDocs(query(base, ...parts));
-
-    clearList();
-    if (snap.empty){
-      listEl.innerHTML = '<div class="sub">목록이 없습니다.</div>';
-      reachedEnd = true;
-    }else{
-      snap.docs.forEach(d => listEl.appendChild(renderRow(d.id, d.data())));
-      cursors[p-1] = snap.docs[snap.docs.length - 1];
-      reachedEnd = (snap.size < PAGE_SIZE);
-    }
-
-    pageInfo.textContent = String(p);
-    statusEl.textContent = '';
-
-  }catch(e){
-    // 인덱스/권한 문제 등 → 전체를 받아 로컬 정렬(최대 1000개 안전장치)
-    try{
-      const all = await getDocs(collection(db,'videos'));
-      let rows = all.docs.map(d => ({ id:d.id, ...d.data() }));
-      if (!isAdmin) rows = rows.filter(r => r.uid === currentUser.uid);
-      rows.sort((a,b)=>{
-        const am = a.createdAt?.toMillis?.() || 0;
-        const bm = b.createdAt?.toMillis?.() || 0;
-        return bm - am;
-      });
-      const start = (p-1)*PAGE_SIZE;
-      const slice = rows.slice(start, start+PAGE_SIZE);
-
-      clearList();
-      slice.forEach(v => listEl.appendChild(renderRow(v.id, v)));
-      reachedEnd = (start + PAGE_SIZE >= rows.length);
-      pageInfo.textContent = String(p);
-      statusEl.textContent = '(로컬 정렬 표시)';
-
-    }catch(e2){
-      console.error(e, e2);
-      statusEl.textContent = '읽기 실패: ' + (e.message || e);
-    }
-  }
-}
-
-/* ---------- 페이징 ---------- */
-prevBtn.addEventListener('click', ()=>{ if (page <= 1) return; page -= 1; loadPage(page); });
-nextBtn.addEventListener('click', ()=>{ if (reachedEnd) return; page += 1; loadPage(page); });
-refreshBtn.addEventListener('click', ()=>{ cursors = []; page = 1; reachedEnd = false; loadPage(page); });
-
-/* ---------- 시작 ---------- */
-onAuthStateChanged(auth, async (user)=>{
-  const loggedIn = !!user;
-  signupLink?.classList.toggle('hidden', loggedIn);
-  signinLink?.classList.toggle('hidden', loggedIn);
-  welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : '';
-  menuBtn?.classList.toggle('hidden', !loggedIn);
-
-  if (!loggedIn){
-    currentUser = null;
-    statusEl.textContent = '로그인 후 이용하세요.';
-    clearList();
-    return;
-  }
-  currentUser = user;
-  isAdmin = await checkAdmin(user.uid);
-  adminBadge.style.display = isAdmin ? '' : 'none';
-
-  cursors = []; page = 1; reachedEnd = false;
-  loadPage(page);
-});
+  <!-- 모듈 스크립트 -->
+  <script type="module" src="js/firebase-init.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="js/manage-uploads.js?v=1.5.1"></script>
+</body>
+</html>
