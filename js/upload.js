@@ -2,7 +2,7 @@
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
-import { CATEGORY_GROUPS } from './categories.js';
+import { CATEGORY_GROUPS } from './categories.js?v-1.5.1';
 
 /* ------- 상단바/드롭다운 ------- */
 const $ = (s)=>document.querySelector(s);
