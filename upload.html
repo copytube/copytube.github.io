@@ -72,6 +72,9 @@
       border:1px solid #2a2a2a; background:#151515; color:#bfc6ce; cursor:pointer;
     }
     .muted{ color:#9aa0a6; font-size:12px; }
+    :root { --topbar-h: 72px; }     /* 상단바 높이(필요하면 64~80px로 조정) */
+body  { padding-top: var(--topbar-h); }
+main.intro { padding-top: 0 !important; }  /* 혹시 남은 인라인/기존 규칙 무력화 */
   </style>
 </head>
 <body>
@@ -95,7 +98,7 @@
     </div>
   </header>
 
-  <main class="intro" style="align-items:flex-start; padding-top:96px;">
+  <main class="intro" style="align-items:flex-start;">
     <div style="max-width:900px; width:100%; text-align:left;">
       <h2>추천영상 등록</h2>
 
@@ -137,6 +140,6 @@
   </main>
 
   <!-- 모든 로직은 외부 모듈에서 처리 -->
-  <script type="module" src="js/upload.js?v=1.5.1"></script>
+  <script type="module" src="js/upload.js?v=1.5.2"></script>
 </body>
 </html>
