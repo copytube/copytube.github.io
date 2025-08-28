@@ -36,6 +36,25 @@ btnSignOut  ?.addEventListener('click', async ()=>{ await fbSignOut(auth); close
 const labelMap = new Map(CATEGORY_GROUPS.flatMap(g => g.children.map(c => [c.value, c.label])));
 const labelOf  = (v) => labelMap.get(v) || `(${String(v)})`;
 
+/* ▼ 칩(.cats) 터치 시 같은 행에서 편집 패널 펼치기 (최소 변경) */
+function wireRowDropdown(row){
+  const catsEl = row.querySelector('.cats');
+  if(!catsEl) return;
+  catsEl.setAttribute('tabindex','0');
+  catsEl.setAttribute('role','button');
+  catsEl.style.cursor = 'pointer';
+
+  const toggle = ()=>{
+    const willOpen = !row.classList.contains('open');
+    document.querySelectorAll('.row.open').forEach(r=>{ if(r!==row) r.classList.remove('open'); });
+    row.classList.toggle('open', willOpen);
+  };
+  catsEl.addEventListener('click', toggle);
+  catsEl.addEventListener('keydown', (e)=>{
+    if(e.key==='Enter' || e.key===' '){ e.preventDefault(); toggle(); }
+  });
+}
+
 /* ---------- DOM ---------- */
 const listEl     = $('#list');
 const statusEl   = $('#status');
@@ -58,7 +77,7 @@ function escapeHTML(s){
   return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 function catChipsHTML(arr){
-  if (!Array.isArray(arr) || !arr.length) return '<span class="sub">(카테고리 없음)</span>';
+  if (!Array.isArray(arr) || !arr.length) return '<div class="cats" tabindex="0" role="button" aria-label="카테고리 변경 펼치기"><span class="sub">(카테고리 없음)</span></div>';
   return `<div class="cats">${arr.map(v=>`<span class="chip">${escapeHTML(labelOf(v))}</span>`).join('')}</div>`;
 }
 function buildSelect(name){
@@ -157,13 +176,10 @@ function renderRow(docId, data){
       if (t){
         const tEl = row.querySelector('.js-title');
         if (tEl) tEl.textContent = t;
-        // 문서에 title 저장(소유자 또는 관리자만 성공)
-        try{
-          await updateDoc(doc(db,'videos', docId), { title: t, updatedAt: serverTimestamp() });
-        }catch{/* 권한 안되면 무시 */}
+        try{ await updateDoc(doc(db,'videos', docId), { title: t, updatedAt: serverTimestamp() }); }catch{}
       }else{
         const tEl = row.querySelector('.js-title');
-        if (tEl) tEl.textContent = url; // 최소한 url 노출
+        if (tEl && !tEl.textContent) tEl.textContent = url;
       }
     })();
   }
@@ -190,6 +206,8 @@ function renderRow(docId, data){
       const oldCats = meta.querySelector('.cats');
       if (oldCats) oldCats.remove();
       meta.insertAdjacentHTML('beforeend', catChipsHTML(uniq));
+      // 새 칩에 토글 다시 연결
+      wireRowDropdown(row);
     }catch(e){
       alert('변경 실패: ' + (e.message || e));
     }
@@ -206,6 +224,8 @@ function renderRow(docId, data){
     }
   });
 
+  // ▼ 칩 터치 시 펼침 연결
+  wireRowDropdown(row);
   return row;
 }
 
@@ -245,7 +265,6 @@ async function loadPage(p){
     statusEl.textContent = '';
 
   }catch(e){
-    // 인덱스/권한 문제 등 → 전체를 받아 로컬 정렬(최대 1000개 안전장치)
     try{
       const all = await getDocs(collection(db,'videos'));
       let rows = all.docs.map(d => ({ id:d.id, ...d.data() }));
@@ -266,7 +285,7 @@ async function loadPage(p){
 
     }catch(e2){
       console.error(e, e2);
-      statusEl.textContent = '읽기 실패: ' + (e.message || e);
+      statusEl.textContent = '읽기 실패: ' + (e.message || e));
     }
   }
 }
