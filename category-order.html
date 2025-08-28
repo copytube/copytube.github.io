@@ -38,8 +38,8 @@
     }
 
     .list{
-      display:flex; flex-direction:column; gap:4px;
-      max-height:80vh; overflow:auto;  /* 기본: 모바일 유지용(아래 미디어쿼리에서 데스크톱은 해제) */
+      display:flex; flex-direction:column; gap:8px;
+      max-height:60vh; overflow:auto;  /* 기본: 태블릿 등에서 내부 스크롤 */
     }
     .item{
       user-select:none;
@@ -49,7 +49,7 @@
       border-radius:8px;
       font-weight:800;
       text-align:left;
-      cursor:pointer;       /* 터치로 이동 */
+      cursor:pointer;
       min-width:0;
     }
     .item:active{ opacity:.85; }
@@ -66,23 +66,33 @@
       .list{ max-height:none; overflow:visible; } /* 내부 스크롤 막대바 안 보이도록 */
     }
 
-    /* ===== 모바일: 중앙 열 최소화, 힌트 제거, 좌/우 열 최대화, 현재순서 텍스트 축소+굵게, 스크롤 유지 ===== */
+    /* ===== 모바일: 요청사항 반영 ===== */
     @media (max-width: 640px){
+      /* 중앙 Reset/확인 열: 지금의 절반 너비로, 주변 padding 0 */
       .layout{
-        /* 중앙 열을 최대한 줄이고 좌/우 열 폭 확보 */
-        grid-template-columns: 1fr minmax(36px, 11vw) 1fr;
+        grid-template-columns: 1fr minmax(36px, 11vw) 1fr; /* 절반으로 축소 */
         gap:8px;
       }
-      .center{ gap:8px; }
-      .hint{ display:none; }            /* 설명 제거 */
-      h3{ font-size:14px; }
+      .center{ gap:0; padding:0; }
+      .center .btn{ margin:0; }             /* 버튼 주변 여백 0 */
+      .center{ min-height: 180px; }         /* 버튼 2개 더 들어올 수 있게 여유 확보 */
 
-      /* 현재순서(왼쪽 리스트) 텍스트: Reset 버튼 크기 수준으로 축소 + 굵게 */
-      #listLeft .item{ font-size:12px; font-weight:800; }
+      /* 설명 제거 */
+      .hint{ display:none; }
+
+      /* 글꼴 크기 통일: Reset 버튼/왼쪽/오른쪽 아이템 */
+      .center .btn{ font-size:14px; }
+      #listLeft  .item{ font-size:14px; font-weight:800; }
+      #listRight .item{ font-size:14px; }   /* ← 오른쪽도 왼쪽과 같은 크기 */
+
       /* 현재순서 아이템 padding 절반으로 축소 */
       #listLeft .item{ padding:5px 6px; }
+
+      /* 현재순서 패널 padding 절반으로 축소 */
+      .layout > section:first-child .panel{ padding:5px; }
+
       /* 모바일은 내부 스크롤 막대바를 유지(현재순서/새순서 모두) */
-      .list{ max-height:75vh; overflow:auto; }
+      .list{ max-height:70vh; overflow:auto; } /* ← 70vh로 상향 */
     }
   </style>
 </head>
