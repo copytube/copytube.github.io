@@ -59,7 +59,9 @@ function escapeHTML(s){
 }
 function catChipsHTML(arr){
   if (!Array.isArray(arr) || !arr.length) return '<span class="sub">(카테고리 없음)</span>';
-  return `<div class="cats">${arr.map(v=>`<span class="chip">${escapeHTML(labelOf(v))}</span>`).join('')}</div>`;
+  return `<div class="cats" role="button" tabindex="0" aria-label="카테고리 변경">
+    ${arr.map(v=>`<span class="chip">${escapeHTML(labelOf(v))}</span>`).join('')}
+  </div>`;
 }
 function buildSelect(name){
   // personal 그룹(로컬 전용)은 제외
@@ -116,6 +118,111 @@ async function getUploaderDisplay(uid){
   }
 }
 
+/* ---------- 전역 카테고리 팝오버 ---------- */
+// 어둡게 하는 배경
+const dim = document.createElement('div');
+dim.id = 'catDim';
+dim.className = 'dim hidden';
+document.addEventListener('DOMContentLoaded', () => document.body.appendChild(dim));
+
+// 팝오버 본체
+const pop = document.createElement('div');
+pop.id = 'catPopover';
+pop.className = 'cat-popover hidden';
+pop.innerHTML = `
+  <div class="pop-head">
+    <div class="t">카테고리 선택 <small class="sub">(최대 3개)</small></div>
+    <button class="close" aria-label="닫기">×</button>
+  </div>
+  <div class="pop-body">
+    <div class="pop-title sub js-pop-title"></div>
+    <div class="pop-editor">
+      ${buildSelect('ps1')}
+      ${buildSelect('ps2')}
+      ${buildSelect('ps3')}
+    </div>
+  </div>
+  <div class="pop-actions">
+    <button class="btn btn-primary pop-apply" type="button">적용</button>
+    <button class="btn btn-ghost pop-cancel" type="button">취소</button>
+  </div>
+`;
+document.addEventListener('DOMContentLoaded', () => document.body.appendChild(pop));
+
+let popActiveRow = null;
+let popDocId = null;
+
+function openCatPopover(row, docId, data){
+  popActiveRow = row;
+  popDocId = docId;
+
+  // 제목 표시
+  const t = row.querySelector('.js-title')?.textContent || '';
+  pop.querySelector('.js-pop-title').textContent = t;
+
+  // 현재 값 프리셋
+  const cats = Array.isArray(data.categories) ? data.categories.slice(0,3) : [];
+  const sels = pop.querySelectorAll('.pop-editor select.sel');
+  sels.forEach(s => s.value = '');
+  cats.forEach((v,i)=>{ if (sels[i]) sels[i].value = v; });
+
+  // 표시
+  dim.classList.remove('hidden');
+  pop.classList.remove('hidden');
+
+  // 포커스
+  setTimeout(()=> {
+    (sels[0] || pop.querySelector('.close'))?.focus();
+  }, 0);
+}
+function closeCatPopover(){
+  popActiveRow = null;
+  popDocId = null;
+  pop.classList.add('hidden');
+  dim.classList.add('hidden');
+}
+
+// 팝오버 이벤트
+document.addEventListener('click', (e)=>{
+  if (!pop.classList.contains('hidden')){
+    if (e.target === dim) closeCatPopover();
+  }
+});
+document.addEventListener('keydown', (e)=>{
+  if (e.key === 'Escape' && !pop.classList.contains('hidden')) closeCatPopover();
+});
+pop.addEventListener('click', (e)=> e.stopPropagation());
+pop.querySelector('.close')?.addEventListener('click', closeCatPopover);
+pop.querySelector('.pop-cancel')?.addEventListener('click', closeCatPopover);
+pop.querySelector('.pop-apply')?.addEventListener('click', async ()=>{
+  if (!popActiveRow || !popDocId) return;
+  const chosen = Array.from(pop.querySelectorAll('.pop-editor select.sel')).map(s=>s.value).filter(Boolean);
+  const uniq = [...new Set(chosen)].slice(0,3);
+  if (uniq.length === 0){ alert('최소 1개의 카테고리를 선택하세요.'); return; }
+  try{
+    await updateDoc(doc(db,'videos', popDocId), { categories: uniq, updatedAt: serverTimestamp() });
+    statusEl.textContent = '변경 완료';
+
+    // 칩 갱신
+    const meta = popActiveRow.querySelector('.meta');
+    const oldCats = meta.querySelector('.cats');
+    if (oldCats) oldCats.remove();
+    meta.insertAdjacentHTML('beforeend', catChipsHTML(uniq));
+
+    // 오른쪽 셀렉트(PC용)도 동기화
+    const rightSels = Array.from(popActiveRow.querySelectorAll('select.sel'));
+    rightSels.forEach(s => s.value = '');
+    uniq.forEach((v,i)=>{ if (rightSels[i]) rightSels[i].value = v; });
+
+    // 새로 생성된 칩에도 클릭 핸들러 부여
+    attachChipHandler(popActiveRow, popDocId, { categories: uniq });
+
+    closeCatPopover();
+  }catch(e){
+    alert('변경 실패: ' + (e.message || e));
+  }
+});
+
 /* ---------- 1행 렌더 ---------- */
 function renderRow(docId, data){
   const cats  = Array.isArray(data.categories) ? data.categories : [];
@@ -150,20 +257,18 @@ function renderRow(docId, data){
   const sels = Array.from(row.querySelectorAll('select.sel'));
   cats.slice(0,3).forEach((v, i) => { if (sels[i]) sels[i].value = v; });
 
-  // 제목이 비어있으면 비동기로 가져오고, 가져오면 Firestore에 title 저장(권한 허용 시)
+  // 제목이 비어있으면 비동기 취득
   if (!title && url){
     (async ()=>{
       const t = await fetchYouTubeTitle(url);
+      const tEl = row.querySelector('.js-title');
       if (t){
-        const tEl = row.querySelector('.js-title');
         if (tEl) tEl.textContent = t;
-        // 문서에 title 저장(소유자 또는 관리자만 성공)
         try{
           await updateDoc(doc(db,'videos', docId), { title: t, updatedAt: serverTimestamp() });
-        }catch{/* 권한 안되면 무시 */}
+        }catch{/* 권한 없으면 무시 */}
       }else{
-        const tEl = row.querySelector('.js-title');
-        if (tEl) tEl.textContent = url; // 최소한 url 노출
+        if (tEl) tEl.textContent = url;
       }
     })();
   }
@@ -177,7 +282,10 @@ function renderRow(docId, data){
     })();
   }
 
-  // 카테고리 적용
+  // 칩 클릭 → 팝오버 열기
+  attachChipHandler(row, docId, data);
+
+  // 오른쪽 버튼: 카테고리 적용(기존 PC 방식 유지)
   row.querySelector('.btn-apply').addEventListener('click', async ()=>{
     const chosen = Array.from(row.querySelectorAll('select.sel')).map(s=>s.value).filter(Boolean);
     const uniq = [...new Set(chosen)].slice(0,3);
@@ -190,6 +298,7 @@ function renderRow(docId, data){
       const oldCats = meta.querySelector('.cats');
       if (oldCats) oldCats.remove();
       meta.insertAdjacentHTML('beforeend', catChipsHTML(uniq));
+      attachChipHandler(row, docId, { categories: uniq });
     }catch(e){
       alert('변경 실패: ' + (e.message || e));
     }
@@ -207,6 +316,21 @@ function renderRow(docId, data){
   });
 
   return row;
+}
+
+// 행의 칩에 팝오버 핸들러를 붙이는 함수
+function attachChipHandler(row, docId, data){
+  const chipBox = row.querySelector('.cats');
+  if (!chipBox) return;
+  // 중복 바인딩 방지
+  chipBox.__bound && chipBox.removeEventListener('click', chipBox.__bound);
+  const handler = (e)=>{
+    e.stopPropagation();
+    openCatPopover(row, docId, data);
+  };
+  chipBox.addEventListener('click', handler);
+  chipBox.addEventListener('keydown', (e)=>{ if (e.key==='Enter' || e.key===' ') { e.preventDefault(); handler(e);} });
+  chipBox.__bound = handler;
 }
 
 /* ---------- 리스트 렌더 ---------- */
