@@ -176,3 +176,23 @@ body{
 
 /* 안내/빈 상태 메시지 */
 .video .hint{ color:#cfcfcf; font-size:16px; padding:0 16px; text-align:center; }
+
+
+/* ==== Page slide transition (v1.5.2) ==== */
+@keyframes pageSlideLeft {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(-22%); opacity: .92; }
+}
+@keyframes pageSlideRight {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(22%); opacity: .92; }
+}
+:root.slide-out-left  body { animation: pageSlideLeft 0.26s ease forwards; }
+:root.slide-out-right body { animation: pageSlideRight 0.26s ease forwards; }
+
+/* 모션 최소화 설정 존중 */
+@media (prefers-reduced-motion: reduce) {
+  :root.slide-out-left  body,
+  :root.slide-out-right body { animation: none; }
+}
+
