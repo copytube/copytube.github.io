@@ -23,7 +23,7 @@
 
     .layout{
       display:grid;
-      grid-template-columns: 1fr minmax(0,120px) 1fr; /* 가운데 슬림 */
+      grid-template-columns: 1fr minmax(0,120px) 1fr; /* 데스크톱 기본: 가운데 슬림 */
       gap:12px; align-items:start;
     }
 
@@ -39,7 +39,7 @@
 
     .list{
       display:flex; flex-direction:column; gap:8px;
-      max-height:60vh; overflow:auto;
+      max-height:60vh; overflow:auto;  /* 기본: 모바일 유지용(아래 미디어쿼리에서 데스크톱은 해제) */
     }
     .item{
       user-select:none;
@@ -61,7 +61,28 @@
     .btn-primary{ background:#4ea1ff; border:0; font-weight:800; }
     .hint{ font-size:12px; color:#9aa0a6; text-align:center; }
 
-    /* 모바일도 3열 유지 (요청) */
+    /* ===== 데스크톱(PC): 리스트 스크롤 제거, 전체 펼침 ===== */
+    @media (min-width: 1024px){
+      .list{ max-height:none; overflow:visible; } /* 내부 스크롤 막대바 안 보이도록 */
+    }
+
+    /* ===== 모바일: 중앙 열 최소화, 힌트 제거, 좌/우 열 최대화, 현재순서 텍스트 축소+굵게, 스크롤 유지 ===== */
+    @media (max-width: 640px){
+      .layout{
+        /* 중앙 열을 최대한 줄이고 좌/우 열 폭 확보 */
+        grid-template-columns: 1fr minmax(72px, 22vw) 1fr;
+        gap:8px;
+      }
+      .center{ gap:8px; }
+      .hint{ display:none; }            /* 설명 제거 */
+      h3{ font-size:14px; }
+
+      /* 현재순서(왼쪽 리스트) 텍스트: Reset 버튼 크기 수준으로 축소 + 굵게 */
+      #listLeft .item{ font-size:14px; font-weight:800; }
+
+      /* 모바일은 내부 스크롤 막대바를 유지(현재순서/새순서 모두) */
+      .list{ max-height:58vh; overflow:auto; }
+    }
   </style>
 </head>
 <body>
@@ -86,7 +107,7 @@
         </div>
       </section>
 
-      <!-- 가운데: 슬림 버튼 -->
+      <!-- 가운데: 버튼만(모바일에선 최소폭) -->
       <section class="center">
         <button id="btnReset" class="btn" type="button">Reset</button>
         <button id="btnSave"  class="btn btn-primary" type="button">확인</button>
