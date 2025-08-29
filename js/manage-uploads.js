@@ -1,7 +1,7 @@
-// js/manage-uploads.js (v1.2.1)
-/* - 내 영상 목록(본인 uid) 조회 + 무한/더보기 + 검색
-   - 카테고리 수정(최대 3개, personal 제외) + 단건/다건 삭제
-   - 인덱스 없을 경우 client-sort로 폴백               */
+// js/manage-uploads.js (v1.2.2)
+// - 내 영상 목록(본인 uid) 조회 + 더보기 + 검색
+// - 카테고리 수정(최대 3개, personal 제외) + 단건/다건 삭제
+// - 인덱스 없을 경우 where(uid) 전체 후 클라 정렬 폴백
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import {
@@ -29,15 +29,7 @@ document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDropdown();
 dropdown?.addEventListener('click',(e)=> e.stopPropagation());
 btnAbout?.addEventListener('click', ()=>{ location.href='about.html'; closeDropdown(); });
 btnGoUpload?.addEventListener('click', ()=>{ location.href='upload.html'; closeDropdown(); });
-btnSignOut?.addEventListener('click', async ()=>{ await fbSignOut(auth); closeDropdown(); });
-
-onAuthStateChanged(auth, (user)=>{
-  const loggedIn = !!user;
-  signupLink?.classList.toggle('hidden', loggedIn);
-  signinLink?.classList.toggle('hidden', loggedIn);
-  welcome && (welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName||'회원'}님` : '');
-  if (!loggedIn) location.href='signin.html';
-});
+btnSignOut?.addEventListener('click', async ()=>{ try{ await fbSignOut(auth); }catch{} closeDropdown(); });
 
 /* ---------- 유틸 ---------- */
 const $ = s=>document.querySelector(s);
@@ -49,6 +41,7 @@ const qbox   = $('#q');
 const btnReload = $('#btnReload');
 const btnDeleteSel = $('#btnDeleteSel');
 
+function setStatus(text){ if(msg) msg.textContent = text || ''; }
 function extractId(url){ const m=String(url||'').match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&\/]+)/); return m?m[1]:''; }
 
 /* 카테고리 라벨 맵 */
@@ -69,24 +62,24 @@ let usingClientFallback = false; // 인덱스 폴백 여부
 
 /* ---------- 목록 렌더 ---------- */
 function catChips(values=[]){
-  return values.map(v=>`<span class=\"chip\">${valueToLabel.get(v)||v}</span>`).join('');
+  return values.map(v=>`<span class="chip">${valueToLabel.get(v)||v}</span>`).join('');
 }
 function rowEl(docId, v){
   const id = extractId(v.url);
   const el = document.createElement('div');
   el.className='row';
   el.dataset.id = docId;
-  el.innerHTML = \`
+  el.innerHTML = `
     <div class="sel"><input type="checkbox" class="selbox"/></div>
     <div class="info">
-      <div class="title" title="\${v.title||''}">\${v.title || '(제목없음)'}</div>
-      <div class="url" title="\${v.url||''}">\${v.url||''}</div>
-      <div class="cats">\${catChips(v.categories||[])}</div>
+      <div class="title" title="${v.title||''}">${v.title || '(제목없음)'}</div>
+      <div class="url" title="${v.url||''}">${v.url||''}</div>
+      <div class="cats">${catChips(v.categories||[])}</div>
     </div>
     <div class="bottom">
       <div class="thumb">
-        <a href="\${v.url}" target="_blank" rel="noopener">
-          <img src="https://i.ytimg.com/vi/\${id}/mqdefault.jpg" alt="thumb"/>
+        <a href="${v.url}" target="_blank" rel="noopener">
+          <img src="https://i.ytimg.com/vi/${id}/mqdefault.jpg" alt="thumb"/>
         </a>
       </div>
       <div class="actions">
@@ -94,7 +87,7 @@ function rowEl(docId, v){
         <button class="btn btn-danger" data-act="del">삭제</button>
       </div>
     </div>
-  \`;
+  `;
   // 핸들러
   el.querySelector('[data-act="del"]')?.addEventListener('click', async ()=>{
     if(!confirm('이 영상을 삭제할까요?')) return;
@@ -109,7 +102,7 @@ function rowEl(docId, v){
 }
 
 function applyFilter(){
-  const q = (qbox.value||'').trim().toLowerCase();
+  const q = (qbox?.value||'').trim().toLowerCase();
   list.innerHTML = '';
   const rows = !q ? cache : cache.filter(x=>{
     const t = (x.data.title||'').toLowerCase();
@@ -133,7 +126,6 @@ async function loadInit(){
     const snap = await getDocs(query(base, ...parts));
     appendSnap(snap);
   }catch(e){
-    // 인덱스 없으면 폴백: where(uid==)만 가져와서 클라 정렬
     console.warn('[manage-uploads] index fallback:', e?.message||e);
     usingClientFallback = true;
     const snap = await getDocs(query(collection(db,'videos'), where('uid','==', curUser.uid)));
@@ -194,14 +186,14 @@ function renderEditCats(selected){
   const html = groups.map(g=>{
     const kids = g.children.map(c=>{
       const on = selected.includes(c.value) ? 'checked' : '';
-      return \`<label><input type="checkbox" class="cat" value="\${c.value}" \${on}> \${c.label}</label>\`;
+      return `<label><input type="checkbox" class="cat" value="${c.value}" ${on}> ${c.label}</label>`;
     }).join('');
-    return \`
-      <fieldset class="group" data-key="\${g.key}">
-        <legend>\${g.label}</legend>
-        <div class="child-grid">\${kids}</div>
+    return `
+      <fieldset class="group" data-key="${g.key}">
+        <legend>${g.label}</legend>
+        <div class="child-grid">${kids}</div>
       </fieldset>
-    \`;
+    `;
   }).join('');
   editCatsBox.innerHTML = html;
 
@@ -213,7 +205,7 @@ function renderEditCats(selected){
       const count = boxes.filter(b=> b.checked).length;
       if(count > limit){
         chk.checked = false;
-        alert(\`카테고리는 최대 \${limit}개까지 선택 가능합니다.\`);
+        alert(`카테고리는 최대 ${limit}개까지 선택 가능합니다.`);
       }
     });
   });
@@ -251,7 +243,7 @@ btnDeleteSel?.addEventListener('click', async ()=>{
   const ids = Array.from(document.querySelectorAll('.row .selbox:checked'))
     .map(cb => cb.closest('.row')?.dataset.id).filter(Boolean);
   if(ids.length===0){ alert('선택된 항목이 없습니다.'); return; }
-  if(!confirm(\`선택한 \${ids.length}개 항목을 삭제할까요?\`)) return;
+  if(!confirm(`선택한 ${ids.length}개 항목을 삭제할까요?`)) return;
   let ok=0, fail=0;
   for(const id of ids){
     try{ await deleteDoc(doc(db,'videos', id)); ok++; }catch{ fail++; }
@@ -259,35 +251,38 @@ btnDeleteSel?.addEventListener('click', async ()=>{
   // 캐시/화면 반영
   cache = cache.filter(x => !ids.includes(x.id));
   applyFilter();
-  alert(\`삭제 완료: 성공 \${ok}건, 실패 \${fail}건\`);
+  alert(`삭제 완료: 성공 ${ok}건, 실패 ${fail}건`);
 });
 
-/* ---------- 이벤트 ---------- */
-btnMore?.addEventListener('click', loadMore);
-btnReload?.addEventListener('click', loadInit);
-qbox?.addEventListener('input', applyFilter);
-
-
-/* ---------- 시작 ---------- */
-function showLoginRequired(){
-  const html = `<span style="color:#ffb4b4;font-weight:700;">로그인이 필요합니다.</span> ` +
-               `<a href="signin.html" class="btn btn-primary" style="margin-left:8px;">로그인하기</a>`;
-  try{ msg.innerHTML = html; }catch{}
-  // 안전한 자동 이동(지연)
-  setTimeout(()=>{ try{ location.href='signin.html'; }catch{} }, 800);
-}
-
-function setStatus(text){ try{ msg.textContent = text || ''; }catch{} }
-
-// 부팅: DOMContentLoaded 에도 로드 시도 (이미 로그인 상태면 즉시)
+/* ---------- 부팅 ---------- */
+let _authFirstHandled = false;
 document.addEventListener('DOMContentLoaded', ()=>{
-  try{
-    if(auth.currentUser){ setStatus('초기화 중...'); loadInit(); } else { showLoginRequired(); }
-  }catch(e){ console.error(e); setStatus('초기화 오류: '+(e.message||e)); }
+  // Firebase가 세션을 복원하기 전일 수 있음 → 여기선 기다리기만
+  setStatus('로그인 상태 확인 중...');
 });
 
 onAuthStateChanged(auth, (user)=>{
   try{
-    if(user){ setStatus('목록 불러오는 중...'); loadInit(); } else { showLoginRequired(); }
-  }catch(e){ console.error(e); setStatus('인증 후 초기화 오류: '+(e.message||e)); }
+    const loggedIn = !!user;
+    signupLink?.classList.toggle('hidden', loggedIn);
+    signinLink?.classList.toggle('hidden', loggedIn);
+    welcome && (welcome.textContent = loggedIn ? `안녕하세요, ${user?.displayName||'회원'}님` : '');
+
+    if(_authFirstHandled) return; // 최초 이벤트만 신뢰
+    _authFirstHandled = true;
+
+    if (loggedIn) {
+      // 정상 로드
+      loadInit();
+    } else {
+      // 로그인 필요만 안내(자동 리다이렉트 X, 사용자가 버튼으로 이동)
+      if(msg){
+        msg.innerHTML = `<span style="color:#ffb4b4;font-weight:700;">로그인이 필요합니다.</span> 
+          <a href="signin.html" class="btn btn-primary" style="margin-left:8px;">로그인하기</a>`;
+      }
+    }
+  }catch(e){
+    console.error(e);
+    setStatus('인증 처리 오류: '+(e.message||e));
+  }
 });
