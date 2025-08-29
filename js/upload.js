@@ -228,3 +228,41 @@ try{
   console.debug('[upload] CATEGORY_GROUPS keys:', CATEGORY_GROUPS.map(g=>g.key));
   console.debug('[upload] groupOrderV1:', localStorage.getItem('groupOrderV1'));
 }catch{}
+
+/* ---------- 스와이프 네비게이션 (upload → index) ---------- */
+function initSwipeNav({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700 }={}){
+  let x0=0, y0=0, t0=0;
+  const isInteractive = (el)=> !!(el && (el.closest('input,textarea,select,button,a,[role="button"],[contenteditable="true"]')));
+  function onStart(e){
+    const t = (e.touches && e.touches[0]) || (e.pointerType ? e : null);
+    if(!t) return;
+    if(isInteractive(e.target)) return; // 입력 중엔 스와이프 무시
+    x0 = t.clientX; y0 = t.clientY; t0 = Date.now();
+  }
+  function onEnd(e){
+    const t = (e.changedTouches && e.changedTouches[0]) || (e.pointerType ? e : null);
+    if(!t) return;
+    if(isInteractive(e.target)) return;
+    const dx = t.clientX - x0;
+    const dy = t.clientY - y0;
+    const dt = Date.now() - t0;
+    if(Math.abs(dy) > slop || dt > timeMax) return; // 수직 이동이 크거나 너무 느리면 무시
+    if(dx <= -threshold){
+      // 오른쪽→왼쪽 (필요 시 사용)
+      if(goLeftHref) location.href = goLeftHref;
+    }else if(dx >= threshold){
+      // 왼쪽→오른쪽: index로
+      if(goRightHref){
+        location.href = goRightHref;
+      }else if(history.length > 1){
+        history.back();
+      }
+    }
+  }
+  document.addEventListener('touchstart', onStart, { passive:true });
+  document.addEventListener('touchend',   onEnd,   { passive:true });
+  document.addEventListener('pointerdown',onStart, { passive:true });
+  document.addEventListener('pointerup',  onEnd,   { passive:true });
+}
+// upload: 왼→오 → index
+initSwipeNav({ goRightHref: 'index.html' });
