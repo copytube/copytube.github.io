@@ -9,13 +9,12 @@
 
   <!-- 목록1.3 레이아웃 + 로그인 유지 보강 + 모달 스크롤 픽스 -->
   <style>
-    /* ----- 모달 스크롤/배경 잠금 ----- */
     .modal-backdrop{
       position:fixed; inset:0;
       background:rgba(0,0,0,.55);
       display:none; align-items:center; justify-content:center;
       z-index:2000;
-      overflow:hidden;               /* 배경 스크롤 차단 */
+      overflow:hidden;
     }
     .modal-backdrop.show{ display:flex; }
     .modal{
@@ -23,7 +22,7 @@
       background:#0f0f0f; border:1px solid var(--border); border-radius:12px; padding:12px;
       max-height:92dvh; margin:10px;
       display:flex; flex-direction:column;
-      overflow:hidden;               /* 내부(#editCats)만 스크롤 */
+      overflow:hidden;
     }
     #editCats{
       flex:1; min-height:0; overflow:auto;
@@ -32,29 +31,28 @@
     }
     html.modal-open, body.modal-open{ overflow:hidden; }
 
-    /* ----- 목록1.3 카드 레이아웃 (여백 1/2, 버튼 가로) ----- */
-    .list{ display:flex; flex-direction:column; gap:7px; } /* 14 -> 7 */
+    .list{ display:flex; flex-direction:column; gap:7px; }
     .row{
       border:1px solid var(--border); background:#101010; border-radius:12px;
       display:grid;
-      grid-template-columns: 28px 1fr 140px;   /* 체크박스 | 본문 | 오른쪽(썸네일/버튼) */
-      grid-template-rows: auto auto auto auto; /* 제목 / URL / 카테고리 / 하단 */
+      grid-template-columns: 28px 1fr 140px;
+      grid-template-rows: auto auto auto auto;
       grid-template-areas:
         "sel title title"
         "sel url   ."
         "sel cats  ."
         "sel thumb actions";
-      gap:5px;                                  /* 10 -> 5 */
-      padding:6px;                              /* 12 -> 6 */
+      gap:5px;
+      padding:6px;
       align-items:start;
     }
-    .sel{ grid-area:sel; display:flex; align-items:flex-start; padding-top:2px; } /* 4 -> 2 */
+    .sel{ grid-area:sel; display:flex; align-items:flex-start; padding-top:2px; }
     .sel .selbox{ width:18px; height:18px; }
 
     .title{ grid-area:title; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .url  { grid-area:url;   font-size:13px; color:#9aa0a6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .cats { grid-area:cats;  display:flex; flex-wrap:wrap; gap:3px; }            /* 6 -> 3 */
-    .chip { font-size:12px; padding:1px 4px; border:1px solid #2a2a2a; border-radius:999px; color:#ddd; } /* 2 6 -> 1 4 */
+    .cats { grid-area:cats;  display:flex; flex-wrap:wrap; gap:3px; }
+    .chip { font-size:12px; padding:1px 4px; border:1px solid #2a2a2a; border-radius:999px; color:#ddd; }
 
     .thumb{
       grid-area:thumb;
@@ -65,27 +63,27 @@
 
     .actions{
       grid-area:actions;
-      display:flex; flex-direction:row; gap:4px;             /* 세로 -> 가로, 간격 절반 */
-      align-items:center; justify-content:flex-end; flex-wrap:wrap;
+      display:flex; flex-direction:row; gap:6px;
+      align-items:center; justify-content:flex-end; flex-wrap:nowrap;
     }
-    .btn{ padding:5px 6px; border-radius:10px; border:1px solid #2a2a2a; background:#151515; color:#fff; cursor:pointer; } /* 10 12 -> 5 6 */
+    .btn{ padding:5px 6px; border-radius:10px; border:1px solid #2a2a2a; background:#151515; color:#fff; cursor:pointer; }
     .btn:hover{ background:#1a1a1a; }
     .btn-danger{ background:#dc2626; border:0; }
+    .row .actions .btn{ padding:8px 9px; font-size:1.125rem; white-space:nowrap; }
 
     .msg{ margin:8px 0; font-size:13px; color:#ccc; min-height:1.2em; }
 
     @media (max-width:520px){
       .row{
-        grid-template-columns: 28px 1fr;
+        grid-template-columns: 28px 1fr auto;
         grid-template-areas:
-          "sel title"
-          "sel url"
-          "sel cats"
-          "sel thumb"
-          "sel actions";
+          "sel title actions"
+          "sel url   actions"
+          "sel cats  actions"
+          "sel thumb actions";
       }
       .thumb{ width:120px; height:68px; }
-      .actions{ justify-content:flex-start; }
+      .actions{ justify-content:flex-end; }
     }
   </style>
 </head>
@@ -127,11 +125,10 @@
     </div>
   </main>
 
-  <!-- 카테고리 편집 모달 -->
   <div id="editBackdrop" class="modal-backdrop" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editTitle">
       <h3 id="editTitle" style="margin:0 0 8px;">카테고리 수정</h3>
-      <div id="editCats"><!-- JS 렌더 --></div>
+      <div id="editCats"></div>
       <div class="row-right" style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
         <button id="btnEditCancel" class="btn">취소</button>
         <button id="btnEditSave" class="btn" style="background:#4ea1ff; border:0; font-weight:800;">저장</button>
@@ -142,6 +139,6 @@
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
   <script type="module" src="js/categories.js"></script>
-  <script type="module" src="js/manage-uploads.js?v=1.3.0"></script>
+  <script type="module" src="js/manage-uploads.js?v=1.3.2"></script>
 </body>
 </html>
