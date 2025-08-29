@@ -1,7 +1,7 @@
-// js/manage-uploads.js (v1.2.0)
-// - 내 영상 목록(본인 uid) 조회 + 무한/더보기 + 검색
-// - 카테고리 수정(최대 3개, personal 제외) + 단건/다건 삭제
-// - 인덱스 없을 경우 client-sort로 폴백
+// js/manage-uploads.js (v1.2.1)
+/* - 내 영상 목록(본인 uid) 조회 + 무한/더보기 + 검색
+   - 카테고리 수정(최대 3개, personal 제외) + 단건/다건 삭제
+   - 인덱스 없을 경우 client-sort로 폴백               */
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import {
@@ -49,7 +49,7 @@ const qbox   = $('#q');
 const btnReload = $('#btnReload');
 const btnDeleteSel = $('#btnDeleteSel');
 
-function extractId(url){ const m=String(url||'').match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/); return m?m[1]:''; }
+function extractId(url){ const m=String(url||'').match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&\/]+)/); return m?m[1]:''; }
 
 /* 카테고리 라벨 맵 */
 const valueToLabel = (()=> {
@@ -69,30 +69,32 @@ let usingClientFallback = false; // 인덱스 폴백 여부
 
 /* ---------- 목록 렌더 ---------- */
 function catChips(values=[]){
-  return values.map(v=>`<span class="chip">${valueToLabel.get(v)||v}</span>`).join('');
+  return values.map(v=>`<span class=\"chip\">${valueToLabel.get(v)||v}</span>`).join('');
 }
 function rowEl(docId, v){
   const id = extractId(v.url);
   const el = document.createElement('div');
   el.className='row';
   el.dataset.id = docId;
-  el.innerHTML = `
+  el.innerHTML = \`
     <div class="sel"><input type="checkbox" class="selbox"/></div>
-    <div class="thumb">
-      <a href="${v.url}" target="_blank" rel="noopener">
-        <img src="https://i.ytimg.com/vi/${id}/mqdefault.jpg" alt="thumb"/>
-      </a>
+    <div class="info">
+      <div class="title" title="\${v.title||''}">\${v.title || '(제목없음)'}</div>
+      <div class="url" title="\${v.url||''}">\${v.url||''}</div>
+      <div class="cats">\${catChips(v.categories||[])}</div>
     </div>
-    <div class="meta">
-      <div class="title" title="${v.title||''}">${v.title || '(제목없음)'}</div>
-      <div class="url" title="${v.url||''}">${v.url||''}</div>
-      <div class="cats">${catChips(v.categories||[])}</div>
+    <div class="bottom">
+      <div class="thumb">
+        <a href="\${v.url}" target="_blank" rel="noopener">
+          <img src="https://i.ytimg.com/vi/\${id}/mqdefault.jpg" alt="thumb"/>
+        </a>
+      </div>
+      <div class="actions">
+        <button class="btn" data-act="edit">카테고리변환</button>
+        <button class="btn btn-danger" data-act="del">삭제</button>
+      </div>
     </div>
-    <div class="actions">
-      <button class="btn" data-act="edit">카테고리</button>
-      <button class="btn btn-danger" data-act="del">삭제</button>
-    </div>
-  `;
+  \`;
   // 핸들러
   el.querySelector('[data-act="del"]')?.addEventListener('click', async ()=>{
     if(!confirm('이 영상을 삭제할까요?')) return;
@@ -192,14 +194,14 @@ function renderEditCats(selected){
   const html = groups.map(g=>{
     const kids = g.children.map(c=>{
       const on = selected.includes(c.value) ? 'checked' : '';
-      return `<label><input type="checkbox" class="cat" value="${c.value}" ${on}> ${c.label}</label>`;
+      return \`<label><input type="checkbox" class="cat" value="\${c.value}" \${on}> \${c.label}</label>\`;
     }).join('');
-    return `
-      <fieldset class="group" data-key="${g.key}">
-        <legend>${g.label}</legend>
-        <div class="child-grid">${kids}</div>
+    return \`
+      <fieldset class="group" data-key="\${g.key}">
+        <legend>\${g.label}</legend>
+        <div class="child-grid">\${kids}</div>
       </fieldset>
-    `;
+    \`;
   }).join('');
   editCatsBox.innerHTML = html;
 
@@ -211,7 +213,7 @@ function renderEditCats(selected){
       const count = boxes.filter(b=> b.checked).length;
       if(count > limit){
         chk.checked = false;
-        alert(`카테고리는 최대 ${limit}개까지 선택 가능합니다.`);
+        alert(\`카테고리는 최대 \${limit}개까지 선택 가능합니다.\`);
       }
     });
   });
@@ -249,7 +251,7 @@ btnDeleteSel?.addEventListener('click', async ()=>{
   const ids = Array.from(document.querySelectorAll('.row .selbox:checked'))
     .map(cb => cb.closest('.row')?.dataset.id).filter(Boolean);
   if(ids.length===0){ alert('선택된 항목이 없습니다.'); return; }
-  if(!confirm(`선택한 ${ids.length}개 항목을 삭제할까요?`)) return;
+  if(!confirm(\`선택한 \${ids.length}개 항목을 삭제할까요?\`)) return;
   let ok=0, fail=0;
   for(const id of ids){
     try{ await deleteDoc(doc(db,'videos', id)); ok++; }catch{ fail++; }
@@ -257,7 +259,7 @@ btnDeleteSel?.addEventListener('click', async ()=>{
   // 캐시/화면 반영
   cache = cache.filter(x => !ids.includes(x.id));
   applyFilter();
-  alert(`삭제 완료: 성공 ${ok}건, 실패 ${fail}건`);
+  alert(\`삭제 완료: 성공 \${ok}건, 실패 \${fail}건\`);
 });
 
 /* ---------- 이벤트 ---------- */
