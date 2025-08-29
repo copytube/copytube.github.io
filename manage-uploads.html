@@ -82,12 +82,15 @@
     /* 편집 모달 */
     .modal-backdrop{
       position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:2000;
+      overflow:auto; /* allow scrolling when content taller than viewport */
     }
     .modal-backdrop.show{ display:flex; }
     .modal{
       width:min(760px, 92vw); background:#0f0f0f; border:1px solid var(--border); border-radius:12px; padding:12px;
+      max-height:88vh; display:flex; flex-direction:column; /* make inner content scroll */
     }
     .modal h3{ margin:0 0 8px; }
+    #editCats{ flex:1; overflow:auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding-right:4px; }
     .group{
       border:1px solid var(--border); border-radius:10px; background:#101010; padding:8px; margin:6px 0;
     }
@@ -98,6 +101,7 @@
       background:#0b0b0b; border:1px solid #2a2a2a; border-radius:8px; padding:6px 8px; display:flex; gap:6px; align-items:center;
     }
     .modal .row-right{ display:flex; gap:8px; justify-content:flex-end; margin-top:10px; }
+    @media (max-width:480px){ .modal{ width:96vw; max-height:90vh; } }
   </style>
 </head>
 <body>
