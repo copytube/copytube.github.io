@@ -1,423 +1,269 @@
-// js/manage-uploads.js
-import { auth, db } from './firebase-init.js?v=1.5.1';
-import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
+// js/manage-uploads.js (v1.2.0)
+// - 내 영상 목록(본인 uid) 조회 + 무한/더보기 + 검색
+// - 카테고리 수정(최대 3개, personal 제외) + 단건/다건 삭제
+// - 인덱스 없을 경우 client-sort로 폴백
+import { auth, db } from './firebase-init.js';
+import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import {
-  collection, query, where, orderBy, limit, startAfter, getDocs,
-  getDoc, doc, updateDoc, deleteDoc, serverTimestamp
+  collection, getDocs, query, where, orderBy, limit, startAfter,
+  deleteDoc, doc, updateDoc
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
-import { CATEGORY_GROUPS } from './categories.js?v=1.5.1';
+import { CATEGORY_GROUPS } from './categories.js';
 
-const $ = s => document.querySelector(s);
+/* ---------- 상단바 ---------- */
+const signupLink   = document.getElementById("signupLink");
+const signinLink   = document.getElementById("signinLink");
+const welcome      = document.getElementById("welcome");
+const menuBtn      = document.getElementById("menuBtn");
+const dropdown     = document.getElementById("dropdownMenu");
+const btnSignOut   = document.getElementById("btnSignOut");
+const btnGoUpload  = document.getElementById("btnGoUpload");
+const btnAbout     = document.getElementById("btnAbout");
 
-/* ---------- 상단바 / 드롭다운 ---------- */
-const signupLink   = $('#signupLink');
-const signinLink   = $('#signinLink');
-const welcome      = $('#welcome');
-const menuBtn      = $('#menuBtn');
-const dropdown     = $('#dropdownMenu');
-const btnSignOut   = $('#btnSignOut');
-const btnGoUpload  = $('#btnGoUpload');
-const btnMyUploads = $('#btnMyUploads');
-const btnAbout     = $('#btnAbout');
+let isMenuOpen=false;
+function openDropdown(){ isMenuOpen=true; dropdown?.classList.remove("hidden"); requestAnimationFrame(()=> dropdown?.classList.add("show")); }
+function closeDropdown(){ isMenuOpen=false; dropdown?.classList.remove("show"); setTimeout(()=> dropdown?.classList.add("hidden"),180); }
+menuBtn?.addEventListener("click",(e)=>{ e.stopPropagation(); dropdown?.classList.contains("hidden")?openDropdown():closeDropdown(); });
+document.addEventListener('pointerdown',(e)=>{ if(dropdown?.classList.contains('hidden')) return; if(!e.target.closest('#dropdownMenu,#menuBtn')) closeDropdown(); }, true);
+document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDropdown(); });
+dropdown?.addEventListener('click',(e)=> e.stopPropagation());
+btnAbout?.addEventListener('click', ()=>{ location.href='about.html'; closeDropdown(); });
+btnGoUpload?.addEventListener('click', ()=>{ location.href='upload.html'; closeDropdown(); });
+btnSignOut?.addEventListener('click', async ()=>{ await fbSignOut(auth); closeDropdown(); });
 
-let isMenuOpen = false;
-function openDropdown(){ isMenuOpen = true; dropdown.classList.remove('hidden'); requestAnimationFrame(()=> dropdown.classList.add('show')); }
-function closeDropdown(){ isMenuOpen = false; dropdown.classList.remove('show'); setTimeout(()=> dropdown.classList.add('hidden'), 180); }
-menuBtn?.addEventListener('click', (e)=>{ e.stopPropagation(); dropdown.classList.contains('hidden') ? openDropdown() : closeDropdown(); });
-document.addEventListener('pointerdown', (e)=>{ if (dropdown.classList.contains('hidden')) return; if (!e.target.closest('#dropdownMenu, #menuBtn')) closeDropdown(); }, true);
-document.addEventListener('keydown', (e)=>{ if (e.key==='Escape') closeDropdown(); });
-dropdown?.addEventListener('click', (e)=> e.stopPropagation());
-btnGoUpload ?.addEventListener('click', ()=>{ location.href = 'upload.html'; closeDropdown(); });
-btnMyUploads?.addEventListener('click', ()=>{ location.href = 'manage-uploads.html'; closeDropdown(); });
-btnAbout    ?.addEventListener('click', ()=>{ location.href = 'about.html'; closeDropdown(); });
-btnSignOut  ?.addEventListener('click', async ()=>{ await fbSignOut(auth); closeDropdown(); });
-
-/* ---------- 카테고리 라벨 맵 ---------- */
-const labelMap = new Map(CATEGORY_GROUPS.flatMap(g => g.children.map(c => [c.value, c.label])));
-const labelOf  = (v) => labelMap.get(v) || `(${String(v)})`;
-
-/* ---------- DOM ---------- */
-const listEl     = $('#list');
-const statusEl   = $('#status');
-const adminBadge = $('#adminBadge');
-const prevBtn    = $('#prevBtn');
-const nextBtn    = $('#nextBtn');
-const pageInfo   = $('#pageInfo');
-const refreshBtn = $('#refreshBtn');
-
-/* ---------- 상태 ---------- */
-const PAGE_SIZE = 30;
-let currentUser = null;
-let isAdmin     = false;
-let cursors     = [];   // 각 페이지 마지막 문서 스냅샷
-let page        = 1;
-let reachedEnd  = false;
-
-/* ---------- 유틸 ---------- */
-function escapeHTML(s){
-  return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-}
-function catChipsHTML(arr){
-  if (!Array.isArray(arr) || !arr.length) return '<span class="sub">(카테고리 없음)</span>';
-  return `<div class="cats" role="button" tabindex="0" aria-label="카테고리 변경">
-    ${arr.map(v=>`<span class="chip">${escapeHTML(labelOf(v))}</span>`).join('')}
-  </div>`;
-}
-function buildSelect(name){
-  // personal 그룹(로컬 전용)은 제외
-  const opts = ['<option value="">선택안함</option>'];
-  for (const g of CATEGORY_GROUPS){
-    if (g.personal) continue;
-    const inner = g.children.map(c => `<option value="${c.value}">${escapeHTML(c.label)}</option>`).join('');
-    opts.push(`<optgroup label="${escapeHTML(g.label)}">${inner}</optgroup>`);
-  }
-  return `<select class="sel" data-name="${name}">${opts.join('')}</select>`;
-}
-function extractId(url){
-  const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/);
-  return m ? m[1] : '';
-}
-
-/* ---------- YouTube 제목(oEmbed) with 캐시 ---------- */
-const titleCache = new Map(); // url -> title
-async function fetchYouTubeTitle(url){
-  if (titleCache.has(url)) return titleCache.get(url);
-  try{
-    const endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
-    const res = await fetch(endpoint, { mode:'cors' });
-    if (!res.ok) throw new Error('oEmbed fetch failed');
-    const j = await res.json();
-    const title = String(j.title || '').trim();
-    if (title) titleCache.set(url, title);
-    return title || '';
-  }catch(_){
-    return '';
-  }
-}
-
-/* ---------- 관리자 여부 ---------- */
-async function checkAdmin(uid){
-  try{
-    const s = await getDoc(doc(db,'admins', uid)); // 규칙상: 관리자면 읽힘, 아니면 PERMISSION_DENIED
-    return s.exists();
-  }catch{
-    return false;
-  }
-}
-
-/* ---------- 업로더 닉네임 ---------- */
-async function getUploaderDisplay(uid){
-  try{
-    const snap = await getDoc(doc(db,'users', uid));
-    if (!snap.exists()) return `uid:${uid.slice(0,6)}…`;
-    const d = snap.data() || {};
-    const nick = d.displayName || d.nickname || '';
-    return nick ? nick : `uid:${uid.slice(0,6)}…`;
-  }catch{
-    return `uid:${uid.slice(0,6)}…`;
-  }
-}
-
-/* ---------- 인라인 카테고리 드롭다운 ---------- */
-function closeAllInline(){
-  document.querySelectorAll('.cat-inline').forEach(p => {
-    p.classList.add('hidden');
-    p.removeAttribute('data-doc-id');
-    p.__catsData = null;
-  });
-}
-
-function ensureInlinePanel(row){
-  let panel = row.querySelector('.cat-inline');
-  if (panel) return panel;
-
-  panel = document.createElement('div');
-  panel.className = 'cat-inline hidden';
-  panel.innerHTML = `
-    <div class="inline-body">
-      <div class="inline-editor">
-        ${buildSelect('is1')}
-        ${buildSelect('is2')}
-        ${buildSelect('is3')}
-      </div>
-      <div class="inline-actions">
-        <button class="btn btn-primary inline-apply" type="button">적용</button>
-        <button class="btn btn-ghost inline-cancel" type="button">취소</button>
-      </div>
-    </div>
-  `;
-  const catsEl = row.querySelector('.cats');
-  (catsEl || row.querySelector('.meta')).insertAdjacentElement('afterend', panel);
-
-  // 취소
-  panel.querySelector('.inline-cancel')?.addEventListener('click', ()=> closeAllInline());
-
-  // 적용
-  panel.querySelector('.inline-apply')?.addEventListener('click', async ()=>{
-    const docId = panel.getAttribute('data-doc-id');
-    if (!docId) return;
-    const r = panel.closest('.row');
-    const chosen = Array.from(panel.querySelectorAll('select.sel')).map(s=>s.value).filter(Boolean);
-    const uniq = [...new Set(chosen)].slice(0,3);
-    if (uniq.length === 0){ alert('최소 1개의 카테고리를 선택하세요.'); return; }
-
-    try{
-      await updateDoc(doc(db,'videos', docId), { categories: uniq, updatedAt: serverTimestamp() });
-      statusEl.textContent = '변경 완료';
-
-      // 칩 갱신
-      const meta = r.querySelector('.meta');
-      const oldCats = meta.querySelector('.cats');
-      if (oldCats) oldCats.remove();
-      meta.insertAdjacentHTML('beforeend', catChipsHTML(uniq));
-
-      // 오른쪽 셀렉트(PC) 동기화
-      const rightSels = Array.from(r.querySelectorAll('.right select.sel'));
-      rightSels.forEach(s => s.value = '');
-      uniq.forEach((v,i)=>{ if (rightSels[i]) rightSels[i].value = v; });
-
-      // 새 칩에도 클릭 핸들러 부여
-      attachChipHandler(r, docId, { categories: uniq });
-
-      closeAllInline();
-    }catch(e){
-      alert('변경 실패: ' + (e.message || e));
-    }
-  });
-
-  return panel;
-}
-
-function openInline(row, docId, data){
-  const panel = ensureInlinePanel(row);
-  // 이미 열려있고 같은 행이면 토글로 닫기
-  const isOpen = !panel.classList.contains('hidden');
-  if (isOpen){
-    closeAllInline();
-    return;
-  }
-
-  closeAllInline();
-  panel.classList.remove('hidden');
-  panel.setAttribute('data-doc-id', docId);
-  panel.__catsData = data;
-
-  // 프리셋
-  const cats = Array.isArray(data.categories) ? data.categories.slice(0,3) : [];
-  const sels = panel.querySelectorAll('select.sel');
-  sels.forEach(s => s.value = '');
-  cats.forEach((v,i)=>{ if (sels[i]) sels[i].value = v; });
-
-  // 포커스
-  (sels[0] || panel.querySelector('.inline-apply'))?.focus();
-}
-
-// 창 밖 클릭 → 닫기
-document.addEventListener('pointerdown', (e)=>{
-  const openPanel = document.querySelector('.cat-inline:not(.hidden)');
-  if (!openPanel) return;
-  if (e.target.closest('.cat-inline') || e.target.closest('.cats')) return;
-  closeAllInline();
-}, true);
-
-// Esc 닫기
-document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeAllInline(); });
-
-/* ---------- 1행 렌더 ---------- */
-function renderRow(docId, data){
-  const cats  = Array.isArray(data.categories) ? data.categories : [];
-  const url   = data.url || '';
-  const uid   = data.uid || '';
-  const title = data.title || '';
-
-  const row = document.createElement('div');
-  row.className = 'row';
-  row.dataset.id = docId;
-  row.innerHTML = `
-    <div class="meta">
-      <div class="title js-title">${escapeHTML(title || '제목 불러오는 중…')}</div>
-      <div class="sub"><a href="${escapeHTML(url)}" target="_blank" rel="noopener" class="js-url">${escapeHTML(url)}</a></div>
-      ${catChipsHTML(cats)}
-      ${isAdmin ? `<div class="sub __uploader">업로더: <span class="js-uploader">불러오는 중…</span></div>` : ''}
-    </div>
-    <div class="right">
-      <div class="cat-editor">
-        ${buildSelect('s1')}
-        ${buildSelect('s2')}
-        ${buildSelect('s3')}
-      </div>
-      <div class="actions">
-        <button class="btn btn-primary btn-apply" type="button">카테고리변환</button>
-        <button class="btn btn-danger btn-del" type="button">삭제</button>
-      </div>
-    </div>
-  `;
-
-  // 카테고리 프리셀렉트
-  const sels = Array.from(row.querySelectorAll('select.sel'));
-  cats.slice(0,3).forEach((v, i) => { if (sels[i]) sels[i].value = v; });
-
-  // 제목 비동기 취득
-  if (!title && url){
-    (async ()=>{
-      const t = await fetchYouTubeTitle(url);
-      const tEl = row.querySelector('.js-title');
-      if (t){
-        if (tEl) tEl.textContent = t;
-        try{
-          await updateDoc(doc(db,'videos', docId), { title: t, updatedAt: serverTimestamp() });
-        }catch{/* 권한 없으면 무시 */}
-      }else{
-        if (tEl) tEl.textContent = url;
-      }
-    })();
-  }
-
-  // 업로더 닉네임 (관리자 전용)
-  if (isAdmin && uid){
-    (async ()=>{
-      const name = await getUploaderDisplay(uid);
-      const uEl = row.querySelector('.js-uploader');
-      if (uEl) uEl.textContent = name;
-    })();
-  }
-
-  // 칩 클릭 → 인라인 드롭다운 열기
-  attachChipHandler(row, docId, data);
-
-  // 오른쪽 버튼: 카테고리 적용(기존 PC 방식 유지)
-  row.querySelector('.btn-apply').addEventListener('click', async ()=>{
-    const chosen = Array.from(row.querySelectorAll('.right select.sel')).map(s=>s.value).filter(Boolean);
-    const uniq = [...new Set(chosen)].slice(0,3);
-    if (uniq.length === 0){ alert('최소 1개의 카테고리를 선택하세요.'); return; }
-    try{
-      await updateDoc(doc(db,'videos', docId), { categories: uniq, updatedAt: serverTimestamp() });
-      statusEl.textContent = '변경 완료';
-      // 칩 갱신
-      const meta = row.querySelector('.meta');
-      const oldCats = meta.querySelector('.cats');
-      if (oldCats) oldCats.remove();
-      meta.insertAdjacentHTML('beforeend', catChipsHTML(uniq));
-      attachChipHandler(row, docId, { categories: uniq });
-    }catch(e){
-      alert('변경 실패: ' + (e.message || e));
-    }
-  });
-
-  // 삭제
-  row.querySelector('.btn-del').addEventListener('click', async ()=>{
-    if (!confirm('정말 삭제하시겠습니까?')) return;
-    try{
-      await deleteDoc(doc(db,'videos', docId));
-      row.remove();
-    }catch(e){
-      alert('삭제 실패: ' + (e.message || e));
-    }
-  });
-
-  return row;
-}
-
-// 행의 칩에 핸들러 부착
-function attachChipHandler(row, docId, data){
-  const chipBox = row.querySelector('.cats');
-  if (!chipBox) return;
-  // 중복 바인딩 방지
-  chipBox.__bound && chipBox.removeEventListener('click', chipBox.__bound);
-  const handler = (e)=>{
-    e.stopPropagation();
-    openInline(row, docId, data);
-  };
-  chipBox.addEventListener('click', handler);
-  chipBox.addEventListener('keydown', (e)=>{ if (e.key==='Enter' || e.key===' ') { e.preventDefault(); handler(e);} });
-  chipBox.__bound = handler;
-}
-
-/* ---------- 리스트 렌더 ---------- */
-function clearList(){ listEl.innerHTML = ''; }
-
-/* ---------- 페이지 로드 ---------- */
-async function loadPage(p){
-  if (!currentUser){ statusEl.textContent = '로그인 후 이용하세요.'; clearList(); return; }
-  statusEl.textContent = '읽는 중...';
-
-  try{
-    const parts = [];
-    const base  = collection(db,'videos');
-
-    if (!isAdmin) parts.push(where('uid','==', currentUser.uid));
-    parts.push(orderBy('createdAt','desc'));
-    parts.push(limit(PAGE_SIZE));
-    if (p > 1){
-      const cursor = cursors[p-2];
-      if (cursor) parts.push(startAfter(cursor));
-    }
-
-    const snap = await getDocs(query(base, ...parts));
-
-    clearList();
-    if (snap.empty){
-      listEl.innerHTML = '<div class="sub">목록이 없습니다.</div>';
-      reachedEnd = true;
-    }else{
-      snap.docs.forEach(d => listEl.appendChild(renderRow(d.id, d.data())));
-      cursors[p-1] = snap.docs[snap.docs.length - 1];
-      reachedEnd = (snap.size < PAGE_SIZE);
-    }
-
-    pageInfo.textContent = String(p);
-    statusEl.textContent = '';
-
-  }catch(e){
-    // 인덱스/권한 문제 등 → 전체를 받아 로컬 정렬(최대 1000개 안전장치)
-    try{
-      const all = await getDocs(collection(db,'videos'));
-      let rows = all.docs.map(d => ({ id:d.id, ...d.data() }));
-      if (!isAdmin) rows = rows.filter(r => r.uid === currentUser.uid);
-      rows.sort((a,b)=>{
-        const am = a.createdAt?.toMillis?.() || 0;
-        const bm = b.createdAt?.toMillis?.() || 0;
-        return bm - am;
-      });
-      const start = (p-1)*PAGE_SIZE;
-      const slice = rows.slice(start, start+PAGE_SIZE);
-
-      clearList();
-      slice.forEach(v => listEl.appendChild(renderRow(v.id, v)));
-      reachedEnd = (start + PAGE_SIZE >= rows.length);
-      pageInfo.textContent = String(p);
-      statusEl.textContent = '(로컬 정렬 표시)';
-
-    }catch(e2){
-      console.error(e, e2);
-      statusEl.textContent = '읽기 실패: ' + (e.message || e);
-    }
-  }
-}
-
-/* ---------- 페이징 ---------- */
-prevBtn.addEventListener('click', ()=>{ if (page <= 1) return; page -= 1; loadPage(page); });
-nextBtn.addEventListener('click', ()=>{ if (reachedEnd) return; page += 1; loadPage(page); });
-refreshBtn.addEventListener('click', ()=>{ cursors = []; page = 1; reachedEnd = false; loadPage(page); });
-
-/* ---------- 시작 ---------- */
-onAuthStateChanged(auth, async (user)=>{
+onAuthStateChanged(auth, (user)=>{
   const loggedIn = !!user;
   signupLink?.classList.toggle('hidden', loggedIn);
   signinLink?.classList.toggle('hidden', loggedIn);
-  welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : '';
-  menuBtn?.classList.toggle('hidden', !loggedIn);
-
-  if (!loggedIn){
-    currentUser = null;
-    statusEl.textContent = '로그인 후 이용하세요.';
-    clearList();
-    return;
-  }
-  currentUser = user;
-  isAdmin = await checkAdmin(user.uid);
-  adminBadge.style.display = isAdmin ? '' : 'none';
-
-  cursors = []; page = 1; reachedEnd = false;
-  loadPage(page);
+  welcome && (welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName||'회원'}님` : '');
+  if (!loggedIn) location.href='signin.html';
 });
+
+/* ---------- 유틸 ---------- */
+const $ = s=>document.querySelector(s);
+const list   = $('#list');
+const msg    = $('#msg');
+const more   = $('#more');
+const btnMore= $('#btnMore');
+const qbox   = $('#q');
+const btnReload = $('#btnReload');
+const btnDeleteSel = $('#btnDeleteSel');
+
+function extractId(url){ const m=String(url||'').match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/); return m?m[1]:''; }
+
+/* 카테고리 라벨 맵 */
+const valueToLabel = (()=> {
+  const m = new Map();
+  CATEGORY_GROUPS.forEach(g => g.children.forEach(c => m.set(c.value, c.label)));
+  return m;
+})();
+
+/* ---------- 목록 상태 ---------- */
+const PAGE_SIZE = 20;
+let curUser = null;
+let lastDoc = null;
+let hasMore = true;
+let isLoading = false;
+let cache = [];        // 화면에 적재된 전체(검색용)
+let usingClientFallback = false; // 인덱스 폴백 여부
+
+/* ---------- 목록 렌더 ---------- */
+function catChips(values=[]){
+  return values.map(v=>`<span class="chip">${valueToLabel.get(v)||v}</span>`).join('');
+}
+function rowEl(docId, v){
+  const id = extractId(v.url);
+  const el = document.createElement('div');
+  el.className='row';
+  el.dataset.id = docId;
+  el.innerHTML = `
+    <div class="sel"><input type="checkbox" class="selbox"/></div>
+    <div class="thumb">
+      <a href="${v.url}" target="_blank" rel="noopener">
+        <img src="https://i.ytimg.com/vi/${id}/mqdefault.jpg" alt="thumb"/>
+      </a>
+    </div>
+    <div class="meta">
+      <div class="title" title="${v.title||''}">${v.title || '(제목없음)'}</div>
+      <div class="url" title="${v.url||''}">${v.url||''}</div>
+      <div class="cats">${catChips(v.categories||[])}</div>
+    </div>
+    <div class="actions">
+      <button class="btn" data-act="edit">카테고리</button>
+      <button class="btn btn-danger" data-act="del">삭제</button>
+    </div>
+  `;
+  // 핸들러
+  el.querySelector('[data-act="del"]')?.addEventListener('click', async ()=>{
+    if(!confirm('이 영상을 삭제할까요?')) return;
+    try{
+      await deleteDoc(doc(db,'videos', docId));
+      el.remove();
+      cache = cache.filter(x => x.id !== docId);
+    }catch(e){ alert('삭제 실패: '+(e.message||e)); }
+  });
+  el.querySelector('[data-act="edit"]')?.addEventListener('click', ()=> openEdit(docId, v.categories||[]));
+  return el;
+}
+
+function applyFilter(){
+  const q = (qbox.value||'').trim().toLowerCase();
+  list.innerHTML = '';
+  const rows = !q ? cache : cache.filter(x=>{
+    const t = (x.data.title||'').toLowerCase();
+    const u = (x.data.url||'').toLowerCase();
+    return t.includes(q) || u.includes(q);
+  });
+  rows.forEach(x => list.appendChild(rowEl(x.id, x.data)));
+  more.style.display = hasMore && !q ? '' : 'none';
+}
+
+/* ---------- 로딩 ---------- */
+async function loadInit(){
+  if(!auth.currentUser) return;
+  curUser = auth.currentUser;
+  cache = []; list.innerHTML=''; lastDoc=null; hasMore=true; usingClientFallback=false;
+  msg.textContent = '불러오는 중...';
+  try{
+    // 선호: uid where + createdAt desc
+    const base = collection(db,'videos');
+    const parts = [ where('uid','==', curUser.uid), orderBy('createdAt','desc'), limit(PAGE_SIZE) ];
+    const snap = await getDocs(query(base, ...parts));
+    appendSnap(snap);
+  }catch(e){
+    // 인덱스 없으면 폴백: where(uid==)만 가져와서 클라 정렬
+    console.warn('[manage-uploads] index fallback:', e?.message||e);
+    usingClientFallback = true;
+    const snap = await getDocs(query(collection(db,'videos'), where('uid','==', curUser.uid)));
+    const arr = snap.docs.map(d=>({ id:d.id, data:d.data(), _created:(d.data().createdAt?.toMillis?.()||0) }));
+    arr.sort((a,b)=> b._created - a._created);
+    cache = arr;
+    cache.forEach(x => list.appendChild(rowEl(x.id, x.data)));
+    hasMore = false; // 한 번에 다 가져왔으므로
+  }finally{
+    msg.textContent = cache.length ? '' : '등록한 영상이 없습니다.';
+    applyFilter();
+  }
+}
+
+function appendSnap(snap){
+  if(snap.empty){ hasMore=false; return; }
+  snap.docs.forEach(d => cache.push({ id:d.id, data:d.data() }));
+  lastDoc = snap.docs[snap.docs.length-1] || lastDoc;
+  if(snap.size < PAGE_SIZE) hasMore=false;
+  applyFilter();
+}
+
+async function loadMore(){
+  if(isLoading || !hasMore || usingClientFallback) return;
+  isLoading = true;
+  try{
+    const base = collection(db,'videos');
+    const parts = [ where('uid','==', curUser.uid), orderBy('createdAt','desc'), startAfter(lastDoc), limit(PAGE_SIZE) ];
+    const snap = await getDocs(query(base, ...parts));
+    appendSnap(snap);
+  }catch(e){
+    console.error(e);
+    hasMore=false;
+  }finally{
+    isLoading=false;
+  }
+}
+
+/* ---------- 카테고리 편집 ---------- */
+const editBackdrop = document.getElementById('editBackdrop');
+const editCatsBox  = document.getElementById('editCats');
+const btnEditSave  = document.getElementById('btnEditSave');
+const btnEditCancel= document.getElementById('btnEditCancel');
+
+let editTargetId = null;
+
+function applyGroupOrder(groups){
+  let saved=null; try{ saved = JSON.parse(localStorage.getItem('groupOrderV1') || 'null'); }catch{}
+  const order = Array.isArray(saved)&&saved.length ? saved : groups.map(g=>g.key);
+  const idx = new Map(order.map((k,i)=>[k,i]));
+  return groups.slice().sort((a,b)=>(idx.get(a.key)??999)-(idx.get(b.key)??999));
+}
+
+function renderEditCats(selected){
+  const groups = applyGroupOrder(CATEGORY_GROUPS)
+    .filter(g => g.key!=='personal'); // 개인자료 제외(서버 저장 X)
+
+  const html = groups.map(g=>{
+    const kids = g.children.map(c=>{
+      const on = selected.includes(c.value) ? 'checked' : '';
+      return `<label><input type="checkbox" class="cat" value="${c.value}" ${on}> ${c.label}</label>`;
+    }).join('');
+    return `
+      <fieldset class="group" data-key="${g.key}">
+        <legend>${g.label}</legend>
+        <div class="child-grid">${kids}</div>
+      </fieldset>
+    `;
+  }).join('');
+  editCatsBox.innerHTML = html;
+
+  // 최대 3개 제한
+  const limit=3;
+  const boxes = Array.from(editCatsBox.querySelectorAll('input.cat'));
+  boxes.forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      const count = boxes.filter(b=> b.checked).length;
+      if(count > limit){
+        chk.checked = false;
+        alert(`카테고리는 최대 ${limit}개까지 선택 가능합니다.`);
+      }
+    });
+  });
+}
+
+function openEdit(docId, curCats){
+  editTargetId = docId;
+  renderEditCats(curCats);
+  editBackdrop.classList.add('show');
+  editBackdrop.setAttribute('aria-hidden','false');
+}
+function closeEdit(){
+  editBackdrop.classList.remove('show');
+  editBackdrop.setAttribute('aria-hidden','true');
+  editTargetId = null;
+}
+
+btnEditCancel?.addEventListener('click', closeEdit);
+editBackdrop?.addEventListener('click', (e)=>{ if(e.target===editBackdrop) closeEdit(); });
+btnEditSave?.addEventListener('click', async ()=>{
+  if(!editTargetId) return;
+  const sel = Array.from(editCatsBox.querySelectorAll('input.cat:checked')).map(b=>b.value);
+  try{
+    await updateDoc(doc(db,'videos', editTargetId), { categories: sel });
+    // 캐시 갱신 + UI 갱신
+    const item = cache.find(x => x.id === editTargetId);
+    if(item){ item.data.categories = sel; }
+    applyFilter();
+    closeEdit();
+  }catch(e){ alert('저장 실패: ' + (e.message||e)); }
+});
+
+/* ---------- 선택 삭제 ---------- */
+btnDeleteSel?.addEventListener('click', async ()=>{
+  const ids = Array.from(document.querySelectorAll('.row .selbox:checked'))
+    .map(cb => cb.closest('.row')?.dataset.id).filter(Boolean);
+  if(ids.length===0){ alert('선택된 항목이 없습니다.'); return; }
+  if(!confirm(`선택한 ${ids.length}개 항목을 삭제할까요?`)) return;
+  let ok=0, fail=0;
+  for(const id of ids){
+    try{ await deleteDoc(doc(db,'videos', id)); ok++; }catch{ fail++; }
+  }
+  // 캐시/화면 반영
+  cache = cache.filter(x => !ids.includes(x.id));
+  applyFilter();
+  alert(`삭제 완료: 성공 ${ok}건, 실패 ${fail}건`);
+});
+
+/* ---------- 이벤트 ---------- */
+btnMore?.addEventListener('click', loadMore);
+btnReload?.addEventListener('click', loadInit);
+qbox?.addEventListener('input', applyFilter);
+
+/* ---------- 시작 ---------- */
+onAuthStateChanged(auth, (user)=>{ if(user) loadInit(); });
