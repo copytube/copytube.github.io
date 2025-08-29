@@ -118,110 +118,110 @@ async function getUploaderDisplay(uid){
   }
 }
 
-/* ---------- 전역 카테고리 팝오버 ---------- */
-// 어둡게 하는 배경
-const dim = document.createElement('div');
-dim.id = 'catDim';
-dim.className = 'dim hidden';
-document.addEventListener('DOMContentLoaded', () => document.body.appendChild(dim));
+/* ---------- 인라인 카테고리 드롭다운 ---------- */
+function closeAllInline(){
+  document.querySelectorAll('.cat-inline').forEach(p => {
+    p.classList.add('hidden');
+    p.removeAttribute('data-doc-id');
+    p.__catsData = null;
+  });
+}
 
-// 팝오버 본체
-const pop = document.createElement('div');
-pop.id = 'catPopover';
-pop.className = 'cat-popover hidden';
-pop.innerHTML = `
-  <div class="pop-head">
-    <div class="t">카테고리 선택 <small class="sub">(최대 3개)</small></div>
-    <button class="close" aria-label="닫기">×</button>
-  </div>
-  <div class="pop-body">
-    <div class="pop-title sub js-pop-title"></div>
-    <div class="pop-editor">
-      ${buildSelect('ps1')}
-      ${buildSelect('ps2')}
-      ${buildSelect('ps3')}
+function ensureInlinePanel(row){
+  let panel = row.querySelector('.cat-inline');
+  if (panel) return panel;
+
+  panel = document.createElement('div');
+  panel.className = 'cat-inline hidden';
+  panel.innerHTML = `
+    <div class="inline-body">
+      <div class="inline-editor">
+        ${buildSelect('is1')}
+        ${buildSelect('is2')}
+        ${buildSelect('is3')}
+      </div>
+      <div class="inline-actions">
+        <button class="btn btn-primary inline-apply" type="button">적용</button>
+        <button class="btn btn-ghost inline-cancel" type="button">취소</button>
+      </div>
     </div>
-  </div>
-  <div class="pop-actions">
-    <button class="btn btn-primary pop-apply" type="button">적용</button>
-    <button class="btn btn-ghost pop-cancel" type="button">취소</button>
-  </div>
-`;
-document.addEventListener('DOMContentLoaded', () => document.body.appendChild(pop));
+  `;
+  const catsEl = row.querySelector('.cats');
+  (catsEl || row.querySelector('.meta')).insertAdjacentElement('afterend', panel);
 
-let popActiveRow = null;
-let popDocId = null;
+  // 취소
+  panel.querySelector('.inline-cancel')?.addEventListener('click', ()=> closeAllInline());
 
-function openCatPopover(row, docId, data){
-  popActiveRow = row;
-  popDocId = docId;
+  // 적용
+  panel.querySelector('.inline-apply')?.addEventListener('click', async ()=>{
+    const docId = panel.getAttribute('data-doc-id');
+    if (!docId) return;
+    const r = panel.closest('.row');
+    const chosen = Array.from(panel.querySelectorAll('select.sel')).map(s=>s.value).filter(Boolean);
+    const uniq = [...new Set(chosen)].slice(0,3);
+    if (uniq.length === 0){ alert('최소 1개의 카테고리를 선택하세요.'); return; }
 
-  // 제목 표시
-  const t = row.querySelector('.js-title')?.textContent || '';
-  pop.querySelector('.js-pop-title').textContent = t;
+    try{
+      await updateDoc(doc(db,'videos', docId), { categories: uniq, updatedAt: serverTimestamp() });
+      statusEl.textContent = '변경 완료';
 
-  // 현재 값 프리셋
+      // 칩 갱신
+      const meta = r.querySelector('.meta');
+      const oldCats = meta.querySelector('.cats');
+      if (oldCats) oldCats.remove();
+      meta.insertAdjacentHTML('beforeend', catChipsHTML(uniq));
+
+      // 오른쪽 셀렉트(PC) 동기화
+      const rightSels = Array.from(r.querySelectorAll('.right select.sel'));
+      rightSels.forEach(s => s.value = '');
+      uniq.forEach((v,i)=>{ if (rightSels[i]) rightSels[i].value = v; });
+
+      // 새 칩에도 클릭 핸들러 부여
+      attachChipHandler(r, docId, { categories: uniq });
+
+      closeAllInline();
+    }catch(e){
+      alert('변경 실패: ' + (e.message || e));
+    }
+  });
+
+  return panel;
+}
+
+function openInline(row, docId, data){
+  const panel = ensureInlinePanel(row);
+  // 이미 열려있고 같은 행이면 토글로 닫기
+  const isOpen = !panel.classList.contains('hidden');
+  if (isOpen){
+    closeAllInline();
+    return;
+  }
+
+  closeAllInline();
+  panel.classList.remove('hidden');
+  panel.setAttribute('data-doc-id', docId);
+  panel.__catsData = data;
+
+  // 프리셋
   const cats = Array.isArray(data.categories) ? data.categories.slice(0,3) : [];
-  const sels = pop.querySelectorAll('.pop-editor select.sel');
+  const sels = panel.querySelectorAll('select.sel');
   sels.forEach(s => s.value = '');
   cats.forEach((v,i)=>{ if (sels[i]) sels[i].value = v; });
 
-  // 표시
-  dim.classList.remove('hidden');
-  pop.classList.remove('hidden');
-
   // 포커스
-  setTimeout(()=> {
-    (sels[0] || pop.querySelector('.close'))?.focus();
-  }, 0);
-}
-function closeCatPopover(){
-  popActiveRow = null;
-  popDocId = null;
-  pop.classList.add('hidden');
-  dim.classList.add('hidden');
+  (sels[0] || panel.querySelector('.inline-apply'))?.focus();
 }
 
-// 팝오버 이벤트
-document.addEventListener('click', (e)=>{
-  if (!pop.classList.contains('hidden')){
-    if (e.target === dim) closeCatPopover();
-  }
-});
-document.addEventListener('keydown', (e)=>{
-  if (e.key === 'Escape' && !pop.classList.contains('hidden')) closeCatPopover();
-});
-pop.addEventListener('click', (e)=> e.stopPropagation());
-pop.querySelector('.close')?.addEventListener('click', closeCatPopover);
-pop.querySelector('.pop-cancel')?.addEventListener('click', closeCatPopover);
-pop.querySelector('.pop-apply')?.addEventListener('click', async ()=>{
-  if (!popActiveRow || !popDocId) return;
-  const chosen = Array.from(pop.querySelectorAll('.pop-editor select.sel')).map(s=>s.value).filter(Boolean);
-  const uniq = [...new Set(chosen)].slice(0,3);
-  if (uniq.length === 0){ alert('최소 1개의 카테고리를 선택하세요.'); return; }
-  try{
-    await updateDoc(doc(db,'videos', popDocId), { categories: uniq, updatedAt: serverTimestamp() });
-    statusEl.textContent = '변경 완료';
+// 창 밖 클릭 → 닫기
+document.addEventListener('pointerdown', (e)=>{
+  const openPanel = document.querySelector('.cat-inline:not(.hidden)');
+  if (!openPanel) return;
+  if (e.target.closest('.cat-inline') || e.target.closest('.cats')) return;
+  closeAllInline();
+}, true);
 
-    // 칩 갱신
-    const meta = popActiveRow.querySelector('.meta');
-    const oldCats = meta.querySelector('.cats');
-    if (oldCats) oldCats.remove();
-    meta.insertAdjacentHTML('beforeend', catChipsHTML(uniq));
-
-    // 오른쪽 셀렉트(PC용)도 동기화
-    const rightSels = Array.from(popActiveRow.querySelectorAll('select.sel'));
-    rightSels.forEach(s => s.value = '');
-    uniq.forEach((v,i)=>{ if (rightSels[i]) rightSels[i].value = v; });
-
-    // 새로 생성된 칩에도 클릭 핸들러 부여
-    attachChipHandler(popActiveRow, popDocId, { categories: uniq });
-
-    closeCatPopover();
-  }catch(e){
-    alert('변경 실패: ' + (e.message || e));
-  }
-});
+// Esc 닫기
+document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeAllInline(); });
 
 /* ---------- 1행 렌더 ---------- */
 function renderRow(docId, data){
@@ -257,7 +257,7 @@ function renderRow(docId, data){
   const sels = Array.from(row.querySelectorAll('select.sel'));
   cats.slice(0,3).forEach((v, i) => { if (sels[i]) sels[i].value = v; });
 
-  // 제목이 비어있으면 비동기 취득
+  // 제목 비동기 취득
   if (!title && url){
     (async ()=>{
       const t = await fetchYouTubeTitle(url);
@@ -282,12 +282,12 @@ function renderRow(docId, data){
     })();
   }
 
-  // 칩 클릭 → 팝오버 열기
+  // 칩 클릭 → 인라인 드롭다운 열기
   attachChipHandler(row, docId, data);
 
   // 오른쪽 버튼: 카테고리 적용(기존 PC 방식 유지)
   row.querySelector('.btn-apply').addEventListener('click', async ()=>{
-    const chosen = Array.from(row.querySelectorAll('select.sel')).map(s=>s.value).filter(Boolean);
+    const chosen = Array.from(row.querySelectorAll('.right select.sel')).map(s=>s.value).filter(Boolean);
     const uniq = [...new Set(chosen)].slice(0,3);
     if (uniq.length === 0){ alert('최소 1개의 카테고리를 선택하세요.'); return; }
     try{
@@ -318,7 +318,7 @@ function renderRow(docId, data){
   return row;
 }
 
-// 행의 칩에 팝오버 핸들러를 붙이는 함수
+// 행의 칩에 핸들러 부착
 function attachChipHandler(row, docId, data){
   const chipBox = row.querySelector('.cats');
   if (!chipBox) return;
@@ -326,7 +326,7 @@ function attachChipHandler(row, docId, data){
   chipBox.__bound && chipBox.removeEventListener('click', chipBox.__bound);
   const handler = (e)=>{
     e.stopPropagation();
-    openCatPopover(row, docId, data);
+    openInline(row, docId, data);
   };
   chipBox.addEventListener('click', handler);
   chipBox.addEventListener('keydown', (e)=>{ if (e.key==='Enter' || e.key===' ') { e.preventDefault(); handler(e);} });
