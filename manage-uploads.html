@@ -43,7 +43,17 @@
     .list{ display:flex; flex-direction:column; gap:10px; }
     .row{
       border:1px solid var(--border); background:#101010; border-radius:12px; padding:10px;
-      display:grid; grid-template-columns: auto 1fr auto; gap:10px; align-items:center;
+      display:grid;
+      grid-template-columns: auto 1fr;
+      grid-template-rows: auto auto;
+      grid-template-areas:
+        'sel info'
+        'bottom bottom';
+      grid-auto-flow: row;
+      gap:10px;
+      align-items:start;
+      width:100%;
+      box-sizing:border-box;
     }
     .thumb{ width:120px; height:68px; border-radius:8px; overflow:hidden; background:#000; display:flex; align-items:center; justify-content:center; }
     .thumb img{ width:100%; height:100%; object-fit:cover; }
@@ -60,21 +70,13 @@
 
     /* 편집 모달 */
     .modal-backdrop{
-      position:fixed; inset:0;
-      background:rgba(0,0,0,.55);
-      display:none; align-items:center; justify-content:center;
-      z-index:2000;
-      overflow:hidden; /* backdrop는 스크롤 금지 */
+      position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:2000;
     }
     .modal-backdrop.show{ display:flex; }
     .modal{
-      width:min(760px, 92vw);
-      background:#0f0f0f; border:1px solid var(--border); border-radius:12px; padding:12px;
-      max-height:92dvh; margin:10px; /* iOS용 dvh, 가장자리 여유 */
-      display:flex; flex-direction:column;
+      width:min(760px, 92vw); background:#0f0f0f; border:1px solid var(--border); border-radius:12px; padding:12px;
     }
     .modal h3{ margin:0 0 8px; }
-    #editCats{ flex:1; min-height:0; overflow:auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding-block:6px 10px; }
     .group{
       border:1px solid var(--border); border-radius:10px; background:#101010; padding:8px; margin:6px 0;
     }
@@ -85,7 +87,6 @@
       background:#0b0b0b; border:1px solid #2a2a2a; border-radius:8px; padding:6px 8px; display:flex; gap:6px; align-items:center;
     }
     .modal .row-right{ display:flex; gap:8px; justify-content:flex-end; margin-top:10px; }
-    body.modal-open{ overflow:hidden; }
   </style>
 </head>
 <body>
