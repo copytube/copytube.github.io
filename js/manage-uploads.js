@@ -1,7 +1,7 @@
-// js/manage-uploads.js (v1.2.2)
-// - 내 영상 목록(본인 uid) 조회 + 더보기 + 검색
+// js/manage-uploads.js (v1.2.0)
+// - 내 영상 목록(본인 uid) 조회 + 무한/더보기 + 검색
 // - 카테고리 수정(최대 3개, personal 제외) + 단건/다건 삭제
-// - 인덱스 없을 경우 where(uid) 전체 후 클라 정렬 폴백
+// - 인덱스 없을 경우 client-sort로 폴백
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import {
@@ -29,7 +29,15 @@ document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDropdown();
 dropdown?.addEventListener('click',(e)=> e.stopPropagation());
 btnAbout?.addEventListener('click', ()=>{ location.href='about.html'; closeDropdown(); });
 btnGoUpload?.addEventListener('click', ()=>{ location.href='upload.html'; closeDropdown(); });
-btnSignOut?.addEventListener('click', async ()=>{ try{ await fbSignOut(auth); }catch{} closeDropdown(); });
+btnSignOut?.addEventListener('click', async ()=>{ await fbSignOut(auth); closeDropdown(); });
+
+onAuthStateChanged(auth, (user)=>{
+  const loggedIn = !!user;
+  signupLink?.classList.toggle('hidden', loggedIn);
+  signinLink?.classList.toggle('hidden', loggedIn);
+  welcome && (welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName||'회원'}님` : '');
+  if (!loggedIn) location.href='signin.html';
+});
 
 /* ---------- 유틸 ---------- */
 const $ = s=>document.querySelector(s);
@@ -41,8 +49,7 @@ const qbox   = $('#q');
 const btnReload = $('#btnReload');
 const btnDeleteSel = $('#btnDeleteSel');
 
-function setStatus(text){ if(msg) msg.textContent = text || ''; }
-function extractId(url){ const m=String(url||'').match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&\/]+)/); return m?m[1]:''; }
+function extractId(url){ const m=String(url||'').match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/); return m?m[1]:''; }
 
 /* 카테고리 라벨 맵 */
 const valueToLabel = (()=> {
@@ -71,21 +78,19 @@ function rowEl(docId, v){
   el.dataset.id = docId;
   el.innerHTML = `
     <div class="sel"><input type="checkbox" class="selbox"/></div>
-    <div class="info">
+    <div class="thumb">
+      <a href="${v.url}" target="_blank" rel="noopener">
+        <img src="https://i.ytimg.com/vi/${id}/mqdefault.jpg" alt="thumb"/>
+      </a>
+    </div>
+    <div class="meta">
       <div class="title" title="${v.title||''}">${v.title || '(제목없음)'}</div>
       <div class="url" title="${v.url||''}">${v.url||''}</div>
       <div class="cats">${catChips(v.categories||[])}</div>
     </div>
-    <div class="bottom">
-      <div class="thumb">
-        <a href="${v.url}" target="_blank" rel="noopener">
-          <img src="https://i.ytimg.com/vi/${id}/mqdefault.jpg" alt="thumb"/>
-        </a>
-      </div>
-      <div class="actions">
-        <button class="btn" data-act="edit">카테고리변환</button>
-        <button class="btn btn-danger" data-act="del">삭제</button>
-      </div>
+    <div class="actions">
+      <button class="btn" data-act="edit">카테고리</button>
+      <button class="btn btn-danger" data-act="del">삭제</button>
     </div>
   `;
   // 핸들러
@@ -102,7 +107,7 @@ function rowEl(docId, v){
 }
 
 function applyFilter(){
-  const q = (qbox?.value||'').trim().toLowerCase();
+  const q = (qbox.value||'').trim().toLowerCase();
   list.innerHTML = '';
   const rows = !q ? cache : cache.filter(x=>{
     const t = (x.data.title||'').toLowerCase();
@@ -118,7 +123,7 @@ async function loadInit(){
   if(!auth.currentUser) return;
   curUser = auth.currentUser;
   cache = []; list.innerHTML=''; lastDoc=null; hasMore=true; usingClientFallback=false;
-  setStatus('불러오는 중...');
+  msg.textContent = '불러오는 중...';
   try{
     // 선호: uid where + createdAt desc
     const base = collection(db,'videos');
@@ -126,6 +131,7 @@ async function loadInit(){
     const snap = await getDocs(query(base, ...parts));
     appendSnap(snap);
   }catch(e){
+    // 인덱스 없으면 폴백: where(uid==)만 가져와서 클라 정렬
     console.warn('[manage-uploads] index fallback:', e?.message||e);
     usingClientFallback = true;
     const snap = await getDocs(query(collection(db,'videos'), where('uid','==', curUser.uid)));
@@ -135,13 +141,13 @@ async function loadInit(){
     cache.forEach(x => list.appendChild(rowEl(x.id, x.data)));
     hasMore = false; // 한 번에 다 가져왔으므로
   }finally{
-    setStatus(cache.length ? `총 ${cache.length}개 불러옴` : '등록한 영상이 없습니다.');
+    msg.textContent = cache.length ? '' : '등록한 영상이 없습니다.';
     applyFilter();
   }
 }
 
 function appendSnap(snap){
-  if(snap.empty){ hasMore=false; setStatus(cache.length ? `총 ${cache.length}개 불러옴` : '등록한 영상이 없습니다.'); return; }
+  if(snap.empty){ hasMore=false; return; }
   snap.docs.forEach(d => cache.push({ id:d.id, data:d.data() }));
   lastDoc = snap.docs[snap.docs.length-1] || lastDoc;
   if(snap.size < PAGE_SIZE) hasMore=false;
@@ -254,35 +260,10 @@ btnDeleteSel?.addEventListener('click', async ()=>{
   alert(`삭제 완료: 성공 ${ok}건, 실패 ${fail}건`);
 });
 
-/* ---------- 부팅 ---------- */
-let _authFirstHandled = false;
-document.addEventListener('DOMContentLoaded', ()=>{
-  // Firebase가 세션을 복원하기 전일 수 있음 → 여기선 기다리기만
-  setStatus('로그인 상태 확인 중...');
-});
+/* ---------- 이벤트 ---------- */
+btnMore?.addEventListener('click', loadMore);
+btnReload?.addEventListener('click', loadInit);
+qbox?.addEventListener('input', applyFilter);
 
-onAuthStateChanged(auth, (user)=>{
-  try{
-    const loggedIn = !!user;
-    signupLink?.classList.toggle('hidden', loggedIn);
-    signinLink?.classList.toggle('hidden', loggedIn);
-    welcome && (welcome.textContent = loggedIn ? `안녕하세요, ${user?.displayName||'회원'}님` : '');
-
-    if(_authFirstHandled) return; // 최초 이벤트만 신뢰
-    _authFirstHandled = true;
-
-    if (loggedIn) {
-      // 정상 로드
-      loadInit();
-    } else {
-      // 로그인 필요만 안내(자동 리다이렉트 X, 사용자가 버튼으로 이동)
-      if(msg){
-        msg.innerHTML = `<span style="color:#ffb4b4;font-weight:700;">로그인이 필요합니다.</span> 
-          <a href="signin.html" class="btn btn-primary" style="margin-left:8px;">로그인하기</a>`;
-      }
-    }
-  }catch(e){
-    console.error(e);
-    setStatus('인증 처리 오류: '+(e.message||e));
-  }
-});
+/* ---------- 시작 ---------- */
+onAuthStateChanged(auth, (user)=>{ if(user) loadInit(); });
