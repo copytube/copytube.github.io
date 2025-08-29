@@ -140,6 +140,28 @@
     .cat-popover .pop-actions{
       display:flex; justify-content:flex-end; gap:8px; padding:12px 14px; border-top:1px solid #2a2a2a;
     }
+      .cats { display:flex; flex-wrap:wrap; gap:4px; font-size:12px; cursor:pointer; }
+  .cats:focus { outline:2px solid #4ea1ff; outline-offset:2px; border-radius:6px; }
+
+  /* 인라인 드롭다운 패널 */
+  .cat-inline { 
+    margin-top:6px; 
+    border:1px solid #2a2a2a; 
+    background:#111; 
+    border-radius:8px; 
+    padding:8px; 
+  }
+  .cat-inline.hidden { display:none; }
+  .inline-body { display:flex; flex-direction:column; gap:8px; }
+  .inline-editor { display:grid; grid-template-columns:1fr; gap:6px; }
+  .inline-editor select{
+    background:#0f0f0f; color:#fff; border:1px solid #2a2a2a; border-radius:8px; padding:8px 10px; width:100%;
+  }
+  .inline-actions{ display:flex; gap:6px; justify-content:flex-end; }
+
+  @media (min-width:720px){
+    .inline-editor { grid-template-columns: repeat(3, 1fr); }
+  }
   </style>
 </head>
 <body>
