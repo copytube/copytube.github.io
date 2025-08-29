@@ -125,7 +125,7 @@ async function loadInit(){
   if(!auth.currentUser) return;
   curUser = auth.currentUser;
   cache = []; list.innerHTML=''; lastDoc=null; hasMore=true; usingClientFallback=false;
-  msg.textContent = '불러오는 중...';
+  setStatus('불러오는 중...');
   try{
     // 선호: uid where + createdAt desc
     const base = collection(db,'videos');
@@ -143,13 +143,13 @@ async function loadInit(){
     cache.forEach(x => list.appendChild(rowEl(x.id, x.data)));
     hasMore = false; // 한 번에 다 가져왔으므로
   }finally{
-    msg.textContent = cache.length ? '' : '등록한 영상이 없습니다.';
+    setStatus(cache.length ? `총 ${cache.length}개 불러옴` : '등록한 영상이 없습니다.');
     applyFilter();
   }
 }
 
 function appendSnap(snap){
-  if(snap.empty){ hasMore=false; return; }
+  if(snap.empty){ hasMore=false; setStatus(cache.length ? `총 ${cache.length}개 불러옴` : '등록한 영상이 없습니다.'); return; }
   snap.docs.forEach(d => cache.push({ id:d.id, data:d.data() }));
   lastDoc = snap.docs[snap.docs.length-1] || lastDoc;
   if(snap.size < PAGE_SIZE) hasMore=false;
@@ -267,5 +267,19 @@ btnMore?.addEventListener('click', loadMore);
 btnReload?.addEventListener('click', loadInit);
 qbox?.addEventListener('input', applyFilter);
 
+
 /* ---------- 시작 ---------- */
-onAuthStateChanged(auth, (user)=>{ if(user) loadInit(); });
+function setStatus(text){ try{ msg.textContent = text || ''; }catch{} }
+
+// 부팅: DOMContentLoaded 에도 로드 시도 (이미 로그인 상태면 즉시)
+document.addEventListener('DOMContentLoaded', ()=>{
+  try{
+    if(auth.currentUser){ setStatus('초기화 중...'); loadInit(); }
+  }catch(e){ console.error(e); setStatus('초기화 오류: '+(e.message||e)); }
+});
+
+onAuthStateChanged(auth, (user)=>{
+  try{
+    if(user){ setStatus('목록 불러오는 중...'); loadInit(); }
+  }catch(e){ console.error(e); setStatus('인증 후 초기화 오류: '+(e.message||e)); }
+});
