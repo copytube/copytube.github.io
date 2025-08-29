@@ -269,17 +269,25 @@ qbox?.addEventListener('input', applyFilter);
 
 
 /* ---------- 시작 ---------- */
+function showLoginRequired(){
+  const html = `<span style="color:#ffb4b4;font-weight:700;">로그인이 필요합니다.</span> ` +
+               `<a href="signin.html" class="btn btn-primary" style="margin-left:8px;">로그인하기</a>`;
+  try{ msg.innerHTML = html; }catch{}
+  // 안전한 자동 이동(지연)
+  setTimeout(()=>{ try{ location.href='signin.html'; }catch{} }, 800);
+}
+
 function setStatus(text){ try{ msg.textContent = text || ''; }catch{} }
 
 // 부팅: DOMContentLoaded 에도 로드 시도 (이미 로그인 상태면 즉시)
 document.addEventListener('DOMContentLoaded', ()=>{
   try{
-    if(auth.currentUser){ setStatus('초기화 중...'); loadInit(); }
+    if(auth.currentUser){ setStatus('초기화 중...'); loadInit(); } else { showLoginRequired(); }
   }catch(e){ console.error(e); setStatus('초기화 오류: '+(e.message||e)); }
 });
 
 onAuthStateChanged(auth, (user)=>{
   try{
-    if(user){ setStatus('목록 불러오는 중...'); loadInit(); }
+    if(user){ setStatus('목록 불러오는 중...'); loadInit(); } else { showLoginRequired(); }
   }catch(e){ console.error(e); setStatus('인증 후 초기화 오류: '+(e.message||e)); }
 });
