@@ -398,6 +398,9 @@ let QUEUE_MODE = false;
 function getParam(name){ try{ return new URL(location.href).searchParams.get(name); }catch{ return null; } }
 
 function tryLoadFromQueue(){
+  const hasIdx = getParam('idx') !== null;
+  const hasDoc = !!getParam('doc');
+  if (!hasIdx && !hasDoc) return false;
   let queue = [];
   try { queue = JSON.parse(sessionStorage.getItem('playQueue') || '[]'); } catch { queue = []; }
   if (!Array.isArray(queue) || queue.length === 0) return false;
