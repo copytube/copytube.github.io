@@ -1,4 +1,4 @@
-// js/list.js — 로그인 없이 공개 목록 조회, 카테고리/검색 필터, watch로 큐/인덱스 전달
+// js/list.js (v1.6.0) — 로그인 없이 공개 목록 조회, 카테고리/검색 필터, watch로 큐/인덱스 전달
 import { db } from './firebase-init.js';
 import {
   collection, getDocs, query, orderBy, limit, startAfter
@@ -27,7 +27,6 @@ function getSelectedCats(){
     return Array.isArray(arr) ? arr : [];
   } catch { return []; }
 }
-
 function esc(s=''){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
 function extractId(url=''){
   const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&\/]+)/);
@@ -38,16 +37,98 @@ function toThumb(url, fallback=''){
   return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : fallback;
 }
 function getLabel(key){
-  // categories.js가 노출하는 후보 전역들을 방어적으로 조회
   if (window?.CATEGORIES?.labelMap?.[key]) return window.CATEGORIES.labelMap[key];
   if (window?.CATEGORY_LABELS?.[key]) return window.CATEGORY_LABELS[key];
   if (window?.COPYTUBE?.categories?.labels?.[key]) return window.COPYTUBE.categories.labels[key];
   try { if (typeof window.getLabel === 'function') return window.getLabel(key) ?? key; } catch {}
   return key;
 }
-
 function setStatus(t){ if($msg) $msg.textContent = t || ''; }
 function toggleMore(show){ if($btnMore) $btnMore.style.display = show ? '' : 'none'; }
+
+/* ---------- 개인자료 모드 지원 ---------- */
+function isPersonalOnlySelection(){
+  try{
+    const raw = localStorage.getItem('selectedCats');
+    const v = JSON.parse(raw || '[]');
+    return Array.isArray(v) && v.length === 1 && (v[0] === 'personal1' || v[0] === 'personal2');
+  }catch{ return false; }
+}
+function getPersonalSlot(){
+  try{
+    const v = JSON.parse(localStorage.getItem('selectedCats') || '[]');
+    return Array.isArray(v) ? v[0] : null; // 'personal1' | 'personal2'
+  }catch{ return null; }
+}
+function readPersonalItems(slot){
+  const key = `copytube_${slot}`;
+  try{
+    const arr = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(arr) ? arr : [];
+  }catch{ return []; }
+}
+function getPersonalLabel(slot){
+  try{
+    const labels = JSON.parse(localStorage.getItem('personalLabels') || '{}');
+    return labels?.[slot] || (slot === 'personal1' ? '개인자료1' : '개인자료2');
+  }catch{ return slot; }
+}
+
+function renderPersonalList(){
+  const slot  = getPersonalSlot();
+  const items = readPersonalItems(slot);
+  const label = getPersonalLabel(slot);
+
+  $cards.innerHTML = '';
+  if (!items.length){
+    $cards.innerHTML = `<div style="padding:14px;border:1px dashed var(--border,#333);border-radius:12px;color:#cfcfcf;">${esc(label)}에 저장된 영상이 없습니다.</div>`;
+    toggleMore(false);
+    setStatus('0개');
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
+  const sorted = items.slice().sort((a,b)=> (b?.savedAt||0) - (a?.savedAt||0));
+
+  sorted.forEach((it, idx)=>{
+    const title = it.title || '(제목 없음)';
+    const url   = it.url   || '';
+    const thumb = `https://i.ytimg.com/vi/${extractId(url)}/hqdefault.jpg`;
+
+    const card = document.createElement('article');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="left">
+        <div class="title" title="${esc(title)}">${esc(title)}</div>
+        <div class="url" title="${esc(url)}">${esc(url)}</div>
+        <div class="chips"><span class="chip">${esc(label)}</span></div>
+      </div>
+      <div class="right">
+        <div class="thumb-wrap"><img class="thumb" src="${esc(thumb)}" alt="썸네일" loading="lazy"></div>
+      </div>
+    `;
+    card.querySelector('.left') ?.addEventListener('click', ()=> openInWatchPersonal(sorted, idx, slot, label));
+    card.querySelector('.thumb')?.addEventListener('click', ()=> openInWatchPersonal(sorted, idx, slot, label));
+    frag.appendChild(card);
+  });
+
+  $cards.appendChild(frag);
+  toggleMore(false);
+  setStatus(`총 ${items.length}개`);
+}
+
+function openInWatchPersonal(items, index, slot, label){
+  const queue = items.map((it, i)=> ({
+    id: `local-${slot}-${i}`,
+    url: it.url || '',
+    title: it.title || '(제목 없음)',
+    cats: [label]
+  }));
+  sessionStorage.setItem('playQueue', JSON.stringify(queue));
+  sessionStorage.setItem('playIndex', String(index));
+  // 큐 모드로 바로: idx만으로도 watch가 재생되도록 (watch.js에 idx/doc 가드 추가 권장)
+  location.href = `watch.html?idx=${index}&cats=${encodeURIComponent(slot)}`;
+}
 
 /* ---------- Firestore 로드 ---------- */
 async function loadPage(){
@@ -56,7 +137,6 @@ async function loadPage(){
   setStatus(allDocs.length ? `총 ${allDocs.length}개 불러옴 · 더 불러오는 중…` : '불러오는 중…');
 
   try {
-    // 선호: createdAt desc 페이지네이션
     const parts = [ orderBy('createdAt','desc') ];
     if (lastDoc) parts.push(startAfter(lastDoc));
     parts.push(limit(PAGE_SIZE));
@@ -72,7 +152,6 @@ async function loadPage(){
     lastDoc = snap.docs[snap.docs.length-1] || lastDoc;
     if (snap.size < PAGE_SIZE) hasMore = false;
   } catch (e) {
-    // 폴백: createdAt 인덱스/필드 문제 시 일부만 불러 클라이언트 정렬
     console.warn('[list] fallback:', e?.message || e);
     try {
       const snap = await getDocs(query(collection(db,'videos'), limit(PAGE_SIZE*3)));
@@ -95,7 +174,7 @@ async function loadPage(){
   isLoading = false;
 }
 
-/* ---------- 렌더 & 필터 ---------- */
+/* ---------- 렌더 & 필터 (일반 카테고리) ---------- */
 function render(){
   const cats = getSelectedCats();
   const q = ($q?.value || '').trim().toLowerCase();
@@ -151,7 +230,7 @@ function render(){
   $cards.appendChild(frag);
 }
 
-/* ---------- watch로 이동(큐 + 인덱스 + doc 파라미터) ---------- */
+/* ---------- watch로 이동(큐 + 인덱스 + doc + cats 파라미터) ---------- */
 function openInWatch(list, index){
   const queue = list.map(x => ({
     id: x.id,
@@ -163,13 +242,23 @@ function openInWatch(list, index){
   sessionStorage.setItem('playIndex', String(index));
 
   const docId = encodeURIComponent(list[index].id);
-  location.href = `watch.html?doc=${docId}&idx=${index}`;
+
+  // 현재 선택된 카테고리를 URL에도 포함(복구/공유 대비)
+  let catsParam = '';
+  try{
+    const raw = localStorage.getItem('selectedCats');
+    const parsed = JSON.parse(raw || '[]');
+    const arr = Array.isArray(parsed) ? parsed : [];
+    if (arr.length) catsParam = `&cats=${encodeURIComponent(arr.join(','))}`;
+  }catch{}
+
+  location.href = `watch.html?doc=${docId}&idx=${index}${catsParam}`;
 }
 
 /* ---------- 이벤트 ---------- */
-$q?.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); render(); }});
-$btnSearch?.addEventListener('click', ()=> render());
-$btnClear ?.addEventListener('click', ()=> { if($q){ $q.value=''; } render(); });
+$q?.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); isPersonalOnlySelection() ? renderPersonalList() : render(); }});
+$btnSearch?.addEventListener('click', ()=> isPersonalOnlySelection() ? renderPersonalList() : render());
+$btnClear ?.addEventListener('click', ()=> { if($q){ $q.value=''; } isPersonalOnlySelection() ? renderPersonalList() : render(); });
 $btnMore  ?.addEventListener('click', async ()=>{
   $btnMore.disabled = true; $btnMore.textContent = '불러오는 중…';
   try { await loadPage(); } finally { $btnMore.disabled=false; $btnMore.textContent='더 보기'; }
@@ -178,7 +267,11 @@ $btnMore  ?.addEventListener('click', async ()=>{
 /* ---------- 시작 ---------- */
 (async function init(){
   try{
-    await loadPage();
+    if (isPersonalOnlySelection()){
+      renderPersonalList();     // ✅ 개인자료 전용 목록
+    } else {
+      await loadPage();         // ✅ 일반(Cloud) 목록
+    }
   }catch(e){
     console.error(e);
     setStatus('목록을 불러오지 못했습니다.');
@@ -237,5 +330,7 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
   document.addEventListener('pointerup',  onEnd,   { passive:true });
 }
 
-// ✅ list: 우→좌 = index 로 돌아가기 (index↔upload 모션과 동일)
+// ✅ list: 우→좌 = index 로 돌아가기
 initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
+
+// End of js/list.js (v1.6.0)
