@@ -1,4 +1,4 @@
-// watch.js (원본 v1.0.4 + 추가: 뒤로가기 분기(from=list), 컨텍스트 없을 때 안전 동작)
+// js/watch.js — CopyTube v1.8.0 (원본 스크롤 피드 유지 + 연속재생 truthy + 뒤로가기 분기 + 컨텍스트 안전 동작)
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { collection, getDocs, query, where, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -13,9 +13,7 @@ addEventListener('orientationchange', updateVh, {passive:true});
 
 /* ---------- Samsung Internet 전용 보정 ---------- */
 const isSamsungInternet = /SamsungBrowser/i.test(navigator.userAgent);
-if (isSamsungInternet) {
-  document.documentElement.classList.add('ua-sbrowser');
-}
+if (isSamsungInternet) document.documentElement.classList.add('ua-sbrowser');
 function updateSnapHeightForSamsung(){
   if (!isSamsungInternet) return;
   const vc = document.getElementById('videoContainer');
@@ -26,9 +24,7 @@ function updateSnapHeightForSamsung(){
 updateSnapHeightForSamsung();
 addEventListener('resize', updateSnapHeightForSamsung, {passive:true});
 addEventListener('orientationchange', updateSnapHeightForSamsung, {passive:true});
-if (window.visualViewport) {
-  visualViewport.addEventListener('resize', updateSnapHeightForSamsung, {passive:true});
-}
+if (window.visualViewport) visualViewport.addEventListener('resize', updateSnapHeightForSamsung, {passive:true});
 
 /* ---------- DOM ---------- */
 const topbar         = document.getElementById("topbar");
@@ -50,7 +46,7 @@ const videoContainer = document.getElementById("videoContainer");
 let isMenuOpen=false;
 function openDropdown(){ isMenuOpen=true; dropdown?.classList.remove("hidden"); requestAnimationFrame(()=> dropdown?.classList.add("show")); menuBackdrop?.classList.add('show'); }
 function closeDropdown(){ isMenuOpen=false; dropdown?.classList.remove("show"); setTimeout(()=> dropdown?.classList.add("hidden"),180); menuBackdrop?.classList.remove('show'); }
-onAuthStateChanged(auth,(user)=>{ const loggedIn=!!user; signupLink?.classList.toggle("hidden", loggedIn); signinLink?.classList.toggle("hidden", loggedIn); if(welcome) welcome.textContent = loggedIn ? `안녕하세요, ${user.displayName || '회원'}님` : ""; closeDropdown(); });
+onAuthStateChanged(auth,(user)=>{ const loggedIn=!!user; signupLink?.classList.toggle("hidden", loggedIn); signinLink?.classList.toggle("hidden", loggedIn); if(welcome) welcome.textContent = loggedIn ? `안녕하세요, ${user?.displayName || '회원'}님` : ""; closeDropdown(); });
 menuBtn?.addEventListener("click",(e)=>{ e.stopPropagation(); dropdown?.classList.contains("hidden") ? openDropdown() : closeDropdown(); });
 dropdown?.addEventListener("click",(e)=> e.stopPropagation());
 menuBackdrop?.addEventListener('click', closeDropdown);
@@ -86,7 +82,6 @@ function getSelectedCats(){
   if (fromUrl) return fromUrl;
   try{ return JSON.parse(localStorage.getItem('selectedCats')||'null'); }catch{ return "ALL"; }
 }
-const AUTO_NEXT = localStorage.getItem('autonext')==='on';
 
 /* ---- 개인자료 모드 판정 ---- */
 const sel = getSelectedCats();
@@ -96,6 +91,9 @@ const wantsPersonal2 = SEL_SET?.has?.('personal2') || parseCatsFromQuery()?.incl
 const PERSONAL_MODE = (wantsPersonal1 || wantsPersonal2) && !(SEL_SET && ([...SEL_SET].some(v => v!=='personal1' && v!=='personal2')));
 
 /* ---------- YouTube control ---------- */
+function truthy(v){ return !(v===null || v===undefined || v===false || v==='false' || v==='0' || v==='off' || v===''); }
+const AUTO_NEXT = (localStorage.getItem('autonext')==='on') || truthy(localStorage.getItem('continuousPlay'));
+
 let userSoundConsent=false;
 let currentActive=null;
 const winToCard=new Map();
@@ -402,7 +400,7 @@ async function goToNextCard(){
 })();
 
 /* ============================================================
-   🔧 추가 1) 뒤로가기 분기: from=list → list.html, 아니면 index.html
+   추가 1) 뒤로가기 분기: from=list → list.html, 아니면 index.html
    ============================================================ */
 (function initBackRouting(){
   try{
@@ -422,7 +420,7 @@ async function goToNextCard(){
 })();
 
 /* ============================================================
-   🔧 추가 2) 컨텍스트 없을 때도 안전 동작
+   추가 2) 컨텍스트 없을 때 안전 동작
    - ?vid=ID 있으면 그 영상 단일 재생
    - 선택 컨텍스트가 전혀 없으면 Firestore 최신 1개만 로드 + 안내
    (원본 피드가 이미 로드되었어도 안전하게 교체)
