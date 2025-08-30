@@ -219,6 +219,7 @@ cbToggleAll?.addEventListener('change', ()=> selectAll(!!cbToggleAll.checked));
 
 /* ---------- go watch ---------- */
 btnWatch?.addEventListener('click', ()=>{
+  sessionStorage.removeItem('playQueue'); sessionStorage.removeItem('playIndex');
   const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
   const personals = selected.filter(isPersonalVal);
   const normals   = selected.filter(v=> !isPersonalVal(v));
