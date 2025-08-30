@@ -71,24 +71,7 @@ btnMyUploads ?.addEventListener("click", ()=>{ goOrSignIn("manage-uploads.html")
 btnAbout     ?.addEventListener("click", ()=>{ location.href="about.html"; closeDropdown(); });
 btnSignOut   ?.addEventListener("click", async ()=>{ if(!auth.currentUser){ location.href='signin.html'; return; } await fbSignOut(auth); closeDropdown(); });
 btnGoUpload  ?.addEventListener("click", ()=>{ goOrSignIn("upload.html"); closeDropdown(); });
-/* ---------- 돌아가기: list에서 왔으면 list.html, 아니면 index.html ---------- */
-function getNavFrom(){
-  try{
-    const q = new URL(location.href).searchParams.get('from');
-    const ss = sessionStorage.getItem('nav_from');
-    return (q || ss || 'index');
-  }catch{ return 'index'; }
-}
-function backToSource(){
-  const from = getNavFrom();
-  const to = (from === 'list') ? 'list.html' : 'index.html';
-  try{ sessionStorage.setItem('ct_enter_anim','from-left'); }catch{}
-  document.documentElement.classList.add('slide-out-right');
-  setTimeout(()=> location.href = to, 200);
-}
-brandHome    ?.addEventListener("click",(e)=>{ e.preventDefault(); backToSource(); });
-document.getElementById('btnBack')?.addEventListener('click', (e)=>{ e.preventDefault(); backToSource(); });
-
+brandHome    ?.addEventListener("click",(e)=>{ e.preventDefault(); location.href="index.html"; });
 
 /* ---------- topbar auto hide ---------- */
 const HIDE_DELAY_MS=1000; let hideTimer=null;
