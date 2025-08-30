@@ -1,11 +1,4 @@
-// js/watch.js (v1.0.4)
-// - v1.0.3 기반
-// - 삼성인터넷(Samsung Internet)에서 다음 카드가 살짝 보이는 문제 보정:
-//   UA 감지 → <html class="ua-sbrowser"> + --snap-h를 videoContainer 실높이로 동기화
-// - iOS 스크롤 방해 없는 제스처 처리 유지
-// - 개인저장소(personal1/personal2) 재생 지원
-// - 공용 카테고리 10개 초과 시 서버 최신순 + 클라이언트 필터
-
+// watch.js (원본 v1.0.4 + 추가: 뒤로가기 분기(from=list), 컨텍스트 없을 때 안전 동작)
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import { collection, getDocs, query, where, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -27,11 +20,9 @@ function updateSnapHeightForSamsung(){
   if (!isSamsungInternet) return;
   const vc = document.getElementById('videoContainer');
   if (!vc) return;
-  // 스크롤 컨테이너의 '현재 보이는 영역 높이'로 카드 높이 고정
   const h = vc.clientHeight;
   document.documentElement.style.setProperty('--snap-h', h + 'px');
 }
-// 초기 한 번 + 각종 리사이즈 계열 이벤트에서 갱신
 updateSnapHeightForSamsung();
 addEventListener('resize', updateSnapHeightForSamsung, {passive:true});
 addEventListener('orientationchange', updateSnapHeightForSamsung, {passive:true});
@@ -221,7 +212,6 @@ function resolveCatFilter(){
   const sel = getSelectedCats();
   if (sel==="ALL" || !sel) return null;
   if (Array.isArray(sel) && sel.length){
-    // personal 값은 무시(섞어보기 비활성)
     const filtered = sel.filter(v=> v!=='personal1' && v!=='personal2');
     return filtered.length ? new Set(filtered) : null;
   }
@@ -252,7 +242,6 @@ function loadPersonalInit(){
     personalItems = JSON.parse(localStorage.getItem(key) || '[]');
     if(!Array.isArray(personalItems)) personalItems=[];
   }catch{ personalItems=[]; }
-  // 최신 저장 먼저 보이게 정렬(desc)
   personalItems.sort((a,b)=> (b?.savedAt||0) - (a?.savedAt||0));
   personalOffset = 0;
   hasMore = personalItems.length > 0;
@@ -280,7 +269,6 @@ function loadMorePersonal(initial=false){
   if(personalOffset >= personalItems.length) hasMore=false;
   isLoading=false;
 
-  // 높이 재계산(삼성인터넷에서 붙임)
   updateSnapHeightForSamsung();
 }
 
@@ -357,7 +345,6 @@ async function loadMoreCommon(initial=false){
     }
   }finally{
     isLoading=false;
-    // 높이 재계산(삼성인터넷)
     updateSnapHeightForSamsung();
   }
 }
@@ -405,12 +392,76 @@ async function goToNextCard(){
   else{ showTopbar(); }
 }
 
-/* ---------- start (TLA 회피: IIFE) ---------- */
+/* ---------- start ---------- */
 (async ()=>{
   resetFeed();
   if(PERSONAL_MODE){ loadPersonalInit(); loadMorePersonal(true); }
   else{ await loadMoreCommon(true); }
   showTopbar();
-  // 시작 시점에도 삼성인터넷 높이 보정(안전망)
   updateSnapHeightForSamsung();
+})();
+
+/* ============================================================
+   🔧 추가 1) 뒤로가기 분기: from=list → list.html, 아니면 index.html
+   ============================================================ */
+(function initBackRouting(){
+  try{
+    const params = new URLSearchParams(location.search);
+    const from = params.get('from');
+    history.replaceState({ watch:true, from }, '');
+    history.pushState({ sentinel:true }, '');
+
+    window.addEventListener('popstate', ()=>{
+      if(from === 'list'){
+        location.href = 'list.html';
+      }else{
+        location.href = 'index.html';
+      }
+    });
+  }catch(e){ console.error(e); }
+})();
+
+/* ============================================================
+   🔧 추가 2) 컨텍스트 없을 때도 안전 동작
+   - ?vid=ID 있으면 그 영상 단일 재생
+   - 선택 컨텍스트가 전혀 없으면 Firestore 최신 1개만 로드 + 안내
+   (원본 피드가 이미 로드되었어도 안전하게 교체)
+   ============================================================ */
+(async function applyContextSafeMode(){
+  try{
+    const p = new URLSearchParams(location.search);
+    const vidParam = (p.get('vid')||'').trim();
+
+    // ?vid= 단일 재생
+    if(vidParam){
+      resetFeed();
+      const url = `https://youtu.be/${vidParam}`;
+      videoContainer.appendChild(makeCard(url, `vid-${vidParam}`));
+      updateSnapHeightForSamsung();
+      return;
+    }
+
+    // '컨텍스트 전무': selectedCats 키가 저장된 적도 없고, URL cats 파라미터도 없음
+    const hasCatsParam = !!p.get('cats');
+    const hasLocalKey  = localStorage.getItem('selectedCats') !== null;
+    if(!hasCatsParam && !hasLocalKey){
+      // 최신 1개만 로드하여 단일 카드로 표시
+      const snap = await getDocs(query(collection(db,'videos'), orderBy('createdAt','desc'), limit(1)));
+      resetFeed();
+      if(snap.empty){
+        videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">영상이 없습니다. index에서 카테고리를 선택해 보세요.</p></div>`;
+      }else{
+        const d = snap.docs[0].data();
+        videoContainer.appendChild(makeCard(d.url, snap.docs[0].id));
+        // 안내 배지
+        const hint = document.createElement('div');
+        hint.className = 'playhint';
+        hint.textContent = '컨텍스트가 없어 최신 1개만 재생 중';
+        videoContainer.firstElementChild?.appendChild(hint);
+      }
+      updateSnapHeightForSamsung();
+    }
+  }catch(e){
+    console.error(e);
+  }
 })();
