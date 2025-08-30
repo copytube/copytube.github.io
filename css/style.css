@@ -236,37 +236,38 @@ body{
 
 /* === List 전용 검색바: .s_bar === */
 .s_bar {
-  display: grid;
-  grid-template-columns: 1fr auto; /* 입력칸 + 검색 버튼 */
-  gap: 8px;
-  align-items: center;
-  margin: 6px 0 10px;
+  display:flex;            /* ← 그리드 대신 플렉스 */
+  align-items:center;
+  gap:8px;                 /* 박스와 버튼 사이 간격 (0~10px로 취향 조정) */
+  margin:6px 0 10px;
 }
 
 .s_bar .search {
   display: flex;
   gap: 8px;
   align-items: center;
-  border: 1px solid var(--border);
-  background: #0f0f0f;
-  border-radius: 10px;
-  padding: 8px 10px;
+  flex:1 1 auto;           /* ← 좌측 검색박스가 남은 공간을 차지 */
+  min-width:200px;
+  height:38px;             /* 버튼과 높이 맞춤 */
+  padding:0 10px;
+  border:1px solid var(--border);
+  background:#0f0f0f;
+  border-radius:10px;
 }
 .s_bar .search input {
-  flex: 1;
-  min-width: 140px;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: #fff;
+  flex:1 1 auto;
+  min-width:60px;
+  height:100%;
+  border:0; outline:0;
+  background:transparent; color:#fff;
 }
 
 .s_bar .btn {
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid #2a2a2a;
-  background: #151515;
-  color: #fff;
-  cursor: pointer;
+  height:38px;             /* 검색 입력 높이와 동일 */
+  padding:0 12px;
+  border-radius:10px;
+  border:1px solid #2a2a2a;
+  background:#151515; color:#fff;
+  cursor:pointer;
 }
 .s_bar .btn:hover { background: #1a1a1a; }
