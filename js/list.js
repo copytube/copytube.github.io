@@ -184,3 +184,58 @@ $btnMore  ?.addEventListener('click', async ()=>{
     setStatus('목록을 불러오지 못했습니다.');
   }
 })();
+
+/* ===================== */
+/* Swipe Navigation + CSS inject (index/upload와 동일 모션) */
+/* ===================== */
+(function injectSlideCSS(){
+  if (document.getElementById('slide-css-152')) return;
+  const style = document.createElement('style');
+  style.id = 'slide-css-152';
+  style.textContent = `
+@keyframes pageSlideLeft { from { transform: translateX(0); opacity:1; } to { transform: translateX(-22%); opacity:.92; } }
+@keyframes pageSlideRight{ from { transform: translateX(0); opacity:1; } to { transform: translateX(22%);  opacity:.92; } }
+:root.slide-out-left  body { animation: pageSlideLeft 0.26s ease forwards; }
+:root.slide-out-right body { animation: pageSlideRight 0.26s ease forwards; }
+@media (prefers-reduced-motion: reduce){
+  :root.slide-out-left  body,
+  :root.slide-out-right body { animation:none; }
+}`;
+  document.head.appendChild(style);
+})();
+
+function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {}){
+  let sx=0, sy=0, t0=0, tracking=false;
+  const THRESH_X = 70;
+  const MAX_OFF_Y = 80;
+  const MAX_TIME  = 600;
+
+  const getPoint = (e) => e.touches?.[0] || e.changedTouches?.[0] || e;
+
+  function onStart(e){
+    const p = getPoint(e); sx = p.clientX; sy = p.clientY; t0 = Date.now(); tracking = true;
+  }
+  function onEnd(e){
+    if(!tracking) return; tracking = false;
+    const p = getPoint(e);
+    const dx = p.clientX - sx;
+    const dy = p.clientY - sy;
+    const dt = Date.now() - t0;
+    if (Math.abs(dy) > MAX_OFF_Y || dt > MAX_TIME) return;
+
+    if (dx <= -THRESH_X && goLeftHref){
+      document.documentElement.classList.add('slide-out-left');
+      setTimeout(()=> location.href = goLeftHref, animateMs);
+    } else if (dx >= THRESH_X && goRightHref){
+      document.documentElement.classList.add('slide-out-right');
+      setTimeout(()=> location.href = goRightHref, animateMs);
+    }
+  }
+  document.addEventListener('touchstart', onStart, { passive:true });
+  document.addEventListener('touchend',   onEnd,   { passive:true });
+  document.addEventListener('pointerdown',onStart, { passive:true });
+  document.addEventListener('pointerup',  onEnd,   { passive:true });
+}
+
+// ✅ list: 우→좌 = index 로 돌아가기 (index↔upload 모션과 동일)
+initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
