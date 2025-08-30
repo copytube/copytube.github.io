@@ -61,7 +61,7 @@ body{
 /* 첫 화면(선택·업로드 공통 베이스) */
 .intro{
   min-height:100vh; display:flex; align-items:center; justify-content:center; text-align:center;
-  padding:48px 24px 24px;  /* 56px 헤더 + 여유 */
+  padding:54px 28px 24px;  /* 56px 헤더 + 여유 */
   background:var(--bg-2); border-bottom:1px solid var(--border);
 }
 .lead{ font-size:20px; color:#e6e6e6; margin:0 0 8px; }
