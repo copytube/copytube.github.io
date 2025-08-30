@@ -5,11 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Copytube - 카테고리 선택</title>
 
-  <!-- ✅ CSP: 인라인 스타일 주입(슬라이드 제스처 애니메이션) 허용 + Firebase/YouTube/썸네일 도메인 허용 -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firebaseinstallations.googleapis.com https://www.gstatic.com https://www.youtube.com;
-    img-src 'self' data: https://i.ytimg.com https://www.gstatic.com;
+    img-src 'self' data: https://i.ytimg.com;
     frame-src https://www.youtube.com;
     script-src 'self' https://www.gstatic.com 'unsafe-inline';
     style-src 'self' 'unsafe-inline';
@@ -18,26 +17,14 @@
   ">
 
   <link rel="stylesheet" href="css/style.css"/>
-
-  <!-- 페이지 전용 보조 스타일 -->
   <style>
     :root{ --cta-width:148px; }
-    /* 제스처 충돌 방지: 가로 스와이프를 우리가 가져가고, 세로 스크롤은 그대로 */
-    html, body { overscroll-behavior-x: contain; }
-    body { touch-action: pan-y; }
-
     .lead{ font-size:20px; color:#e6e6e6; margin:0 0 6px; }
     .sublead{ font-size:14px; color:#9aa0a6; margin:0 0 12px; }
-
     .cta-row{
-      display:grid; grid-template-columns:1fr var(--cta-width) auto 1fr;
-      align-items:center; column-gap:10px; margin:4px 0;
+      display:grid; grid-template-columns:1fr var(--cta-width) auto 1fr; align-items:center; column-gap:10px; margin:4px 0;
     }
-    .btn-primary{
-      grid-column:2; padding:8px 14px; border:0; border-radius:8px;
-      background:#4ea1ff; color:#fff; font-weight:800; cursor:pointer; font-size:18px;
-      width:var(--cta-width); text-align:center;
-    }
+    .btn-primary{ grid-column:2; padding:8px 14px; border:0; border-radius:8px; background:#4ea1ff; color:#fff; font-weight:800; cursor:pointer; font-size:18px; width:var(--cta-width); text-align:center; }
     .inline-check{ display:inline-flex; align-items:center; gap:8px; font-size:13px; color:#ddd; user-select:none; line-height:1; }
     .inline-check input{ width:16px; height:16px; margin:0; accent-color:#4ea1ff; appearance:auto; vertical-align:middle; }
     .cta-row .inline-check:not(.ghost){ grid-column:3; justify-self:flex-start; }
@@ -51,40 +38,24 @@
       font-weight:800; font-size:20px; text-align:center; user-select:none; cursor:pointer;
       appearance:none; -webkit-appearance:none;
     }
-    .cat-title:active{ transform:translateY(0.5px); }
-    .cat-title:focus { outline: none; }
-    .cat-title:focus-visible{
-      outline: 2px solid #4ea1ff;
-      outline-offset: 2px;
-    }
+    .cat-title:active{ transform:translateY(0.5px); focus{ outline: none; }; focus-visible{                     /* 접근성 보완(선택) */
+  outline: 2px solid #4ea1ff;
+  outline-offset: 2px;
+} }
     .cat-right{ grid-column:3; }
 
-    .group{
-      border:1px solid var(--border); border-radius:12px; background:var(--bg-3);
-      padding:4px; margin:4px 0; text-align:left; max-width:900px; margin-left:auto; margin-right:auto;
-    }
-    .group legend{
-      display:flex; align-items:center; gap:8px; padding:0 4px; font-weight:800; font-size:15px;
-      color:#eee; margin-bottom:0; line-height:1.05;
-    }
-    .group .group-toggle{
-      display:inline-flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px;
-      background:#101010; border:1px solid #2a2a2a; color:#e5e7eb; cursor:pointer; font-weight:800;
-    }
+    .group{ border:1px solid var(--border); border-radius:12px; background:var(--bg-3); padding:4px; margin:4px 0; text-align:left; max-width:900px; margin-left:auto; margin-right:auto; }
+    .group legend{ display:flex; align-items:center; gap:8px; padding:0 4px; font-weight:800; font-size:15px; color:#eee; margin-bottom:0; line-height:1.05; }
+    .group .group-toggle{ display:inline-flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; background:#101010; border:1px solid #2a2a2a; color:#e5e7eb; cursor:pointer; font-weight:800; }
     .group .group-toggle input{ accent-color:#4ea1ff; }
-
     .child-grid{ margin-top:0; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px; }
     @media (min-width:900px){ .child-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
-    .child-grid label{
-      background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px; padding:6px 8px; font-size:14px;
-      line-height:1.2; display:flex; gap:6px; align-items:center; justify-content:flex-start;
-    }
+    .child-grid label{ background:#0f0f0f; border:1px solid #2a2a2a; border-radius:8px; padding:6px 8px; font-size:14px; line-height:1.2; display:flex; gap:6px; align-items:center; justify-content:flex-start; }
 
     .icon-mute{ vertical-align:middle; margin-left:4px; }
   </style>
 </head>
 <body>
-  <!-- 상단바 -->
   <header id="topbar">
     <div class="brand">
       <a id="brandHome" href="#" aria-label="CopyTube 홈으로">
@@ -100,7 +71,7 @@
         <button id="btnAbout" class="menu-strong" type="button">CopyTube는…</button>
         <button id="btnMyUploads" type="button">내영상관리</button>
         <button id="btnSignOut" type="button">Sign out</button>
-        <button id="btnGoUpload" class="menu-strong" type="button">추천영상등록</button>
+        <button id="btnGoUpload" class="menu-strong" type="button">추천영상등록</button>        
       </div>
     </div>
   </header>
@@ -126,7 +97,7 @@
       </div>
 
       <div class="cat-head">
-        <!-- h3 → button -->
+        <!-- 여기: h3 → button 으로 변경 -->
         <button type="button" class="cat-title" id="btnOpenOrder" aria-label="카테고리 순서 설정 열기">카테고리</button>
         <div class="cat-right">
           <label class="inline-check" title="모든 카테고리 선택/해제">
@@ -139,10 +110,9 @@
     </div>
   </section>
 
-  <!-- 모듈 스크립트 -->
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <!-- ✅ 최신 제스처 코드가 로드되도록 버전 쿼리 갱신 -->
-  <script type="module" src="js/index.js?v=1.8.0"></script>
+  <script type="module" src="js/index.js?v=1.2.4"></script>
+
 </body>
 </html>
