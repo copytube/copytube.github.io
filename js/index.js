@@ -301,7 +301,7 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
   document.addEventListener('pointerup',  onEnd,   { passive:true });
 }
 
-// index: 오른→왼 → upload
-initSwipeNav({ goLeftHref: 'upload.html', goRightHref: null });
+// ✅ index: 우→좌 = upload, 좌→우 = list
+initSwipeNav({ goLeftHref: 'upload.html', goRightHref: 'list.html' });
 
 // End of js/index.js (v1.5.2)
