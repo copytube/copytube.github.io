@@ -1,4 +1,4 @@
-// js/index.js (v1.5.2)
+// js/index.js (v1.8.0)
 import { CATEGORY_GROUPS } from './categories.js?v=1.5.1';
 import { auth } from './firebase-init.js?v=1.5.1';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
@@ -250,34 +250,67 @@ window.addEventListener('storage', (e)=>{
 });
 
 /* ===================== */
-/* Swipe Navigation + CSS inject (v1.5.2) */
+/* Slide CSS (out/in) + Swipe Navigation (v1.8.0) */
 /* ===================== */
 (function injectSlideCSS(){
-  if (document.getElementById('slide-css-152')) return;
+  if (document.getElementById('slide-css-180')) return;
   const style = document.createElement('style');
-  style.id = 'slide-css-152';
+  style.id = 'slide-css-180';
   style.textContent = `
-@keyframes pageSlideLeft { from { transform: translateX(0); opacity:1; } to { transform: translateX(-22%); opacity:.92; } }
-@keyframes pageSlideRight{ from { transform: translateX(0); opacity:1; } to { transform: translateX(22%);  opacity:.92; } }
-:root.slide-out-left  body { animation: pageSlideLeft 0.26s ease forwards; }
-:root.slide-out-right body { animation: pageSlideRight 0.26s ease forwards; }
+/* OUT animations (leaving current page) */
+@keyframes pageSlideLeft  { from { transform: translateX(0);  opacity:1; } to { transform: translateX(-22%); opacity:.92; } }
+@keyframes pageSlideRight { from { transform: translateX(0);  opacity:1; } to { transform: translateX(22%);  opacity:.92; } }
+:root.slide-out-left  body { animation: pageSlideLeft  0.26s ease-out forwards; }
+:root.slide-out-right body { animation: pageSlideRight 0.26s ease-out forwards; }
+
+/* IN animations (entering destination page) */
+@keyframes pageEnterFromLeft  { from { transform: translateX(-18%); opacity:.88; } to { transform: translateX(0); opacity:1; } }
+@keyframes pageEnterFromRight { from { transform: translateX(18%);  opacity:.88; } to { transform: translateX(0); opacity:1; } }
+:root.slide-in-left  body { animation: pageEnterFromLeft  0.26s ease-out both; }
+:root.slide-in-right body { animation: pageEnterFromRight 0.26s ease-out both; }
+
 @media (prefers-reduced-motion: reduce){
   :root.slide-out-left  body,
-  :root.slide-out-right body { animation:none; }
+  :root.slide-out-right body,
+  :root.slide-in-left   body,
+  :root.slide-in-right  body { animation:none; }
 }`;
   document.head.appendChild(style);
 })();
 
+/* --- play incoming animation on this page (if any) --- */
+(function playIncoming(){
+  try{
+    const flag = sessionStorage.getItem('ct_enter_anim');
+    if (!flag) return;
+    sessionStorage.removeItem('ct_enter_anim');
+    if (flag === 'from-right'){ document.documentElement.classList.add('slide-in-left');  }
+    if (flag === 'from-left'){  document.documentElement.classList.add('slide-in-right'); }
+  }catch{}
+})();
+
+/**
+ * Swipe Navigation (edge-only)
+ * - goLeftHref:  오른→왼 스와이프 시 이동(즉, 화면을 왼쪽으로 밀어냄) → upload.html
+ * - goRightHref: 왼→오 스와이프 시 이동(즉, 화면을 오른쪽으로 밀어냄) → list.html
+ */
 function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {}){
-  let sx=0, sy=0, t0=0, tracking=false;
-  const THRESH_X = 70;
-  const MAX_OFF_Y = 80;
-  const MAX_TIME  = 600;
+  let sx=0, sy=0, t0=0, tracking=false, edgeSide=null;
+
+  const THRESH_X   = 70;  // 최소 수평 이동
+  const MAX_OFF_Y  = 80;  // 수직 허용 오프셋
+  const MAX_TIME   = 600; // 최대 제스처 시간(ms)
+  const EDGE_PX    = 18;  // 엣지 시작 한계
 
   const getPoint = (e) => e.touches?.[0] || e.changedTouches?.[0] || e;
 
   function onStart(e){
-    const p = getPoint(e); sx = p.clientX; sy = p.clientY; t0 = Date.now(); tracking = true;
+    const p = getPoint(e);
+    sx = p.clientX; sy = p.clientY; t0 = Date.now(); tracking = true; edgeSide = null;
+    // 엣지 체크
+    if (sx <= EDGE_PX) edgeSide = 'left';
+    else if (window.innerWidth - sx <= EDGE_PX) edgeSide = 'right';
+    else tracking = false; // 엣지에서 시작하지 않으면 무시
   }
   function onEnd(e){
     if(!tracking) return; tracking = false;
@@ -287,21 +320,30 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
     const dt = Date.now() - t0;
     if (Math.abs(dy) > MAX_OFF_Y || dt > MAX_TIME) return;
 
-    if (dx <= -THRESH_X && goLeftHref){
+    // 오른→왼 (우측 엣지 시작) → goLeftHref
+    if (edgeSide==='right' && dx <= -THRESH_X && goLeftHref){
+      try{ sessionStorage.setItem('ct_enter_anim','from-left'); }catch{}
       document.documentElement.classList.add('slide-out-left');
       setTimeout(()=> location.href = goLeftHref, animateMs);
-    } else if (dx >= THRESH_X && goRightHref){
+      return;
+    }
+    // 왼→오 (좌측 엣지 시작) → goRightHref
+    if (edgeSide==='left' && dx >= THRESH_X && goRightHref){
+      try{ sessionStorage.setItem('ct_enter_anim','from-right'); }catch{}
       document.documentElement.classList.add('slide-out-right');
       setTimeout(()=> location.href = goRightHref, animateMs);
+      return;
     }
   }
+
+  // 터치 & 포인터 모두 지원
   document.addEventListener('touchstart', onStart, { passive:true });
   document.addEventListener('touchend',   onEnd,   { passive:true });
   document.addEventListener('pointerdown',onStart, { passive:true });
   document.addEventListener('pointerup',  onEnd,   { passive:true });
 }
 
-// index: 오른→왼 → upload
-initSwipeNav({ goLeftHref: 'upload.html', goRightHref: null });
+// Index에서는: 왼→오 → list.html, 오른→왼 → upload.html
+initSwipeNav({ goLeftHref: 'upload.html', goRightHref: 'list.html', animateMs: 260 });
 
-// End of js/index.js (v1.5.2)
+// End of js/index.js (v1.8.0)
