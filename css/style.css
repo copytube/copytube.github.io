@@ -1,6 +1,10 @@
 :root{
   --bg:#000; --bg-2:#111; --bg-3:#1b1b1b; --fg:#fff;
   --muted:#9aa0a6; --accent:#4ea1ff; --border:#333;
+   --thumb-w: 160px;   /* ← 추가 */
+}
+@media (max-width: 520px){
+  :root{ --thumb-w: 120px; }  /* 모바일에서만 썸네일 폭 변경 */
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -198,76 +202,81 @@ body{
 
 /* === List 2-Column Layout (목록1.3 밀도 유지) === */
 
-.cards {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;           /* 카드 사이 간격 */
-  margin-top: 10px;
-}
-
+/* 카드: 왼쪽(제목/URL/카테고리) + 오른쪽(썸네일) 2열 고정 */
 .card {
   display: grid;
-  grid-template-columns: 1fr 160px;  /* 왼쪽 넓게, 오른쪽(썸네일) 좁게 */
+  grid-template-columns: minmax(0, 1fr) var(--thumb-w);
   grid-template-rows: auto auto auto;
   grid-template-areas:
-    "title thumb"   /* 1 */
-    "url   thumb"   /* 2 */
-    "cats  thumb";  /* 3 | 4 */
-  gap: 8px;
-  padding: 6px;
+    "title thumb"
+    "url   thumb"
+    "cats  thumb";
+  gap: 10px;
+  padding: 8px; /* ← 오른쪽 테두리에 '완전' 붙이고 싶으면 padding-right:0; 로 변경 */
   border: 1px solid var(--border, #333);
   background: var(--bg-2, #111);
   border-radius: 12px;
   align-items: start;
 }
 
-.card .left  { display: contents; }  /* 내부 자식들을 부모 그리드에 직접 배치 */
-.card .right { grid-area: thumb; }   /* 썸네일 영역 */
-.card .title { 
-  grid-area: title; 
-  font-size: 16px; font-weight: 800; line-height: 1.25;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+/* 왼쪽 영역 자식들을 부모 그리드에 직접 배치 */
+.card .left { display: contents; }
+
+/* 오른쪽 열(썸네일) → 카드의 오른쪽 끝에 붙이기 */
+.card .right {
+  grid-area: thumb;
+  justify-self: end;   /* 오른쪽 정렬 */
+  align-self: start;
+  display: block;
 }
 
-.card .url   {
+/* 썸네일 래퍼: 모두 같은 크기(폭=--thumb-w, 16:9) */
+.thumb-wrap {
+  width: var(--thumb-w);
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+}
+
+/* 이미지 채우기 */
+.thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  cursor: pointer;
+}
+
+/* 텍스트 영역 고정 (1=제목, 2=URL, 3=카테고리) */
+.card .title {
+  grid-area: title;
+  font-size: 16px; font-weight: 800; line-height: 1.25;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.card .url {
   grid-area: url;
   font-size: 12px; color: var(--muted, #9aa0a6);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-
 .card .chips {
   grid-area: cats;
   display: flex; flex-wrap: wrap; gap: 4px;
 }
-
-.card .chip  {
+.card .chip {
   border: 1px solid #2a2a2a; border-radius: 999px; padding: 2px 8px; font-size: 12px; color: #ddd;
 }
 
-/* 썸네일 */
-.thumb-wrap {
-  width: 100%; aspect-ratio: 16 / 9;
-  border-radius: 8px; overflow: hidden; background: #000;
-}
-
-.thumb {
-  width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer;
-}
-
-/* 모바일(≤520px): 2열 유지 + 썸네일 오른쪽 고정 */
+/* 모바일(≤520px)도 2열 유지 (썸네일 오른쪽 고정) */
 @media (max-width: 520px) {
   .card {
-    /* 2열 그대로 유지 */
-    grid-template-columns: minmax(0, 1fr) 120px; /* 썸네일 넓이를 120px로 설정, 필요시 110~140px 조정 */
+    grid-template-columns: minmax(0, 1fr) var(--thumb-w);
     grid-template-areas:
       "title thumb"
       "url   thumb"
       "cats  thumb";
-    gap: 8px; /* 모바일 간격 살짝 줄임 */
+    gap: 8px;
   }
-
-  /* 썸네일 크기 제한 */
-  .card .right {
-    max-width: 36%; /* 썸네일이 화면의 2/5보다 크지 않도록 제한 */
-  }
+  .thumb-wrap { width: var(--thumb-w); } /* 재확인(덮어쓰기) */
 }
