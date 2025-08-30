@@ -206,67 +206,60 @@ body{
 .card {
   display: grid;
   grid-template-columns: 1fr 160px;  /* 왼쪽 넓게, 오른쪽(썸네일) 좁게 */
-  gap: 10px;
-  padding: 8px;
+    grid-template-rows: auto auto auto;
+  grid-template-areas:
+    "title thumb"   /* 1 */
+    "url   thumb"   /* 2 */
+    "cats  thumb";  /* 3 | 4 */
+  gap: 8px;
+  padding: 6px;
   border: 1px solid var(--border, #333);
   background: var(--bg-2, #111);
   border-radius: 12px;
   align-items: start;
 }
-.card .left {
-  display: grid;
-  grid-template-rows: auto auto auto; /* 제목 / URL / 칩(카테고리) */
-  gap: 6px;
-  min-width: 0;                        /* ellipsis 작동용 */
+/* .left/.right 래퍼는 레이아웃만 위임 */
+.card .left  { display: contents; }  /* 내부 자식들을 부모 그리드에 직접 배치 */
+.card .right { grid-area: thumb; }   /* 썸네일 영역 */
+.card .title { 
+  grid-area: title; 
+  font-size: 16px; font-weight: 800; line-height: 1.25;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.card .title {
-  font-size: 16px;
-  font-weight: 800;
-  line-height: 1.25;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;               /* 2줄 말줄임 */
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.card .url {
-  font-size: 12px;
-  color: var(--muted, #9aa0a6);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.card .url   {
+  grid-area: url;
+  font-size: 12px; color: var(--muted, #9aa0a6);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .card .chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  grid-area: cats;
+  display: flex; flex-wrap: wrap; gap: 4px;
 }
-.card .chip {
-  border: 1px solid #2a2a2a;
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 12px;
-  color: #ddd;
+.card .chip  {
+  border: 1px solid #2a2a2a; border-radius: 999px; padding: 2px 8px; font-size: 12px; color: #ddd;
 }
 
-/* 썸네일 영역(오른쪽 열) */
+/* 썸네일 */
 .thumb-wrap {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #000;
+  width: 100%; aspect-ratio: 16 / 9;
+  border-radius: 8px; overflow: hidden; background: #000;
 }
 .thumb {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  cursor: pointer;
+  width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer;
 }
 
-/* 반응형: 520px 이하에서 1열 + 썸네일 아래로 */
+/* 모바일(≤520px): 2열 유지 + 썸네일 오른쪽 고정 */
 @media (max-width: 520px) {
-  .card { grid-template-columns: 1fr; }
-  .thumb-wrap { order: 3; } /* 왼쪽(텍스트) 밑으로 썸네일 이동 */
-}
+  .card {
+    /* 2열 그대로 유지 */
+    grid-template-columns: minmax(0, 1fr) 120px; /* 필요하면 120px → 110~140px로 조정 */
+    grid-template-areas:
+      "title thumb"
+      "url   thumb"
+      "cats  thumb";
+    gap: 8px; /* 모바일 간격 살짝 줄임(선택사항) */
+  }
 
+  /* 혹시 이전 규칙에서 썸네일을 아래로 내리던 속성이 있었다면 무력화 */
+  .thumb-wrap { order: initial; }
+}
