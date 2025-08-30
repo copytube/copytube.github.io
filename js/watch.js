@@ -1,14 +1,11 @@
-// js/watch.js (v1.0.4)
-// - v1.0.3 기반
-// - 삼성인터넷(Samsung Internet)에서 다음 카드가 살짝 보이는 문제 보정:
-//   UA 감지 → <html class="ua-sbrowser"> + --snap-h를 videoContainer 실높이로 동기화
-// - iOS 스크롤 방해 없는 제스처 처리 유지
-// - 개인저장소(personal1/personal2) 재생 지원
-// - 공용 카테고리 10개 초과 시 서버 최신순 + 클라이언트 필터
+// js/watch.js (v1.0.4 기반, 큐/인덱스 우선 재생 추가)
+// - 기존 기능은 유지(삼성인터넷 보정, 자동 상단바, 개인자료, 공용 카테고리, IntersectionObserver, AUTO_NEXT 등)
+// - 추가: list.html에서 넘겨준 sessionStorage.playQueue/playIndex 및 URL의 doc/idx를 최우선으로 사용하여
+//         해당 "목록의 n번째 영상"부터 재생하는 QUEUE_MODE를 지원
 
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
-import { collection, getDocs, query, where, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+import { collection, getDocs, query, where, orderBy, limit, startAfter, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 /* ---------- viewport fix ---------- */
 function updateVh(){
@@ -27,11 +24,9 @@ function updateSnapHeightForSamsung(){
   if (!isSamsungInternet) return;
   const vc = document.getElementById('videoContainer');
   if (!vc) return;
-  // 스크롤 컨테이너의 '현재 보이는 영역 높이'로 카드 높이 고정
   const h = vc.clientHeight;
   document.documentElement.style.setProperty('--snap-h', h + 'px');
 }
-// 초기 한 번 + 각종 리사이즈 계열 이벤트에서 갱신
 updateSnapHeightForSamsung();
 addEventListener('resize', updateSnapHeightForSamsung, {passive:true});
 addEventListener('orientationchange', updateSnapHeightForSamsung, {passive:true});
@@ -70,7 +65,6 @@ btnGoCategory?.addEventListener("click", ()=>{ location.href="index.html"; close
 btnMyUploads ?.addEventListener("click", ()=>{ goOrSignIn("manage-uploads.html"); closeDropdown(); });
 btnAbout     ?.addEventListener("click", ()=>{ location.href="about.html"; closeDropdown(); });
 btnSignOut   ?.addEventListener("click", async ()=>{ if(!auth.currentUser){ location.href='signin.html'; return; } await fbSignOut(auth); closeDropdown(); });
-btnGoUpload  ?.addEventListener("click", ()=>{ goOrSignIn("upload.html"); closeDropdown(); });
 brandHome    ?.addEventListener("click",(e)=>{ e.preventDefault(); location.href="index.html"; });
 
 /* ---------- topbar auto hide ---------- */
@@ -215,13 +209,11 @@ const PAGE_SIZE=10;
 let isLoading=false, hasMore=true, lastDoc=null;
 const loadedIds=new Set();
 
-// 공용 카테고리 필터
 function resolveCatFilter(){
-  if(PERSONAL_MODE) return null; // 개인 모드일 땐 공용 필터 사용 안 함
+  if(PERSONAL_MODE) return null;
   const sel = getSelectedCats();
   if (sel==="ALL" || !sel) return null;
   if (Array.isArray(sel) && sel.length){
-    // personal 값은 무시(섞어보기 비활성)
     const filtered = sel.filter(v=> v!=='personal1' && v!=='personal2');
     return filtered.length ? new Set(filtered) : null;
   }
@@ -252,7 +244,6 @@ function loadPersonalInit(){
     personalItems = JSON.parse(localStorage.getItem(key) || '[]');
     if(!Array.isArray(personalItems)) personalItems=[];
   }catch{ personalItems=[]; }
-  // 최신 저장 먼저 보이게 정렬(desc)
   personalItems.sort((a,b)=> (b?.savedAt||0) - (a?.savedAt||0));
   personalOffset = 0;
   hasMore = personalItems.length > 0;
@@ -280,7 +271,6 @@ function loadMorePersonal(initial=false){
   if(personalOffset >= personalItems.length) hasMore=false;
   isLoading=false;
 
-  // 높이 재계산(삼성인터넷에서 붙임)
   updateSnapHeightForSamsung();
 }
 
@@ -293,7 +283,6 @@ async function loadMoreCommon(initial=false){
     const base = collection(db,"videos");
     const filterSize = CAT_FILTER ? CAT_FILTER.size : 0;
 
-    // ALL
     if(!CAT_FILTER){
       const parts=[ orderBy("createdAt","desc") ];
       if(lastDoc) parts.push(startAfter(lastDoc));
@@ -301,16 +290,14 @@ async function loadMoreCommon(initial=false){
       const snap = await getDocs(query(base, ...parts));
       await appendFromSnap(snap, initial);
     }
-    // filter <= 10 → server-side contains-any
     else if(filterSize <= 10){
       const whereVals = Array.from(CAT_FILTER);
       const parts=[ where("categories","array-contains-any", whereVals), orderBy("createdAt","desc") ];
       if(lastDoc) parts.push(startAfter(lastDoc));
       parts.push(limit(PAGE_SIZE));
       const snap = await getDocs(query(base, ...parts));
-      await appendFromSnap(snap, initial, /*clientFilter*/false);
+      await appendFromSnap(snap, initial, false);
     }
-    // filter > 10 → server 최신순 + client 필터
     else{
       let appended = 0;
       let guardFetches = 0;
@@ -357,7 +344,6 @@ async function loadMoreCommon(initial=false){
     }
   }finally{
     isLoading=false;
-    // 높이 재계산(삼성인터넷)
     updateSnapHeightForSamsung();
   }
 }
@@ -387,6 +373,7 @@ async function appendFromSnap(snap, initial, clientFilter=false){
 videoContainer.addEventListener('scroll', ()=>{
   const nearBottom = videoContainer.scrollTop + videoContainer.clientHeight >= videoContainer.scrollHeight - 200;
   if(nearBottom){
+    if(QUEUE_MODE) return; // 큐 모드에서는 더 불러오지 않음
     if(PERSONAL_MODE) loadMorePersonal(false);
     else loadMoreCommon(false);
   }
@@ -396,6 +383,7 @@ videoContainer.addEventListener('scroll', ()=>{
 async function goToNextCard(){
   const next = currentActive?.nextElementSibling;
   if(next && next.classList.contains('video')){ next.scrollIntoView({behavior:'smooth', block:'start'}); return; }
+  if(QUEUE_MODE){ showTopbar(); return; } // 큐 모드에선 고정
   if(!hasMore){ showTopbar(); return; }
   const before = videoContainer.querySelectorAll('.video').length;
   if(PERSONAL_MODE) loadMorePersonal(false);
@@ -405,12 +393,92 @@ async function goToNextCard(){
   else{ showTopbar(); }
 }
 
-/* ---------- start (TLA 회피: IIFE) ---------- */
+/* ---------- 큐 모드(목록에서 전달받은 재생목록을 그대로 사용) ---------- */
+let QUEUE_MODE = false;
+function getParam(name){ try{ return new URL(location.href).searchParams.get(name); }catch{ return null; } }
+
+function tryLoadFromQueue(){
+  let queue = [];
+  try { queue = JSON.parse(sessionStorage.getItem('playQueue') || '[]'); } catch { queue = []; }
+  if (!Array.isArray(queue) || queue.length === 0) return false;
+
+  // idx: sessionStorage 우선, URL 보정
+  let idx = sessionStorage.getItem('playIndex');
+  const urlIdx = getParam('idx');
+  if (urlIdx !== null) idx = urlIdx;
+  const docParam = getParam('doc');
+
+  // doc 제공 시 큐에서 위치 동기화
+  if (docParam) {
+    const found = queue.findIndex(it => it.id === docParam);
+    if (found >= 0) idx = String(found);
+  }
+
+  const startIndex = Math.max(0, Math.min(queue.length - 1, parseInt(idx || '0', 10) || 0));
+
+  // 피드 초기화 후 큐로 카드 구성
+  resetFeed();
+  QUEUE_MODE = true;
+  hasMore = false;
+
+  queue.forEach((item, i) => {
+    const url = item?.url || '';
+    const did = item?.id  || `q-${i}`;
+    if (loadedIds.has(did)) return;
+    loadedIds.add(did);
+    videoContainer.appendChild(makeCard(url, did));
+  });
+
+  // startIndex로 이동 → IO가 활성화/재생 처리
+  const target = videoContainer.querySelectorAll('.video')[startIndex];
+  if (target) {
+    target.scrollIntoView({ behavior:'instant', block:'start' });
+    // 보수적으로 iframe 준비
+    ensureIframe(target);
+    currentActive = target;
+  }
+
+  // 현재 인덱스 저장(재진입 대비)
+  sessionStorage.setItem('playIndex', String(startIndex));
+
+  // 삼성인터넷 높이 보정
+  updateSnapHeightForSamsung();
+  showTopbar();
+  return true;
+}
+
+/* ---------- start ---------- */
 (async ()=>{
+  // 1) 목록에서 온 경우(큐 모드)를 최우선 적용
+  if (tryLoadFromQueue()) {
+    return;
+  }
+
+  // 2) 큐가 없고 doc 파라미터만 있는 경우(단일 진입) — 기존 흐름 보강
+  const docId = getParam('doc');
+  if (docId) {
+    try{
+      const ref = doc(db, 'videos', docId);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        resetFeed();
+        const d = snap.data();
+        const u = d?.url || '';
+        loadedIds.add(docId);
+        videoContainer.appendChild(makeCard(u, docId));
+        const target = videoContainer.querySelector('.video');
+        if (target) { ensureIframe(target); currentActive = target; }
+        updateSnapHeightForSamsung();
+        showTopbar();
+        return;
+      }
+    }catch(e){ console.warn('[watch] doc load fail:', e?.message||e); }
+  }
+
+  // 3) 기존 로직 유지(개인/공용)
   resetFeed();
   if(PERSONAL_MODE){ loadPersonalInit(); loadMorePersonal(true); }
   else{ await loadMoreCommon(true); }
   showTopbar();
-  // 시작 시점에도 삼성인터넷 높이 보정(안전망)
   updateSnapHeightForSamsung();
 })();
