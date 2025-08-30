@@ -1,4 +1,4 @@
-// js/index.js (v1.5.2)
+// js/index.js (v1.6.0)
 import { CATEGORY_GROUPS } from './categories.js?v=1.5.1';
 import { auth } from './firebase-init.js?v=1.5.1';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
@@ -219,7 +219,9 @@ cbToggleAll?.addEventListener('change', ()=> selectAll(!!cbToggleAll.checked));
 
 /* ---------- go watch ---------- */
 btnWatch?.addEventListener('click', ()=>{
+  // ✅ list→watch 때 남은 큐를 초기화해, index→watch는 항상 최신부터 시작
   sessionStorage.removeItem('playQueue'); sessionStorage.removeItem('playIndex');
+
   const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
   const personals = selected.filter(isPersonalVal);
   const normals   = selected.filter(v=> !isPersonalVal(v));
@@ -251,7 +253,7 @@ window.addEventListener('storage', (e)=>{
 });
 
 /* ===================== */
-/* Swipe Navigation + CSS inject (v1.5.2) */
+/* Swipe Navigation + CSS inject (v1.6.0) */
 /* ===================== */
 (function injectSlideCSS(){
   if (document.getElementById('slide-css-152')) return;
@@ -268,6 +270,24 @@ window.addEventListener('storage', (e)=>{
 }`;
   document.head.appendChild(style);
 })();
+
+/* ✅ index→list 이동 시, 현재 선택을 저장 */
+function persistSelectedCatsForList(){
+  const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
+  const personals = selected.filter(isPersonalVal);
+  const normals   = selected.filter(v=> !isPersonalVal(v));
+
+  // 개인자료 단독 선택이면 그대로 저장
+  if (personals.length === 1 && normals.length === 0) {
+    localStorage.setItem('selectedCats', JSON.stringify(personals));
+    return;
+  }
+
+  // 일반 카테고리: ALL or 배열
+  const isAll = computeAllSelected() === true;
+  const valueToSave = (normals.length===0 || isAll) ? "ALL" : normals;
+  localStorage.setItem('selectedCats', JSON.stringify(valueToSave));
+}
 
 function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {}){
   let sx=0, sy=0, t0=0, tracking=false;
@@ -292,6 +312,8 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
       document.documentElement.classList.add('slide-out-left');
       setTimeout(()=> location.href = goLeftHref, animateMs);
     } else if (dx >= THRESH_X && goRightHref){
+      // ✅ list로 가기 전에 현재 선택 저장
+      persistSelectedCatsForList();
       document.documentElement.classList.add('slide-out-right');
       setTimeout(()=> location.href = goRightHref, animateMs);
     }
@@ -305,4 +327,4 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
 // ✅ index: 우→좌 = upload, 좌→우 = list
 initSwipeNav({ goLeftHref: 'upload.html', goRightHref: 'list.html' });
 
-// End of js/index.js (v1.5.2)
+// End of js/index.js (v1.6.0)
