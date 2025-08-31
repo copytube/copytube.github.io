@@ -1,9 +1,14 @@
-// js/list.js (v1.6.0) — 로그인 없이 공개 목록 조회, 카테고리/검색 필터, watch로 큐/인덱스 전달
- import { auth, db } from './firebase-init.js';
- import { onAuthStateChanged, signOut as fbSignOut } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
- import { collection, getDocs, query, orderBy, limit, startAfter } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
+// js/list.js (v1.7.0) — list 페이지에 '끌리는 모션' 스와이프 추가(단순형 유지)
+import { auth, db } from './firebase-init.js';
+import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
+import {
+  collection, getDocs, query, orderBy, limit, startAfter
+} from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 
-/* ---------- DOM ---------- */
+/* ---------- 전역 내비 중복 방지 플래그 ---------- */
+window.__swipeNavigating = window.__swipeNavigating || false;
+
+/* ---------- Topbar 로그인 상태 동기화 ---------- */
 const signupLink = document.getElementById('signupLink');
 const signinLink = document.getElementById('signinLink');
 const welcome    = document.getElementById('welcome');
@@ -12,15 +17,7 @@ const dropdown   = document.getElementById('dropdownMenu');
 const btnSignOut = document.getElementById('btnSignOut');
 const btnGoUpload= document.getElementById('btnGoUpload');
 const btnAbout   = document.getElementById('btnAbout');
-const $cards     = document.getElementById('cards');
-const $msg       = document.getElementById('msg') || document.getElementById('resultMsg');
-const $q         = document.getElementById('q');
-const $btnSearch = document.getElementById('btnSearch');
-const $btnClear  = document.getElementById('btnClear');
-const $btnMore   = document.getElementById('btnMore');
 
-
-// 로그인 상태에 따라 상단바 토글
 onAuthStateChanged(auth, (user) => {
   const loggedIn = !!user;
   signupLink?.classList.toggle('hidden', loggedIn);
@@ -28,14 +25,24 @@ onAuthStateChanged(auth, (user) => {
   if (welcome) welcome.textContent = loggedIn ? `안녕하세요, ${user?.displayName || '회원'}님` : '';
 });
 
-// 메뉴/버튼 동작(있을 때만)
+// 메뉴/버튼
 menuBtn   ?.addEventListener('click', (e)=>{ e.stopPropagation(); dropdown?.classList.toggle('hidden'); });
+document.addEventListener('pointerdown',(e)=>{ if(dropdown?.classList.contains('hidden')) return; if(!e.target.closest('#dropdownMenu,#menuBtn')) dropdown?.classList.add('hidden'); }, true);
 btnSignOut?.addEventListener('click', async ()=>{
   if (!auth.currentUser) { location.href = 'signin.html'; return; }
   try { await fbSignOut(auth); } catch {}
+  dropdown?.classList.add('hidden');
 });
-btnGoUpload?.addEventListener('click', ()=> location.href = 'upload.html');
-btnAbout   ?.addEventListener('click', ()=> location.href = 'about.html');
+btnGoUpload?.addEventListener('click', ()=>{ location.href = 'upload.html'; });
+btnAbout   ?.addEventListener('click', ()=>{ location.href = 'about.html'; });
+
+/* ---------- DOM ---------- */
+const $cards     = document.getElementById('cards');
+const $msg       = document.getElementById('msg') || document.getElementById('resultMsg');
+const $q         = document.getElementById('q');
+const $btnSearch = document.getElementById('btnSearch');
+const $btnClear  = document.getElementById('btnClear'); // 없어도 안전 (옵셔널 체이닝)
+const $btnMore   = document.getElementById('btnMore');
 
 /* ---------- 상태 ---------- */
 const PAGE_SIZE = 60;
@@ -151,7 +158,7 @@ function openInWatchPersonal(items, index, slot, label){
   }));
   sessionStorage.setItem('playQueue', JSON.stringify(queue));
   sessionStorage.setItem('playIndex', String(index));
-  // 큐 모드로 바로: idx만으로도 watch가 재생되도록 (watch.js에 idx/doc 가드 추가 권장)
+  // 큐 모드로 바로: idx만으로도 watch가 재생되도록 (watch.js에 idx/doc 가드 있음)
   location.href = `watch.html?idx=${index}&cats=${encodeURIComponent(slot)}`;
 }
 
@@ -304,7 +311,7 @@ $btnMore  ?.addEventListener('click', async ()=>{
 })();
 
 /* ===================== */
-/* Swipe Navigation + CSS inject (index/upload와 동일 모션) */
+/* Slide-out CSS (단순형/백업용) */
 /* ===================== */
 (function injectSlideCSS(){
   if (document.getElementById('slide-css-152')) return;
@@ -322,6 +329,9 @@ $btnMore  ?.addEventListener('click', async ()=>{
   document.head.appendChild(style);
 })();
 
+/* ===================== */
+/* 단순형 스와이프 (기존 유지) */
+/* ===================== */
 function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {}){
   let sx=0, sy=0, t0=0, tracking=false;
   const THRESH_X = 70;
@@ -335,6 +345,10 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
   }
   function onEnd(e){
     if(!tracking) return; tracking = false;
+
+    // 고급형이 이미 처리 중이면 종료
+    if (window.__swipeNavigating) return;
+
     const p = getPoint(e);
     const dx = p.clientX - sx;
     const dy = p.clientY - sy;
@@ -342,9 +356,11 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
     if (Math.abs(dy) > MAX_OFF_Y || dt > MAX_TIME) return;
 
     if (dx <= -THRESH_X && goLeftHref){
+      window.__swipeNavigating = true;
       document.documentElement.classList.add('slide-out-left');
       setTimeout(()=> location.href = goLeftHref, animateMs);
     } else if (dx >= THRESH_X && goRightHref){
+      window.__swipeNavigating = true;
       document.documentElement.classList.add('slide-out-right');
       setTimeout(()=> location.href = goRightHref, animateMs);
     }
@@ -355,7 +371,101 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
   document.addEventListener('pointerup',  onEnd,   { passive:true });
 }
 
-// ✅ list: 우→좌 = index 로 돌아가기
+// ✅ list: 우→좌 = index 로 돌아가기 (단순형 유지)
 initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
 
-// End of js/list.js (v1.6.0)
+/* ===================== */
+/* 고급형 스와이프 — 끌리는 모션 (upload와 동일 감) */
+/* ===================== */
+(function(){
+  function initDragSwipe({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0 }={}){
+    const page = document.querySelector('main') || document.body;
+    if(!page) return;
+
+    // 드래그 성능 향상 힌트
+    if(!page.style.willChange || !page.style.willChange.includes('transform')){
+      page.style.willChange = (page.style.willChange ? page.style.willChange + ', transform' : 'transform');
+    }
+
+    let x0=0, y0=0, t0=0, active=false, canceled=false;
+    const isInteractive = (el)=> !!(el && (el.closest('input,textarea,select,button,a,[role="button"],[contenteditable="true"]')));
+
+    function reset(anim=true){
+      if(anim) page.style.transition = 'transform 180ms ease';
+      requestAnimationFrame(()=>{ page.style.transform = 'translateX(0px)'; });
+      setTimeout(()=>{ if(anim) page.style.transition = ''; }, 200);
+    }
+
+    function start(e){
+      // 이미 다른 네비가 진행 중이면 무시
+      if (window.__swipeNavigating) return;
+
+      const t = (e.touches && e.touches[0]) || (e.pointerType ? e : null);
+      if(!t) return;
+      if(isInteractive(e.target)) return; // 폼 요소 위에서는 시작하지 않음
+      x0 = t.clientX; y0 = t.clientY; t0 = Date.now();
+      active = true; canceled = false;
+      page.style.transition = 'none';
+    }
+
+    function move(e){
+      if(!active) return;
+      const t = (e.touches && e.touches[0]) || (e.pointerType ? e : null);
+      if(!t) return;
+      const dx = t.clientX - x0;
+      const dy = t.clientY - y0;
+      if(Math.abs(dy) > slop){
+        canceled = true; active = false;
+        reset(true);
+        return;
+      }
+      // 손가락에 따라 화면을 좌/우로 끌기
+      e.preventDefault(); // 수평 제스처 시 스크롤 방지
+      page.style.transform = 'translateX(' + (dx * feel) + 'px)';
+    }
+
+    function end(e){
+      if(!active) return; active = false;
+      const t = (e.changedTouches && e.changedTouches[0]) || (e.pointerType ? e : null);
+      if(!t) return;
+      const dx = t.clientX - x0;
+      const dy = t.clientY - y0;
+      const dt = Date.now() - t0;
+
+      if(canceled || Math.abs(dy) > slop || dt > timeMax){
+        reset(true);
+        return;
+      }
+
+      if(dx >= threshold && goRightHref){
+        // 오른쪽 스와이프
+        window.__swipeNavigating = true;
+        page.style.transition = 'transform 160ms ease';
+        page.style.transform  = 'translateX(100vw)';
+        setTimeout(()=>{ location.href = goRightHref; }, 150);
+      } else if(dx <= -threshold && goLeftHref){
+        // 왼쪽 스와이프 → index
+        window.__swipeNavigating = true;
+        page.style.transition = 'transform 160ms ease';
+        page.style.transform  = 'translateX(-100vw)';
+        setTimeout(()=>{ location.href = goLeftHref; }, 150);
+      } else {
+        reset(true);
+      }
+    }
+
+    // 터치 & 포인터: end/up은 capture:true로 등록해 단순형보다 먼저 실행
+    document.addEventListener('touchstart',  start, { passive:true });
+    document.addEventListener('touchmove',   move,  { passive:false });
+    document.addEventListener('touchend',    end,   { passive:true, capture:true });
+
+    document.addEventListener('pointerdown', start, { passive:true });
+    document.addEventListener('pointermove', move,  { passive:false });
+    document.addEventListener('pointerup',   end,   { passive:true, capture:true });
+  }
+
+  // list: 우→좌 = index 로 돌아가기 (끌리는 모션)
+  initDragSwipe({ goLeftHref: 'index.html', goRightHref: null, threshold:60, slop:45, timeMax:700, feel:1.0 });
+})();
+
+// End of js/list.js (v1.7.0)
