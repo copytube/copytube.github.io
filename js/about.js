@@ -13,7 +13,7 @@ onAuthStateChanged(auth, (user)=>{
   const logged = !!user;
   signupLink?.classList.toggle('hidden', logged);
   signinLink?.classList.toggle('hidden', logged);
-  welcome && (welcome.textContent = logged ? `안녕하세요, ${user.displayName || '회원'}님` : '');
+  welcome && (welcome.textContent = logged ? `Hi! ${user.displayName || '회원'}님` : '');
 });
 
 /* 관리자 전용 영역 & 버튼 */
