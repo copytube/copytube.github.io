@@ -22,7 +22,7 @@ onAuthStateChanged(auth, (user) => {
   const loggedIn = !!user;
   signupLink?.classList.toggle('hidden', loggedIn);
   signinLink?.classList.toggle('hidden', loggedIn);
-  if (welcome) welcome.textContent = loggedIn ? `안녕하세요, ${user?.displayName || '회원'}님` : '';
+  if (welcome) welcome.textContent = loggedIn ? `Hi! ${user?.displayName || '회원'}님` : '';
 });
 
 // 메뉴/버튼
