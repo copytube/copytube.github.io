@@ -271,3 +271,10 @@ body{
   cursor:pointer;
 }
 .s_bar .btn:hover { background: #1a1a1a; }
+
+/* 선택자를 조금 더 좁혀서: #controlsGrid 아래로 한정 */
+#controlsGrid { gap: 8px !important; }
+#controlsGrid .btn-clip,
+#controlsGrid .btn-submit{ min-height: 64px !important; padding: 6px 12px !important; }
+#controlsGrid .order-col{ gap: 8px !important; }
+#controlsGrid .pill-radio{ padding: 8px 12px !important; gap: 8px !important; }
