@@ -19,10 +19,17 @@ onAuthStateChanged(auth, (user)=>{
 /* 관리자 전용 버튼 표시 */
 const btnAdminMsgs    = document.getElementById('btnAdminMsgs');
 const btnAdminMembers = document.getElementById('btnAdminMembers');
-requireAdminUI([btnAdminMsgs, btnAdminMembers]); // 관리자면 표시
+const btnAdminExport  = document.getElementById('btnAdminExport');   // 추가
+const btnAdminBulk    = document.getElementById('btnAdminBulk');     // 추가
 
-btnAdminMsgs?.addEventListener('click', ()=> location.href='admin-feedback.html');
+// 관리자면 네 버튼 모두 표시
+requireAdminUI([btnAdminMsgs, btnAdminMembers, btnAdminExport, btnAdminBulk]);
+
+// 이동
+btnAdminMsgs   ?.addEventListener('click', ()=> location.href='admin-feedback.html');
 btnAdminMembers?.addEventListener('click', ()=> location.href='admin-members.html');
+btnAdminExport ?.addEventListener('click', ()=> location.href='admin-export.html');
+btnAdminBulk   ?.addEventListener('click', ()=> location.href='admin-bulk-upload.html');
 
 /* 의견 전송 */
 const btnSend  = document.getElementById('btnSend');
