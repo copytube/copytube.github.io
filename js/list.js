@@ -1,16 +1,47 @@
 // js/list.js (v1.6.0) — 로그인 없이 공개 목록 조회, 카테고리/검색 필터, watch로 큐/인덱스 전달
 import { db } from './firebase-init.js';
 import {
-  collection, getDocs, query, orderBy, limit, startAfter
+  collection, getDocs, query, orderBy, limit, startAfter,
+  onAuthStateChanged,
+  signOut as fbSignOut,
+  // 아래 2줄은 '영속성'을 확실히 하고 싶을 때만 사용(선택)
+  // setPersistence,
+  // browserLocalPersistence
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 
 /* ---------- DOM ---------- */
+const signupLink = document.getElementById('signupLink');
+const signinLink = document.getElementById('signinLink');
+const welcome    = document.getElementById('welcome');
+const menuBtn    = document.getElementById('menuBtn');
+const dropdown   = document.getElementById('dropdownMenu');
+const btnSignOut = document.getElementById('btnSignOut');
+const btnGoUpload= document.getElementById('btnGoUpload');
+const btnAbout   = document.getElementById('btnAbout');
 const $cards     = document.getElementById('cards');
 const $msg       = document.getElementById('msg') || document.getElementById('resultMsg');
 const $q         = document.getElementById('q');
 const $btnSearch = document.getElementById('btnSearch');
 const $btnClear  = document.getElementById('btnClear');
 const $btnMore   = document.getElementById('btnMore');
+
+
+// 로그인 상태에 따라 상단바 토글
+onAuthStateChanged(auth, (user) => {
+  const loggedIn = !!user;
+  signupLink?.classList.toggle('hidden', loggedIn);
+  signinLink?.classList.toggle('hidden', loggedIn);
+  if (welcome) welcome.textContent = loggedIn ? `안녕하세요, ${user?.displayName || '회원'}님` : '';
+});
+
+// 메뉴/버튼 동작(있을 때만)
+menuBtn   ?.addEventListener('click', (e)=>{ e.stopPropagation(); dropdown?.classList.toggle('hidden'); });
+btnSignOut?.addEventListener('click', async ()=>{
+  if (!auth.currentUser) { location.href = 'signin.html'; return; }
+  try { await fbSignOut(auth); } catch {}
+});
+btnGoUpload?.addEventListener('click', ()=> location.href = 'upload.html');
+btnAbout   ?.addEventListener('click', ()=> location.href = 'about.html');
 
 /* ---------- 상태 ---------- */
 const PAGE_SIZE = 60;
