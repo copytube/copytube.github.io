@@ -1,4 +1,4 @@
-// js/upload.js (v1.5.2)
+// js/upload.js (v1.6.0) — 업로드 시 제목(oEmbed) 저장 포함
 import { auth, db } from './firebase-init.js?v=1.5.1';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
@@ -139,6 +139,17 @@ const urlsBox = $('#urls');
 function parseUrls(){ return urlsBox.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); }
 function extractId(url){ const m=String(url).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/); return m?m[1]:''; }
 
+/* ------- (추가) 제목 가져오기: oEmbed ------- */
+async function fetchTitleById(id){
+  if(!id) return '';
+  try{
+    const res = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(`https://www.youtube.com/watch?v=${id}`));
+    if(!res.ok) throw 0;
+    const data = await res.json();
+    return String(data?.title || '').slice(0,200);
+  }catch{ return ''; }
+}
+
 /* ------- 붙여넣기 ------- */
 $('#btnPaste')?.addEventListener('click', async ()=>{
   try{
@@ -207,15 +218,35 @@ async function submitAll(){
 
   setMsg(`등록 중... (0/${list.length})`);
   let ok=0, fail=0;
+
+  // 순차 처리(간단/안전) — 대량 시 병렬화 가능
   for(let i=0;i<list.length;i++){
     const url = list[i];
-    if(!extractId(url)){ fail++; setMsg(`등록 중... (${ok+fail}/${list.length})`); continue; }
+    const id  = extractId(url);
+    if(!id){ fail++; setMsg(`등록 중... (${ok+fail}/${list.length})`); continue; }
+
+    // (추가) 제목 oEmbed — 실패해도 진행
+    let title = '';
+    try{ title = await fetchTitleById(id); }catch{}
+
     try{
-      await addDoc(collection(db,'videos'), { url, categories:normals, uid:user.uid, createdAt: serverTimestamp() });
+      const docData = {
+        url,
+        ...(title ? { title } : {}),    // 빈 문자열이면 필드 생략
+        categories: normals,
+        uid: user.uid,
+        createdAt: serverTimestamp(),
+        // (옵션) 썸네일도 함께 저장하려면 아래 주석 해제
+        // thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+      };
+      await addDoc(collection(db,'videos'), docData);
       ok++;
-    }catch{ fail++; }
+    }catch{
+      fail++;
+    }
     setMsg(`등록 중... (${ok+fail}/${list.length})`);
   }
+
   setMsg(`완료: 성공 ${ok}건, 실패 ${fail}건`);
   if(ok){ urlsBox.value=''; document.querySelectorAll('.cat:checked').forEach(c=> c.checked=false); }
 }
@@ -281,10 +312,7 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
   document.addEventListener('pointerup',  onEnd,   { passive:true });
 }
 
-// upload: 왼→오 → index
-initSwipeNav({ goLeftHref: null, goRightHref: 'index.html' });
-
-// End of js/upload.js (v1.5.2)
+// (중복 호출 방지 차원에서 위 단순형은 '정의'만 두고 호출은 하지 않습니다)
 
 /* ---------- 스와이프 네비게이션(시각 피드백 포함) upload → index ---------- */
 (function(){
@@ -299,7 +327,7 @@ initSwipeNav({ goLeftHref: null, goRightHref: 'index.html' });
 
     let x0=0, y0=0, t0=0, active=false, canceled=false;
 
-    const isInteractive = (el)=> !!(el && (el.closest('input,textarea,select,button,a,[role=\"button\"],[contenteditable=\"true\"]')));
+    const isInteractive = (el)=> !!(el && (el.closest('input,textarea,select,button,a,[role="button"],[contenteditable="true"]')));
 
     function reset(anim=true){
       if(anim) page.style.transition = 'transform 180ms ease';
@@ -327,14 +355,12 @@ initSwipeNav({ goLeftHref: null, goRightHref: 'index.html' });
         reset(true);
         return;
       }
-      // 살짝 끌리는 느낌: 오른쪽으로만 시각 이동
+      // 오른쪽으로만 살짝 끌리는 느낌
       if(dx > 0){
-        // 스와이프 감지 시 수평 스크롤 방지
-        e.preventDefault();
+        e.preventDefault(); // 수평 제스처 시 스크롤 방지
         const offset = dx * feel;
         page.style.transform = 'translateX(' + offset + 'px)';
       }else{
-        // 좌측으로는 효과 없이 고정
         page.style.transform = 'translateX(0px)';
       }
     }
@@ -362,7 +388,6 @@ initSwipeNav({ goLeftHref: null, goRightHref: 'index.html' });
         page.style.transform = 'translateX(-100vw)';
         setTimeout(()=>{ location.href = goLeftHref; }, 150);
       }else{
-        // 실패: 원복
         reset(true);
       }
     }
@@ -380,4 +405,3 @@ initSwipeNav({ goLeftHref: null, goRightHref: 'index.html' });
   // upload: 왼→오 → index 로 이동 (index.html 느낌에 맞춰 threshold/ease 설정)
   initSwipeNav({ goRightHref: 'index.html', threshold:60, slop:45, timeMax:700, feel:1.0 });
 })();
-
