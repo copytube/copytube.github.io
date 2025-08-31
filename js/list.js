@@ -1,6 +1,6 @@
 // js/list.js (v1.7.0) — list 페이지에 '끌리는 모션' 스와이프 추가(단순형 유지)
 import { auth, db } from './firebase-init.js';
-import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
+import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import {
   collection, getDocs, query, orderBy, limit, startAfter
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
