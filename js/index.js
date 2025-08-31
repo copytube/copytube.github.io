@@ -1,4 +1,4 @@
-// js/index.js (v1.6.0)
+// js/index.js (v1.7.0) — drag-follow swipe added, simple swipe kept
 import { CATEGORY_GROUPS } from './categories.js?v=1.5.1';
 import { auth } from './firebase-init.js?v=1.5.1';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
@@ -6,8 +6,8 @@ import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 const GROUP_ORDER_KEY = 'groupOrderV1';
 const isPersonalVal = (v)=> v==='personal1' || v==='personal2';
 
-// helper: "전체선택"에서 제외할 그룹 키
-const EXCLUDED_GROUPS_FOR_ALL = new Set(['personal','series']);
+// 전역 내비게이션 가드(단순형/고급형 중복 방지)
+window.__swipeNavigating = window.__swipeNavigating || false;
 
 /* ---------- group order ---------- */
 function applyGroupOrder(groups){
@@ -184,7 +184,7 @@ function selectAll(on){
     .querySelectorAll('.group:not([data-key="personal"]):not([data-key="series"]) input.cat')
     .forEach(b => { b.checked = !!on; });
 
-  // ✅ 전체선택 시 personal/series는 항상 해제
+  // 전체선택 시 personal/series는 항상 해제
   catsBox.querySelectorAll('.group[data-key="personal"] input.cat:checked, .group[data-key="series"] input.cat:checked')
     .forEach(c => { c.checked = false; });
 
@@ -219,7 +219,7 @@ cbToggleAll?.addEventListener('change', ()=> selectAll(!!cbToggleAll.checked));
 
 /* ---------- go watch ---------- */
 btnWatch?.addEventListener('click', ()=>{
-  // ✅ list→watch 때 남은 큐를 초기화해, index→watch는 항상 최신부터 시작
+  // list→watch 잔여 큐 무시: index→watch는 항상 최신부터 시작
   sessionStorage.removeItem('playQueue'); sessionStorage.removeItem('playIndex');
 
   const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
@@ -253,7 +253,7 @@ window.addEventListener('storage', (e)=>{
 });
 
 /* ===================== */
-/* Swipe Navigation + CSS inject (v1.6.0) */
+/* Slide-out CSS (단순형에서도 사용) */
 /* ===================== */
 (function injectSlideCSS(){
   if (document.getElementById('slide-css-152')) return;
@@ -271,7 +271,7 @@ window.addEventListener('storage', (e)=>{
   document.head.appendChild(style);
 })();
 
-/* ✅ index→list 이동 시, 현재 선택을 저장 */
+/* ---------- 선택 저장: index→list 직전 ---------- */
 function persistSelectedCatsForList(){
   const selected = Array.from(document.querySelectorAll('.cat:checked')).map(c=>c.value);
   const personals = selected.filter(isPersonalVal);
@@ -289,6 +289,9 @@ function persistSelectedCatsForList(){
   localStorage.setItem('selectedCats', JSON.stringify(valueToSave));
 }
 
+/* ===================== */
+/* 단순형 스와이프(기존 유지) */
+/* ===================== */
 function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {}){
   let sx=0, sy=0, t0=0, tracking=false;
   const THRESH_X = 70;
@@ -302,6 +305,10 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
   }
   function onEnd(e){
     if(!tracking) return; tracking = false;
+
+    // 고급형이 이미 처리 중이면 종료
+    if (window.__swipeNavigating) return;
+
     const p = getPoint(e);
     const dx = p.clientX - sx;
     const dy = p.clientY - sy;
@@ -309,10 +316,12 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
     if (Math.abs(dy) > MAX_OFF_Y || dt > MAX_TIME) return;
 
     if (dx <= -THRESH_X && goLeftHref){
+      window.__swipeNavigating = true;
       document.documentElement.classList.add('slide-out-left');
       setTimeout(()=> location.href = goLeftHref, animateMs);
     } else if (dx >= THRESH_X && goRightHref){
-      // ✅ list로 가기 전에 현재 선택 저장
+      window.__swipeNavigating = true;
+      // list로 가기 전에 현재 선택 저장
       persistSelectedCatsForList();
       document.documentElement.classList.add('slide-out-right');
       setTimeout(()=> location.href = goRightHref, animateMs);
@@ -324,7 +333,103 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
   document.addEventListener('pointerup',  onEnd,   { passive:true });
 }
 
-// ✅ index: 우→좌 = upload, 좌→우 = list
+// ✅ index: 우→좌 = upload, 좌→우 = list (단순형 유지)
 initSwipeNav({ goLeftHref: 'upload.html', goRightHref: 'list.html' });
 
-// End of js/index.js (v1.6.0)
+/* ===================== */
+/* 고급형 스와이프(끌리는 모션, upload와 동일 감) */
+/* ===================== */
+(function(){
+  function initDragSwipe({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0 }={}){
+    const page = document.querySelector('main') || document.body;
+    if(!page) return;
+
+    // 드래그 성능 향상 힌트
+    if(!page.style.willChange || !page.style.willChange.includes('transform')){
+      page.style.willChange = (page.style.willChange ? page.style.willChange + ', transform' : 'transform');
+    }
+
+    let x0=0, y0=0, t0=0, active=false, canceled=false;
+    const isInteractive = (el)=> !!(el && (el.closest('input,textarea,select,button,a,[role="button"],[contenteditable="true"]')));
+
+    function reset(anim=true){
+      if(anim) page.style.transition = 'transform 180ms ease';
+      requestAnimationFrame(()=>{ page.style.transform = 'translateX(0px)'; });
+      setTimeout(()=>{ if(anim) page.style.transition = ''; }, 200);
+    }
+
+    function start(e){
+      // 이미 다른 네비가 진행 중이면 무시
+      if (window.__swipeNavigating) return;
+
+      const t = (e.touches && e.touches[0]) || (e.pointerType ? e : null);
+      if(!t) return;
+      if(isInteractive(e.target)) return; // 폼 요소 위에서 시작하면 무시
+      x0 = t.clientX; y0 = t.clientY; t0 = Date.now();
+      active = true; canceled = false;
+      page.style.transition = 'none';
+    }
+
+    function move(e){
+      if(!active) return;
+      const t = (e.touches && e.touches[0]) || (e.pointerType ? e : null);
+      if(!t) return;
+      const dx = t.clientX - x0;
+      const dy = t.clientY - y0;
+      if(Math.abs(dy) > slop){
+        canceled = true; active = false;
+        reset(true);
+        return;
+      }
+      // 손가락에 따라 화면을 좌/우로 끌기
+      e.preventDefault(); // 수평 제스처 시 스크롤 방지
+      page.style.transform = 'translateX(' + (dx * feel) + 'px)';
+    }
+
+    function end(e){
+      if(!active) return; active = false;
+      const t = (e.changedTouches && e.changedTouches[0]) || (e.pointerType ? e : null);
+      if(!t) return;
+      const dx = t.clientX - x0;
+      const dy = t.clientY - y0;
+      const dt = Date.now() - t0;
+
+      if(canceled || Math.abs(dy) > slop || dt > timeMax){
+        reset(true);
+        return;
+      }
+
+      if(dx >= threshold && goRightHref){
+        // 오른쪽 스와이프 → list.html
+        window.__swipeNavigating = true;
+        // index→list: 현재 선택 저장
+        persistSelectedCatsForList();
+        page.style.transition = 'transform 160ms ease';
+        page.style.transform  = 'translateX(100vw)';
+        setTimeout(()=>{ location.href = goRightHref; }, 150);
+      } else if(dx <= -threshold && goLeftHref){
+        // 왼쪽 스와이프 → upload.html
+        window.__swipeNavigating = true;
+        page.style.transition = 'transform 160ms ease';
+        page.style.transform  = 'translateX(-100vw)';
+        setTimeout(()=>{ location.href = goLeftHref; }, 150);
+      } else {
+        reset(true);
+      }
+    }
+
+    // 터치 & 포인터: end/up은 capture:true로 등록해 단순형보다 먼저 실행
+    document.addEventListener('touchstart',  start, { passive:true });
+    document.addEventListener('touchmove',   move,  { passive:false });
+    document.addEventListener('touchend',    end,   { passive:true, capture:true });
+
+    document.addEventListener('pointerdown', start, { passive:true });
+    document.addEventListener('pointermove', move,  { passive:false });
+    document.addEventListener('pointerup',   end,   { passive:true, capture:true });
+  }
+
+  // index: 좌→우 = list, 우→좌 = upload (고급형 추가)
+  initDragSwipe({ goLeftHref: 'upload.html', goRightHref: 'list.html', threshold:60, slop:45, timeMax:700, feel:1.0 });
+})();
+
+// End of js/index.js (v1.7.0)
