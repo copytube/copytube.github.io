@@ -1,13 +1,7 @@
 // js/list.js (v1.6.0) — 로그인 없이 공개 목록 조회, 카테고리/검색 필터, watch로 큐/인덱스 전달
-import { db } from './firebase-init.js';
-import {
-  collection, getDocs, query, orderBy, limit, startAfter,
-  onAuthStateChanged,
-  signOut as fbSignOut,
-  // 아래 2줄은 '영속성'을 확실히 하고 싶을 때만 사용(선택)
-  // setPersistence,
-  // browserLocalPersistence
-} from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
+ import { auth, db } from './firebase-init.js';
+ import { onAuthStateChanged, signOut as fbSignOut } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
+ import { collection, getDocs, query, orderBy, limit, startAfter } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 
 /* ---------- DOM ---------- */
 const signupLink = document.getElementById('signupLink');
