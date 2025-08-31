@@ -19,28 +19,49 @@
 
   <link rel="stylesheet" href="css/style.css"/>
   <style>
+    /* --- 원본 1열 유지 강제: 혹시 글로벌 스타일에 column-count 등이 있어도 무시 --- */
+    main, .card, .logo-wrap, .admin-table-wrap, .feedback-wrap {
+      column-count: 1 !important; column-gap: 0 !important;
+    }
+
     body{ padding-top:72px; }
     main{ max-width:900px; margin:0 auto; padding:16px; }
     h2{ margin:8px 0 12px; }
-    .admin-bar{
-      display:flex; gap:8px; align-items:center; margin:6px 0 12px;
-      justify-content:flex-start; /* admin 버튼 좌측 정렬 */
-      flex-wrap: wrap;
-    }
-    .admin-bar .btn{ padding:8px 12px; border-radius:8px; border:1px solid #2a2a2a; background:#111; color:#fff; cursor:pointer; }
+
     .card{
-      border:1px solid var(--border); background:#101010; border-radius:10px; padding:12px; margin:12px 0;
+      border:1px solid var(--border); background:#101010;
+      border-radius:10px; padding:12px; margin:12px 0;
     }
+
+    .logo-wrap{ text-align:center; }
+    .logo-wrap img{ max-width:min(420px, 100%); height:auto; display:inline-block; }
+
+    /* 관리자 전용 표 */
+    .admin-table-wrap{ margin:12px 0; display:none; } /* admin만 표시 */
+    .admin-table{
+      width:100%; border-collapse:collapse; background:#101010; border:1px solid #2a2a2a; border-radius:10px; overflow:hidden;
+    }
+    .admin-table th, .admin-table td{
+      border-bottom:1px solid #2a2a2a; padding:10px 12px; text-align:left; font-size:14px;
+    }
+    .admin-table tr:last-child th, .admin-table tr:last-child td{ border-bottom:none; }
+    .admin-table th{ width:160px; color:#9aa0a6; font-weight:600; }
+
+    .btn{
+      padding:8px 12px; border-radius:8px; border:1px solid #2a2a2a; background:#111; color:#fff; cursor:pointer;
+    }
+    .btn-primary{
+      background:#4ea1ff; color:#fff; font-weight:800; border:0; border-radius:8px; padding:10px 14px; cursor:pointer;
+    }
+
     .field{ display:flex; flex-direction:column; gap:6px; margin-top:8px; }
     textarea{
       width:100%; min-height:120px; resize:vertical; padding:10px; border-radius:8px;
       border:1px solid #333; background:#000; color:#fff; box-sizing:border-box;
+      display:block; /* 강제 1열 */
     }
     .row-right{ display:flex; justify-content:flex-end; margin-top:8px; }
-    .btn-primary{ background:#4ea1ff; color:#fff; font-weight:800; border:0; border-radius:8px; padding:10px 14px; cursor:pointer; }
     .msg{ margin-top:8px; font-size:13px; color:#ccc; min-height:1.2em; white-space:pre-line; }
-    .logo-wrap{ text-align:center; }
-    .logo-wrap img{ max-width:min(420px, 100%); height:auto; display:inline-block; }
   </style>
 </head>
 <body>
@@ -65,6 +86,7 @@
   </header>
 
   <main>
+    <!-- 설명문 (원본 유지) -->
     <h2>CopyTube는…</h2>
     <div class="card">
       <p>CopyTube는 YouTube 알고리즘이 아닌 <strong>개인이 추천한 영상</strong>으로 만들어집니다.</p>
@@ -82,31 +104,49 @@
       <p>이용해주셔서 감사합니다.</p>
     </div>
 
+    <!-- 큰 로고 (원본 유지) -->
     <div class="logo-wrap">
       <img src="image/copytube_logo_512.png" alt="CopyTube 로고"/>
     </div>
 
-    <!-- 관리자 전용 버튼(좌측 정렬) -->
-    <div class="admin-bar">
-      <button id="btnAdminMsgs" class="btn" style="display:none;">메시지 확인</button>
-      <button id="btnAdminMembers" class="btn" style="display:none;">회원관리</button>
-      <!-- 추가된 두 버튼 -->
-      <button id="btnAdminExport" class="btn" style="display:none;">영상추출</button>
-      <button id="btnAdminBulk" class="btn" style="display:none;">대량업로드</button>
-    </div>
+    <!-- 관리자 전용 표 (admin만 보임) -->
+    <section id="adminSection" class="admin-table-wrap">
+      <table class="admin-table" aria-label="관리자 도구">
+        <tbody>
+          <tr>
+            <th scope="row">피드백 관리</th>
+            <td><button id="btnAdminMsgs" class="btn">메시지 확인</button></td>
+          </tr>
+          <tr>
+            <th scope="row">회원 관리</th>
+            <td><button id="btnAdminMembers" class="btn">회원관리</button></td>
+          </tr>
+          <tr>
+            <th scope="row">데이터 추출</th>
+            <td><button id="btnAdminExport" class="btn">영상추출</button></td>
+          </tr>
+          <tr>
+            <th scope="row">대량 업로드</th>
+            <td><button id="btnAdminBulk" class="btn">대량업로드</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
 
-    <!-- 의견함 -->
-    <div class="card">
-      <h3 style="margin:0 0 6px;">의견 보내기</h3>
-      <p style="margin:0 0 6px; color:#9aa0a6; font-size:13px;">로그인 후 전송할 수 있어요. 버그 신고/기능 제안/카테고리 추가 요청 등 무엇이든 환영합니다.</p>
-      <div class="field">
-        <textarea id="feedback" maxlength="2000" placeholder="최대 2,000자까지 입력"></textarea>
+    <!-- 의견함 (원본 순서 유지) -->
+    <section class="feedback-wrap">
+      <div class="card">
+        <h3 style="margin:0 0 6px;">의견 보내기</h3>
+        <p style="margin:0 0 6px; color:#9aa0a6; font-size:13px;">로그인 후 전송할 수 있어요. 버그 신고/기능 제안/카테고리 추가 요청 등 무엇이든 환영합니다.</p>
+        <div class="field">
+          <textarea id="feedback" maxlength="2000" placeholder="최대 2,000자까지 입력"></textarea>
+        </div>
+        <div class="row-right">
+          <button id="btnSend" class="btn-primary">전송</button>
+        </div>
+        <div id="msg" class="msg"></div>
       </div>
-      <div class="row-right">
-        <button id="btnSend" class="btn-primary">전송</button>
-      </div>
-      <div id="msg" class="msg"></div>
-    </div>
+    </section>
   </main>
 
   <script type="module" src="js/firebase-init.js"></script>
