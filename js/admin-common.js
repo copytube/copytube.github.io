@@ -28,7 +28,10 @@ export function requireAdminUI(adminOnlyEls){
   // adminOnlyEls: NodeList 또는 배열(관리자만 보여줄 엘리먼트들)
   onAuthStateChanged(auth, async (user)=>{
     const ok = !!user && await isAdminCurrentUser();
-    adminOnlyEls.forEach(el => el.style.display = ok ? '' : 'none');
+    adminOnlyEls.forEach(el => {
+     if (!el) return;
+     el.style.display = ok ? 'block' : 'none';
+    });
   });
 }
 
