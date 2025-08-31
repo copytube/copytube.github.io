@@ -1,4 +1,4 @@
-// js/admin-members.js (console-only admin tools)
+// js/admin-members.js (닉네임 폴백 적용판)
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged } from './auth.js';
 import { isAdminCurrentUser, escapeHTML, fmtDate } from './admin-common.js';
@@ -17,15 +17,21 @@ document.getElementById('btnBack')?.addEventListener('click', ()=> location.href
 document.addEventListener('pointerdown', (e)=>{ if(dropdown.classList.contains('hidden')) return; if(!e.target.closest('#dropdownMenu,#menuBtn')) close(); }, true);
 
 /* DOM */
-const usersBox  = document.getElementById('users');
+const usersBox  = document.getElementById('users');     // admin-members.html 기준 id 확인됨
 const usersMsg  = document.getElementById('usersMsg');
 const logsMsg   = document.getElementById('logsMsg');
 const logsTbody = document.querySelector('#logsTbl tbody');
 
+/* 최신 닉네임 캐시 (uid -> displayName) */
+const latestNameByUid = new Map();
+
 onAuthStateChanged(auth, async (user)=>{
   // 관리자만 접근
   if (!user || !(await isAdminCurrentUser())){ location.href='about.html'; return; }
-  await Promise.all([loadUsers(), loadLogs()]);
+  // 1) 로그인 기록 먼저 → 폴백 닉 확보
+  await loadLogs();
+  // 2) 사용자 목록에서 폴백 적용해 렌더
+  await loadUsers();
 });
 
 async function loadUsers(){
@@ -39,6 +45,14 @@ async function loadUsers(){
       const u = d.data();
       const uid = d.id;
 
+      // 닉네임: users.displayName → login_logs 폴백 → 기본표시
+      let displayName = (u.displayName || '').toString().trim();
+      if (!displayName) {
+        const fb = (latestNameByUid.get(uid) || '').toString().trim();
+        if (fb) displayName = fb;
+      }
+      if (!displayName) displayName = '(닉네임없음)';
+
       // 밴 여부
       const bannedSnap = await getDoc(doc(db,'banned_users', uid));
       const isBanned = bannedSnap.exists();
@@ -48,7 +62,7 @@ async function loadUsers(){
       row.innerHTML = `
         <div>
           <div class="meta">
-            <strong>${escapeHTML(u.displayName || '(닉네임없음)')}</strong>
+            <strong>${escapeHTML(displayName)}</strong>
             <span class="badge">UID: ${escapeHTML(uid)}</span>
             ${isBanned?'<span class="badge" style="border-color:#dc2626;color:#ffb4b4;">BANNED</span>':''}
           </div>
@@ -80,8 +94,13 @@ async function loadLogs(){
   try{
     const snap = await getDocs(query(collection(db,'login_logs'), orderBy('at','desc'), limit(200)));
     logsTbody.innerHTML='';
+    latestNameByUid.clear();
     snap.docs.forEach(d=>{
       const v = d.data();
+      // 최신순이므로 최초 세팅이 가장 최신 닉
+      if (v.uid && v.displayName && !latestNameByUid.has(v.uid)){
+        latestNameByUid.set(v.uid, String(v.displayName));
+      }
       const tr = document.createElement('tr');
       tr.innerHTML = `<td>${escapeHTML(fmtDate(v.at))}</td>
                       <td>${escapeHTML(v.displayName || '')}</td>
@@ -136,14 +155,13 @@ async function forceDeleteSoft(uid){
       }
     }catch(_){}
 
-    // 3) 영상 일괄 삭제 (루프 배치)
+    // 3) 영상 일괄 삭제
     while(true){
       const snap = await getDocs(query(collection(db,'videos'), where('uid','==',uid), limit(300)));
       if (snap.empty) break;
       const batch = writeBatch(db);
       snap.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
-      // 많은 데이터라도 반복 처리
     }
 
     // 4) users 문서 삭제
