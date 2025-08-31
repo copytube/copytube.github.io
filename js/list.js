@@ -1,4 +1,4 @@
-// js/list.js (v1.7.0) — list 페이지에 '끌리는 모션' 스와이프 추가(단순형 유지)
+// js/list.js (v1.7.1) — 제목 oEmbed 보강(+7일 캐시) 추가, 스와이프(단순/끌림) 유지
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import {
@@ -41,7 +41,7 @@ const $cards     = document.getElementById('cards');
 const $msg       = document.getElementById('msg') || document.getElementById('resultMsg');
 const $q         = document.getElementById('q');
 const $btnSearch = document.getElementById('btnSearch');
-const $btnClear  = document.getElementById('btnClear'); // 없어도 안전 (옵셔널 체이닝)
+const $btnClear  = document.getElementById('btnClear'); // 없어도 안전 (옵셔널)
 const $btnMore   = document.getElementById('btnMore');
 
 /* ---------- 상태 ---------- */
@@ -77,6 +77,58 @@ function getLabel(key){
 }
 function setStatus(t){ if($msg) $msg.textContent = t || ''; }
 function toggleMore(show){ if($btnMore) $btnMore.style.display = show ? '' : 'none'; }
+
+/* ---------- 제목 캐시(oEmbed, 7일) + 임시메모리 ---------- */
+const TitleCache = {
+  get(id){
+    try{
+      const j = localStorage.getItem('yt_title_'+id);
+      if(!j) return null;
+      const { t, exp } = JSON.parse(j);
+      if(exp && Date.now() > exp){ localStorage.removeItem('yt_title_'+id); return null; }
+      return t || null;
+    }catch{ return null; }
+  },
+  set(id, title){
+    try{
+      const exp = Date.now() + 7*24*60*60*1000; // 7일
+      localStorage.setItem('yt_title_'+id, JSON.stringify({ t: String(title||'').slice(0,200), exp }));
+    }catch{}
+  }
+};
+// 렌더/검색 품질 강화를 위한 임시 메모리(세션 중)
+const lazyTitleMap = new Map();
+
+async function fetchYouTubeTitleById(id){
+  if(!id) return null;
+  // 캐시 히트 우선
+  const c = TitleCache.get(id);
+  if(c){ lazyTitleMap.set(id,c); return c; }
+
+  try{
+    const url = `https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=${id}`;
+    const res = await fetch(url, { mode:'cors' });
+    if(!res.ok) throw 0;
+    const data = await res.json();
+    const title = data?.title ? String(data.title) : null;
+    if(title){
+      TitleCache.set(id, title);
+      lazyTitleMap.set(id, title);
+    }
+    return title;
+  }catch{
+    return null; // 실패 시 조용히 패스
+  }
+}
+
+async function hydrateTitleIfNeeded(titleEl, url, existingTitle){
+  if(!titleEl) return;
+  if(existingTitle && existingTitle !== '(제목 없음)') return;
+  const id = extractId(url);
+  if(!id) return;
+  const t = await fetchYouTubeTitleById(id);
+  if(t) titleEl.textContent = t;
+}
 
 /* ---------- 개인자료 모드 지원 ---------- */
 function isPersonalOnlySelection(){
@@ -125,7 +177,8 @@ function renderPersonalList(){
   sorted.forEach((it, idx)=>{
     const title = it.title || '(제목 없음)';
     const url   = it.url   || '';
-    const thumb = `https://i.ytimg.com/vi/${extractId(url)}/hqdefault.jpg`;
+    const id    = extractId(url);
+    const thumb = `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
 
     const card = document.createElement('article');
     card.className = 'card';
@@ -139,6 +192,9 @@ function renderPersonalList(){
         <div class="thumb-wrap"><img class="thumb" src="${esc(thumb)}" alt="썸네일" loading="lazy"></div>
       </div>
     `;
+    // 제목 보강(개인자료)
+    hydrateTitleIfNeeded(card.querySelector('.title'), url, title);
+
     card.querySelector('.left') ?.addEventListener('click', ()=> openInWatchPersonal(sorted, idx, slot, label));
     card.querySelector('.thumb')?.addEventListener('click', ()=> openInWatchPersonal(sorted, idx, slot, label));
     frag.appendChild(card);
@@ -153,7 +209,7 @@ function openInWatchPersonal(items, index, slot, label){
   const queue = items.map((it, i)=> ({
     id: `local-${slot}-${i}`,
     url: it.url || '',
-    title: it.title || '(제목 없음)',
+    title: it.title || lazyTitleMap.get(extractId(it.url||'')) || '(제목 없음)',
     cats: [label]
   }));
   sessionStorage.setItem('playQueue', JSON.stringify(queue));
@@ -221,7 +277,8 @@ function render(){
   }
   if (q){
     list = list.filter(x => {
-      const t = String(x.data?.title || '').toLowerCase();
+      const id = extractId(x.data?.url || '');
+      const t = String(x.data?.title || lazyTitleMap.get(id) || '').toLowerCase();
       const u = String(x.data?.url || '').toLowerCase();
       return t.includes(q) || u.includes(q);
     });
@@ -253,6 +310,10 @@ function render(){
         <div class="thumb-wrap"><img class="thumb" src="${esc(thumb)}" alt="썸네일" loading="lazy"></div>
       </div>
     `;
+
+    // 제목 보강(oEmbed) — 서버 title이 없을 때만
+    hydrateTitleIfNeeded(card.querySelector('.title'), url, title);
+
     // 왼쪽/썸네일 클릭 → watch로 이동(큐+인덱스)
     card.querySelector('.left') ?.addEventListener('click', ()=> openInWatch(list, idx));
     card.querySelector('.thumb')?.addEventListener('click', ()=> openInWatch(list, idx));
@@ -264,12 +325,15 @@ function render(){
 
 /* ---------- watch로 이동(큐 + 인덱스 + doc + cats 파라미터) ---------- */
 function openInWatch(list, index){
-  const queue = list.map(x => ({
-    id: x.id,
-    url: x.data?.url || '',
-    title: x.data?.title || '',
-    cats: Array.isArray(x.data?.categories) ? x.data.categories : []
-  }));
+  const queue = list.map(x => {
+    const id = extractId(x.data?.url || '');
+    return {
+      id: x.id,
+      url: x.data?.url || '',
+      title: x.data?.title || lazyTitleMap.get(id) || '',
+      cats: Array.isArray(x.data?.categories) ? x.data.categories : []
+    };
+  });
   sessionStorage.setItem('playQueue', JSON.stringify(queue));
   sessionStorage.setItem('playIndex', String(index));
 
@@ -468,4 +532,4 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
   initDragSwipe({ goLeftHref: 'index.html', goRightHref: null, threshold:60, slop:45, timeMax:700, feel:1.0 });
 })();
 
-// End of js/list.js (v1.7.0)
+// End of js/list.js (v1.7.1)
