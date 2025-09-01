@@ -35,6 +35,7 @@ const btnGoUpload  = document.getElementById("btnGoUpload");
 const btnMyUploads = document.getElementById("btnMyUploads");
 const btnAbout     = document.getElementById("btnAbout");
 const btnOrder     = document.getElementById("btnOrder");
+const btnList      = document.getElementById("btnList");
 const brandHome    = document.getElementById("brandHome");
 
 let isMenuOpen=false;
@@ -57,6 +58,7 @@ btnGoUpload  ?.addEventListener("click", ()=>{ location.href = "upload.html"; cl
 btnAbout     ?.addEventListener("click", ()=>{ location.href = "about.html"; closeDropdown(); });
 btnOrder     ?.addEventListener("click", ()=>{ location.href = "category-order.html"; closeDropdown(); });
 btnSignOut   ?.addEventListener("click", async ()=>{ if(!auth.currentUser){ location.href='signin.html'; return; } await fbSignOut(auth); closeDropdown(); });
+btnList      ?.addEventListener("click", ()=>{ location.href = "list.html"; closeDropdown(); });
 brandHome    ?.addEventListener("click",(e)=>{ e.preventDefault(); window.scrollTo({top:0,behavior:"smooth"}); });
 
 /* ---------- cats ---------- */
