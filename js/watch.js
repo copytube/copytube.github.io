@@ -91,7 +91,18 @@ function getSelectedCats(){
   if (fromUrl) return fromUrl;
   try{ return JSON.parse(localStorage.getItem('selectedCats')||'null'); }catch{ return "ALL"; }
 }
-const AUTO_NEXT = localStorage.getItem('autonext')==='on';
+/* ---- AutoNext 읽기(READ-ONLY) ---- */
+function readAutoNext(){
+  const v = (localStorage.getItem('autonext') || '').toLowerCase();
+  // '1' | 'true' | 'on' 을 모두 켜짐으로 인정
+  return v === '1' || v === 'true' || v === 'on';
+}
+let AUTO_NEXT = readAutoNext();
+
+// 다른 탭/페이지에서 값이 바뀌면 실시간 반영(선택)
+window.addEventListener('storage', (e)=>{
+  if(e.key === 'autonext'){ AUTO_NEXT = readAutoNext(); }
+});
 
 /* ---- 개인자료 모드 판정 ---- */
 const sel = getSelectedCats();
