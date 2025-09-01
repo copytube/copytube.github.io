@@ -1,8 +1,14 @@
-// js/upload.js (v1.6.0) — 업로드 시 제목(oEmbed) 저장 포함
+// js/upload.js (v1.7.0)
+// - 업로드 시 제목(oEmbed) 저장 유지
+// - 스와이프: 중앙 30% 데드존 + 방향 잠금(오른쪽으로만 이동 가능) + 중복 내비 가드(__swipeNavigating)
+// - Topbar/드롭다운 동일 패턴 유지
 import { auth, db } from './firebase-init.js?v=1.5.1';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 import { CATEGORY_GROUPS } from './categories.js?v=1.5.1';
+
+/* ------- 전역 내비 중복 방지 ------- */
+window.__swipeNavigating = window.__swipeNavigating || false;
 
 /* ------- 상단바/드롭다운 ------- */
 const $ = (s)=>document.querySelector(s);
@@ -24,7 +30,7 @@ onAuthStateChanged(auth, (user)=>{
   const loggedIn = !!user;
   signupLink?.classList.toggle('hidden', loggedIn);
   signinLink?.classList.toggle('hidden', loggedIn);
-  welcome && (welcome.textContent = loggedIn ? `Hi! ${user.displayName||'회원'}님` : '');
+  if (welcome) welcome.textContent = loggedIn ? `Hi! ${user.displayName||'회원'}님` : '';
   closeDropdown();
 });
 menuBtn?.addEventListener('click',(e)=>{ e.stopPropagation(); dropdown?.classList.contains('hidden') ? openDropdown() : closeDropdown(); });
@@ -141,7 +147,7 @@ const urlsBox = $('#urls');
 function parseUrls(){ return urlsBox.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); }
 function extractId(url){ const m=String(url).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/); return m?m[1]:''; }
 
-/* ------- (추가) 제목 가져오기: oEmbed ------- */
+/* ------- 제목 가져오기: oEmbed ------- */
 async function fetchTitleById(id){
   if(!id) return '';
   try{
@@ -221,25 +227,24 @@ async function submitAll(){
   setMsg(`등록 중... (0/${list.length})`);
   let ok=0, fail=0;
 
-  // 순차 처리(간단/안전) — 대량 시 병렬화 가능
+  // 순차 처리(간단/안전)
   for(let i=0;i<list.length;i++){
     const url = list[i];
     const id  = extractId(url);
     if(!id){ fail++; setMsg(`등록 중... (${ok+fail}/${list.length})`); continue; }
 
-    // (추가) 제목 oEmbed — 실패해도 진행
+    // 제목 oEmbed — 실패해도 진행
     let title = '';
     try{ title = await fetchTitleById(id); }catch{}
 
     try{
       const docData = {
         url,
-        ...(title ? { title } : {}),    // 빈 문자열이면 필드 생략
+        ...(title ? { title } : {}),     // 빈 문자열이면 필드 생략
         categories: normals,
         uid: user.uid,
         createdAt: serverTimestamp(),
-        // (옵션) 썸네일도 함께 저장하려면 아래 주석 해제
-        // thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+        // thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, // 썸네일 저장 원하면 주석 해제
       };
       await addDoc(collection(db,'videos'), docData);
       ok++;
@@ -256,14 +261,14 @@ async function submitAll(){
 $('#btnSubmitTop')   ?.addEventListener('click', submitAll);
 $('#btnSubmitBottom')?.addEventListener('click', submitAll);
 
-// 디버깅 힌트(카테고리 안 보이면 콘솔 확인)
+// 디버깅 힌트
 try{
   console.debug('[upload] CATEGORY_GROUPS keys:', CATEGORY_GROUPS.map(g=>g.key));
   console.debug('[upload] groupOrderV1:', localStorage.getItem('groupOrderV1'));
 }catch{}
 
 /* ===================== */
-/* Swipe Navigation + CSS inject (v1.5.2) */
+/* Slide-out CSS (단순형/백업용) */
 /* ===================== */
 (function injectSlideCSS(){
   if (document.getElementById('slide-css-152')) return;
@@ -281,19 +286,32 @@ try{
   document.head.appendChild(style);
 })();
 
-function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {}){
+/* ===================== */
+/* 단순형 스와이프 정의(중앙 30% 데드존 추가) — 호출 안 함 */
+/* ===================== */
+function simpleSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260, deadZoneCenterRatio=0.30 } = {}){
   let sx=0, sy=0, t0=0, tracking=false;
-  const THRESH_X = 70;
-  const MAX_OFF_Y = 80;
-  const MAX_TIME  = 600;
+  const THRESH_X = 70, MAX_OFF_Y = 80, MAX_TIME = 600;
 
   const getPoint = (e) => e.touches?.[0] || e.changedTouches?.[0] || e;
 
   function onStart(e){
-    const p = getPoint(e); sx = p.clientX; sy = p.clientY; t0 = Date.now(); tracking = true;
+    const p = getPoint(e);
+    if(!p) return;
+
+    // 중앙 데드존
+    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+    const dz = Math.max(0, Math.min(0.9, deadZoneCenterRatio));
+    const L  = vw * (0.5 - dz/2);
+    const R  = vw * (0.5 + dz/2);
+    if (p.clientX >= L && p.clientX <= R) { tracking = false; return; }
+
+    sx = p.clientX; sy = p.clientY; t0 = Date.now(); tracking = true;
   }
   function onEnd(e){
     if(!tracking) return; tracking = false;
+    if (window.__swipeNavigating) return;
+
     const p = getPoint(e);
     const dx = p.clientX - sx;
     const dy = p.clientY - sy;
@@ -301,9 +319,11 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
     if (Math.abs(dy) > MAX_OFF_Y || dt > MAX_TIME) return;
 
     if (dx <= -THRESH_X && goLeftHref){
+      window.__swipeNavigating = true;
       document.documentElement.classList.add('slide-out-left');
       setTimeout(()=> location.href = goLeftHref, animateMs);
     } else if (dx >= THRESH_X && goRightHref){
+      window.__swipeNavigating = true;
       document.documentElement.classList.add('slide-out-right');
       setTimeout(()=> location.href = goRightHref, animateMs);
     }
@@ -314,21 +334,20 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
   document.addEventListener('pointerup',  onEnd,   { passive:true });
 }
 
-// (중복 호출 방지 차원에서 위 단순형은 '정의'만 두고 호출은 하지 않습니다)
-
-/* ---------- 스와이프 네비게이션(시각 피드백 포함) upload → index ---------- */
+/* ===================== */
+/* 고급형 스와이프 — 끌리는 모션 + 방향 잠금 + 중앙 30% 데드존 */
+/* ===================== */
 (function(){
-  function initSwipeNav({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0 }={}){
+  function initDragSwipe({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0, deadZoneCenterRatio=0.30 }={}){
     const page = document.querySelector('main') || document.body;
     if(!page) return;
 
-    // 시각 효과: 가벼운 슬라이드 느낌
+    // 드래그 성능 향상 힌트
     if(!page.style.willChange || !page.style.willChange.includes('transform')){
       page.style.willChange = (page.style.willChange ? page.style.willChange + ', transform' : 'transform');
     }
 
     let x0=0, y0=0, t0=0, active=false, canceled=false;
-
     const isInteractive = (el)=> !!(el && (el.closest('input,textarea,select,button,a,[role="button"],[contenteditable="true"]')));
 
     function reset(anim=true){
@@ -338,9 +357,18 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
     }
 
     function start(e){
+      if (window.__swipeNavigating) return;
       const t = (e.touches && e.touches[0]) || (e.pointerType ? e : null);
       if(!t) return;
-      if(isInteractive(e.target)) return; // 폼 위에서는 스와이프 미적용
+      if(isInteractive(e.target)) return;
+
+      // 중앙 데드존
+      const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+      const dz = Math.max(0, Math.min(0.9, deadZoneCenterRatio));
+      const L  = vw * (0.5 - dz/2);
+      const R  = vw * (0.5 + dz/2);
+      if (t.clientX >= L && t.clientX <= R) return;
+
       x0 = t.clientX; y0 = t.clientY; t0 = Date.now();
       active = true; canceled = false;
       page.style.transition = 'none';
@@ -350,60 +378,62 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
       if(!active) return;
       const t = (e.touches && e.touches[0]) || (e.pointerType ? e : null);
       if(!t) return;
+
       const dx = t.clientX - x0;
       const dy = t.clientY - y0;
+
       if(Math.abs(dy) > slop){
         canceled = true; active = false;
         reset(true);
         return;
       }
-      // 오른쪽으로만 살짝 끌리는 느낌
-      if(dx > 0){
-        e.preventDefault(); // 수평 제스처 시 스크롤 방지
-        const offset = dx * feel;
-        page.style.transform = 'translateX(' + offset + 'px)';
-      }else{
+
+      // 방향 잠금: upload는 오른쪽으로만 이동 허용(goRightHref만 설정)
+      let dxAdj = dx;
+      if (dx < 0) dxAdj = 0; // 왼쪽 이동 완전 차단
+      if (dxAdj === 0){
         page.style.transform = 'translateX(0px)';
+        return;
       }
+
+      e.preventDefault(); // 수평 제스처 시 스크롤 방지
+      page.style.transform = 'translateX(' + (dxAdj * feel) + 'px)';
     }
 
     function end(e){
-      if(!active) return;
-      active = false;
+      if(!active) return; active = false;
       const t = (e.changedTouches && e.changedTouches[0]) || (e.pointerType ? e : null);
       if(!t) return;
       const dx = t.clientX - x0;
       const dy = t.clientY - y0;
       const dt = Date.now() - t0;
+
       if(canceled || Math.abs(dy) > slop || dt > timeMax){
         reset(true);
         return;
       }
+
+      // 오른쪽 스와이프만 성공 처리
       if(dx >= threshold && goRightHref){
-        // 성공: 오른쪽 스와이프 → index
+        window.__swipeNavigating = true;
         page.style.transition = 'transform 160ms ease';
-        page.style.transform = 'translateX(100vw)';
+        page.style.transform  = 'translateX(100vw)';
         setTimeout(()=>{ location.href = goRightHref; }, 150);
-      }else if(dx <= -threshold && goLeftHref){
-        // (필요 시) 왼쪽 스와이프
-        page.style.transition = 'transform 160ms ease';
-        page.style.transform = 'translateX(-100vw)';
-        setTimeout(()=>{ location.href = goLeftHref; }, 150);
-      }else{
+      } else {
         reset(true);
       }
     }
 
-    // 터치 & 포인터
-    document.addEventListener('touchstart', start, { passive:true });
-    document.addEventListener('touchmove',  move,  { passive:false });
-    document.addEventListener('touchend',   end,   { passive:true });
+    // 터치 & 포인터 (end/up은 capture:true 권장)
+    document.addEventListener('touchstart',  start, { passive:true });
+    document.addEventListener('touchmove',   move,  { passive:false });
+    document.addEventListener('touchend',    end,   { passive:true, capture:true });
 
     document.addEventListener('pointerdown', start, { passive:true });
     document.addEventListener('pointermove', move,  { passive:false });
-    document.addEventListener('pointerup',   end,   { passive:true });
+    document.addEventListener('pointerup',   end,   { passive:true, capture:true });
   }
 
-  // upload: 왼→오 → index 로 이동 (index.html 느낌에 맞춰 threshold/ease 설정)
-  initSwipeNav({ goRightHref: 'index.html', threshold:60, slop:45, timeMax:700, feel:1.0 });
+  // upload: 오른쪽으로 스와이프하면 index로 (왼쪽은 아예 안 움직임)
+  initDragSwipe({ goLeftHref: null, goRightHref: 'index.html', threshold:60, slop:45, timeMax:700, feel:1.0, deadZoneCenterRatio: 0.30 });
 })();
