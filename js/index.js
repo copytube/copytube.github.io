@@ -1,4 +1,4 @@
-// js/index.js (v1.7.0) — drag-follow swipe added, simple swipe kept
+// js/index.js (v1.7.1) — drag-follow swipe kept, simple swipe kept
 import { CATEGORY_GROUPS } from './categories.js?v=1.5.1';
 import { auth } from './firebase-init.js?v=1.5.1';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
@@ -60,6 +60,38 @@ btnOrder     ?.addEventListener("click", ()=>{ location.href = "category-order.h
 btnSignOut   ?.addEventListener("click", async ()=>{ if(!auth.currentUser){ location.href='signin.html'; return; } await fbSignOut(auth); closeDropdown(); });
 btnList      ?.addEventListener("click", ()=>{ location.href = "list.html"; closeDropdown(); });
 brandHome    ?.addEventListener("click",(e)=>{ e.preventDefault(); window.scrollTo({top:0,behavior:"smooth"}); });
+
+/* === 연속재생(autonext) 표준 관리: index 전용 === */
+(function setupAutoNext(){
+  const KEY = 'autonext';
+  const $auto = document.getElementById('cbAutoNext'); // index.html 체크박스 id
+  if (!$auto) return;
+
+  const read = () => {
+    const v = (localStorage.getItem(KEY) || '').toLowerCase();
+    return v === '1' || v === 'true' || v === 'on';
+  };
+  const write = (on) => {
+    // 포맷 통일: '1' / '0' 로 저장
+    localStorage.setItem(KEY, on ? '1' : '0');
+  };
+
+  const hasSaved = localStorage.getItem(KEY) != null;
+  if (hasSaved) {
+    $auto.checked = read();
+  } else {
+    // 첫 방문: HTML 기본상태를 seed로 저장
+    write($auto.checked);
+  }
+
+  // 즉시 저장
+  $auto.addEventListener('change', () => write($auto.checked));
+
+  // 다른 탭/페이지 변경 반영
+  window.addEventListener('storage', (e)=>{
+    if (e.key === KEY) $auto.checked = read();
+  });
+})();
 
 /* ---------- cats ---------- */
 const catsBox      = document.getElementById("cats");
@@ -212,8 +244,9 @@ function applySavedSelection(){
     }
     refreshAllParentStates();
   }
-  const auto = localStorage.getItem('autonext')==='on';
-  if (cbAutoNext) cbAutoNext.checked = auto;
+  // 연속재생 초기 표시(여러 포맷 허용)
+  const vv = (localStorage.getItem('autonext') || '').toLowerCase();
+  if (cbAutoNext) cbAutoNext.checked = (vv==='1' || vv==='true' || vv==='on');
 }
 applySavedSelection();
 
@@ -231,7 +264,7 @@ btnWatch?.addEventListener('click', ()=>{
   // personal-only
   if (personals.length === 1 && normals.length === 0){
     localStorage.setItem('selectedCats', JSON.stringify(personals));
-    localStorage.setItem('autonext', cbAutoNext?.checked ? 'on' : 'off');
+    localStorage.setItem('autonext', cbAutoNext?.checked ? '1' : '0'); // ← 통일
     location.href = `watch.html?cats=${encodeURIComponent(personals[0])}`;
     return;
   }
@@ -240,7 +273,7 @@ btnWatch?.addEventListener('click', ()=>{
   const isAll = computeAllSelected(); // personal/series 제외 기준으로 판정
   const valueToSave = (normals.length===0 || isAll) ? "ALL" : normals;
   localStorage.setItem('selectedCats', JSON.stringify(valueToSave));
-  localStorage.setItem('autonext', cbAutoNext?.checked ? 'on' : 'off');
+  localStorage.setItem('autonext', cbAutoNext?.checked ? '1' : '0'); // ← 통일
   location.href = 'watch.html';
 });
 
@@ -434,4 +467,4 @@ initSwipeNav({ goLeftHref: 'upload.html', goRightHref: 'list.html' });
   initDragSwipe({ goLeftHref: 'upload.html', goRightHref: 'list.html', threshold:60, slop:45, timeMax:700, feel:1.0 });
 })();
 
-// End of js/index.js (v1.7.0)
+// End of js/index.js (v1.7.1)
