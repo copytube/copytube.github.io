@@ -49,6 +49,7 @@ const btnMyUploads   = document.getElementById("btnMyUploads");
 const btnAbout       = document.getElementById("btnAbout");
 const brandHome      = document.getElementById("brandHome");
 const videoContainer = document.getElementById("videoContainer");
+const btnList = document.getElementById('btnList'); // ✅ 추가
 
 /* ---------- dropdown ---------- */
 let isMenuOpen=false;
@@ -64,6 +65,7 @@ function goOrSignIn(path){ auth.currentUser ? (location.href=path) : (location.h
 btnGoCategory?.addEventListener("click", ()=>{ location.href="index.html"; closeDropdown(); });
 btnMyUploads ?.addEventListener("click", ()=>{ goOrSignIn("manage-uploads.html"); closeDropdown(); });
 btnAbout     ?.addEventListener("click", ()=>{ location.href="about.html"; closeDropdown(); });
+btnList      ?.addEventListener("click", ()=>{ location.href="list.html"; closeDropdown(); });
 btnSignOut   ?.addEventListener("click", async ()=>{ if(!auth.currentUser){ location.href='signin.html'; return; } await fbSignOut(auth); closeDropdown(); });
 brandHome    ?.addEventListener("click",(e)=>{ e.preventDefault(); location.href="index.html"; });
 
