@@ -481,7 +481,7 @@ initSwipeNav({ goLeftHref: 'upload.html', goRightHref: 'list.html', deadZoneCent
   }
 
   // index: 좌→우 = list, 우→좌 = upload (고급형 + 중앙 데드존 30%)
-  initDragSwipe({ goLeftHref: 'upload.html', goRightHref: 'list.html', threshold:60, slop:45, timeMax:700, feel:1.0, deadZoneCenterRatio: 0.30 });
+  initDragSwipe({ goLeftHref: 'upload.html', goRightHref: 'list.html', threshold:60, slop:45, timeMax:700, feel:1.0, deadZoneCenterRatio: 0.15 });
 })();
 
 // End of js/index.js (v1.7.2)
