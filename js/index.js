@@ -1,4 +1,4 @@
-// js/index.js (v1.7.1) — drag-follow swipe kept, simple swipe kept
+// js/index.js (v1.7.2) — drag-follow & simple swipe kept + 중앙 30% 데드존
 import { CATEGORY_GROUPS } from './categories.js?v=1.5.1';
 import { auth } from './firebase-init.js?v=1.5.1';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
@@ -72,8 +72,7 @@ brandHome    ?.addEventListener("click",(e)=>{ e.preventDefault(); window.scroll
     return v === '1' || v === 'true' || v === 'on';
   };
   const write = (on) => {
-    // 포맷 통일: '1' / '0' 로 저장
-    localStorage.setItem(KEY, on ? '1' : '0');
+    localStorage.setItem(KEY, on ? '1' : '0'); // 포맷 통일
   };
 
   const hasSaved = localStorage.getItem(KEY) != null;
@@ -264,7 +263,7 @@ btnWatch?.addEventListener('click', ()=>{
   // personal-only
   if (personals.length === 1 && normals.length === 0){
     localStorage.setItem('selectedCats', JSON.stringify(personals));
-    localStorage.setItem('autonext', cbAutoNext?.checked ? '1' : '0'); // ← 통일
+    localStorage.setItem('autonext', cbAutoNext?.checked ? '1' : '0'); // 통일
     location.href = `watch.html?cats=${encodeURIComponent(personals[0])}`;
     return;
   }
@@ -273,7 +272,7 @@ btnWatch?.addEventListener('click', ()=>{
   const isAll = computeAllSelected(); // personal/series 제외 기준으로 판정
   const valueToSave = (normals.length===0 || isAll) ? "ALL" : normals;
   localStorage.setItem('selectedCats', JSON.stringify(valueToSave));
-  localStorage.setItem('autonext', cbAutoNext?.checked ? '1' : '0'); // ← 통일
+  localStorage.setItem('autonext', cbAutoNext?.checked ? '1' : '0'); // 통일
   location.href = 'watch.html';
 });
 
@@ -325,9 +324,9 @@ function persistSelectedCatsForList(){
 }
 
 /* ===================== */
-/* 단순형 스와이프(기존 유지) */
+/* 단순형 스와이프(중앙 30% 데드존 추가) */
 /* ===================== */
-function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {}){
+function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260, deadZoneCenterRatio=0.30 } = {}){
   let sx=0, sy=0, t0=0, tracking=false;
   const THRESH_X = 70;
   const MAX_OFF_Y = 80;
@@ -336,7 +335,17 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
   const getPoint = (e) => e.touches?.[0] || e.changedTouches?.[0] || e;
 
   function onStart(e){
-    const p = getPoint(e); sx = p.clientX; sy = p.clientY; t0 = Date.now(); tracking = true;
+    const p = getPoint(e);
+    if(!p) return;
+
+    // ★ 중앙 데드존(기본 30%) — 이 영역에서 시작한 제스처는 비활성
+    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+    const dz = Math.max(0, Math.min(0.9, deadZoneCenterRatio));
+    const L  = vw * (0.5 - dz/2);
+    const R  = vw * (0.5 + dz/2);
+    if (p.clientX >= L && p.clientX <= R) { tracking = false; return; }
+
+    sx = p.clientX; sy = p.clientY; t0 = Date.now(); tracking = true;
   }
   function onEnd(e){
     if(!tracking) return; tracking = false;
@@ -368,14 +377,14 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
   document.addEventListener('pointerup',  onEnd,   { passive:true });
 }
 
-// ✅ index: 우→좌 = upload, 좌→우 = list (단순형 유지)
-initSwipeNav({ goLeftHref: 'upload.html', goRightHref: 'list.html' });
+// ✅ index: 우→좌 = upload, 좌→우 = list (단순형 + 중앙 데드존 30%)
+initSwipeNav({ goLeftHref: 'upload.html', goRightHref: 'list.html', deadZoneCenterRatio: 0.30 });
 
 /* ===================== */
-/* 고급형 스와이프(끌리는 모션, upload와 동일 감) */
+/* 고급형 스와이프(끌리는 모션, 중앙 30% 데드존 추가) */
 /* ===================== */
 (function(){
-  function initDragSwipe({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0 }={}){
+  function initDragSwipe({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0, deadZoneCenterRatio=0.30 }={}){
     const page = document.querySelector('main') || document.body;
     if(!page) return;
 
@@ -400,6 +409,14 @@ initSwipeNav({ goLeftHref: 'upload.html', goRightHref: 'list.html' });
       const t = (e.touches && e.touches[0]) || (e.pointerType ? e : null);
       if(!t) return;
       if(isInteractive(e.target)) return; // 폼 요소 위에서 시작하면 무시
+
+      // ★ 중앙 데드존(기본 30%)
+      const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+      const dz = Math.max(0, Math.min(0.9, deadZoneCenterRatio));
+      const L  = vw * (0.5 - dz/2);
+      const R  = vw * (0.5 + dz/2);
+      if (t.clientX >= L && t.clientX <= R) return;
+
       x0 = t.clientX; y0 = t.clientY; t0 = Date.now();
       active = true; canceled = false;
       page.style.transition = 'none';
@@ -463,8 +480,8 @@ initSwipeNav({ goLeftHref: 'upload.html', goRightHref: 'list.html' });
     document.addEventListener('pointerup',   end,   { passive:true, capture:true });
   }
 
-  // index: 좌→우 = list, 우→좌 = upload (고급형 추가)
-  initDragSwipe({ goLeftHref: 'upload.html', goRightHref: 'list.html', threshold:60, slop:45, timeMax:700, feel:1.0 });
+  // index: 좌→우 = list, 우→좌 = upload (고급형 + 중앙 데드존 30%)
+  initDragSwipe({ goLeftHref: 'upload.html', goRightHref: 'list.html', threshold:60, slop:45, timeMax:700, feel:1.0, deadZoneCenterRatio: 0.30 });
 })();
 
-// End of js/index.js (v1.7.1)
+// End of js/index.js (v1.7.2)
