@@ -1,8 +1,7 @@
-// js/upload.js (v1.7.1)
+// js/upload.js (v1.7.2)
 // - Firestore rules 호환: videos.create 필수 필드 충족 (uid/title/url/category/createdAt)
 // - 멀티 카테고리는 cats 보조 필드로 저장, 대표 카테고리는 category에 1개만 저장
 // - 제목(oEmbed) 실패 시 안전한 폴백 제목 채택
-// - 스와이프/드롭다운/그룹순서/개인자료 로직은 기존 유지
 import { auth, db } from './firebase-init.js?v=1.5.1';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
@@ -251,15 +250,15 @@ async function submitAll(){
       const docData = {
         uid: user.uid,                 // 규칙 필수
         title: String(title || '영상'),// 규칙 필수(문자열)
-        url,                           // 규칙 필수
+        url,                           // 규칙 필수 (http/https)
         category: primaryCategory,     // 규칙 필수(단일)
         cats: normals,                 // 보조 필드(멀티 선택 보존)
         createdAt: serverTimestamp(),  // 규칙 필수
-        // thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, // 필요하면 사용
       };
       await addDoc(collection(db,'videos'), docData);
       ok++;
-    }catch{
+    }catch(e){
+      console.error('addDoc failed:', e);
       fail++;
     }
     setMsg(`등록 중... (${ok+fail}/${list.length})`);
@@ -272,179 +271,15 @@ async function submitAll(){
 $('#btnSubmitTop')   ?.addEventListener('click', submitAll);
 $('#btnSubmitBottom')?.addEventListener('click', submitAll);
 
-// 디버깅 힌트
-try{
-  console.debug('[upload] CATEGORY_GROUPS keys:', CATEGORY_GROUPS.map(g=>g.key));
-  console.debug('[upload] groupOrderV1:', localStorage.getItem('groupOrderV1'));
-}catch{}
-
-/* ===================== */
-/* Slide-out CSS (단순형/백업용) */
-/* ===================== */
+/* ===== (옵션) 스와이프 내비 게정리 — 생략 가능 ===== */
 (function injectSlideCSS(){
   if (document.getElementById('slide-css-152')) return;
   const style = document.createElement('style');
   style.id = 'slide-css-152';
   style.textContent = `
-@keyframes pageSlideLeft { from { transform: translateX(0); opacity:1; } to { transform: translateX(-22%); opacity:.92; } }
 @keyframes pageSlideRight{ from { transform: translateX(0); opacity:1; } to { transform: translateX(22%);  opacity:.92; } }
-:root.slide-out-left  body { animation: pageSlideLeft 0.26s ease forwards; }
 :root.slide-out-right body { animation: pageSlideRight 0.26s ease forwards; }
-@media (prefers-reduced-motion: reduce){
-  :root.slide-out-left  body,
-  :root.slide-out-right body { animation:none; }
-}`;
+@media (prefers-reduced-motion: reduce){ :root.slide-out-right body { animation:none; } }
+`;
   document.head.appendChild(style);
-})();
-
-/* ===================== */
-/* 단순형 스와이프 정의(중앙 30% 데드존 추가) — 호출 안 함 */
-/* ===================== */
-function simpleSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260, deadZoneCenterRatio=0.30 } = {}){
-  let sx=0, sy=0, t0=0, tracking=false;
-  const THRESH_X = 70, MAX_OFF_Y = 80, MAX_TIME = 600;
-
-  const getPoint = (e) => e.touches?.[0] || e.changedTouches?.[0] || e;
-
-  function onStart(e){
-    const p = getPoint(e);
-    if(!p) return;
-
-    // 중앙 데드존
-    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-    const dz = Math.max(0, Math.min(0.9, deadZoneCenterRatio));
-    const L  = vw * (0.5 - dz/2);
-    const R  = vw * (0.5 + dz/2);
-    if (p.clientX >= L && p.clientX <= R) { tracking = false; return; }
-
-    sx = p.clientX; sy = p.clientY; t0 = Date.now(); tracking = true;
-  }
-  function onEnd(e){
-    if(!tracking) return; tracking = false;
-    if (window.__swipeNavigating) return;
-
-    const p = getPoint(e);
-    const dx = p.clientX - sx;
-    const dy = p.clientY - sy;
-    const dt = Date.now() - t0;
-    if (Math.abs(dy) > MAX_OFF_Y || dt > MAX_TIME) return;
-
-    if (dx <= -THRESH_X && goLeftHref){
-      window.__swipeNavigating = true;
-      document.documentElement.classList.add('slide-out-left');
-      setTimeout(()=> location.href = goLeftHref, animateMs);
-    } else if (dx >= THRESH_X && goRightHref){
-      window.__swipeNavigating = true;
-      document.documentElement.classList.add('slide-out-right');
-      setTimeout(()=> location.href = goRightHref, animateMs);
-    }
-  }
-  document.addEventListener('touchstart', onStart, { passive:true });
-  document.addEventListener('touchend',   onEnd,   { passive:true });
-  document.addEventListener('pointerdown',onStart, { passive:true });
-  document.addEventListener('pointerup',  onEnd,   { passive:true });
-}
-
-/* ===================== */
-/* 고급형 스와이프 — 끌리는 모션 + 방향 잠금 + 중앙 30% 데드존 */
-/* ===================== */
-(function(){
-  function initDragSwipe({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0, deadZoneCenterRatio=0.30 }={}){
-    const page = document.querySelector('main') || document.body;
-    if(!page) return;
-
-    // 드래그 성능 향상 힌트
-    if(!page.style.willChange || !page.style.willChange.includes('transform')){
-      page.style.willChange = (page.style.willChange ? page.style.willChange + ', transform' : 'transform');
-    }
-
-    let x0=0, y0=0, t0=0, active=false, canceled=false;
-    const isInteractive = (el)=> !!(el && (el.closest('input,textarea,select,button,a,[role="button"],[contenteditable="true"]')));
-
-    function reset(anim=true){
-      if(anim) page.style.transition = 'transform 180ms ease';
-      requestAnimationFrame(()=>{ page.style.transform = 'translateX(0px)'; });
-      setTimeout(()=>{ if(anim) page.style.transition = ''; }, 200);
-    }
-
-    function start(e){
-      if (window.__swipeNavigating) return;
-      const t = (e.touches && e.touches[0]) || (e.pointerType ? e : null);
-      if(!t) return;
-      if(isInteractive(e.target)) return;
-
-      // 중앙 데드존
-      const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-      const dz = Math.max(0, Math.min(0.9, deadZoneCenterRatio));
-      const L  = vw * (0.5 - dz/2);
-      const R  = vw * (0.5 + dz/2);
-      if (t.clientX >= L && t.clientX <= R) return;
-
-      x0 = t.clientX; y0 = t.clientY; t0 = Date.now();
-      active = true; canceled = false;
-      page.style.transition = 'none';
-    }
-
-    function move(e){
-      if(!active) return;
-      const t = (e.touches && e.touches[0]) || (e.pointerType ? e : null);
-      if(!t) return;
-
-      const dx = t.clientX - x0;
-      const dy = t.clientY - y0;
-
-      if(Math.abs(dy) > slop){
-        canceled = true; active = false;
-        reset(true);
-        return;
-      }
-
-      // 방향 잠금: upload는 오른쪽으로만 이동 허용(goRightHref만 설정)
-      let dxAdj = dx;
-      if (dx < 0) dxAdj = 0; // 왼쪽 이동 완전 차단
-      if (dxAdj === 0){
-        page.style.transform = 'translateX(0px)';
-        return;
-      }
-
-      e.preventDefault(); // 수평 제스처 시 스크롤 방지
-      page.style.transform = 'translateX(' + (dxAdj * feel) + 'px)';
-    }
-
-    function end(e){
-      if(!active) return; active = false;
-      const t = (e.changedTouches && e.changedTouches[0]) || (e.pointerType ? e : null);
-      if(!t) return;
-      const dx = t.clientX - x0;
-      const dy = t.clientY - y0;
-      const dt = Date.now() - t0;
-
-      if(canceled || Math.abs(dy) > slop || dt > timeMax){
-        reset(true);
-        return;
-      }
-
-      // 오른쪽 스와이프만 성공 처리
-      if(dx >= threshold && goRightHref){
-        window.__swipeNavigating = true;
-        page.style.transition = 'transform 160ms ease';
-        page.style.transform  = 'translateX(100vw)';
-        setTimeout(()=>{ location.href = goRightHref; }, 150);
-      } else {
-        reset(true);
-      }
-    }
-
-    // 터치 & 포인터 (end/up은 capture:true 권장)
-    document.addEventListener('touchstart',  start, { passive:true });
-    document.addEventListener('touchmove',   move,  { passive:false });
-    document.addEventListener('touchend',    end,   { passive:true, capture:true });
-
-    document.addEventListener('pointerdown', start, { passive:true });
-    document.addEventListener('pointermove', move,  { passive:false });
-    document.addEventListener('pointerup',   end,   { passive:true, capture:true });
-  }
-
-  // upload: 오른쪽으로 스와이프하면 index로 (왼쪽은 아예 안 움직임)
-  initDragSwipe({ goLeftHref: null, goRightHref: 'index.html', threshold:60, slop:45, timeMax:700, feel:1.0, deadZoneCenterRatio: 0.15 });
 })();
