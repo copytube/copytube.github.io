@@ -623,5 +623,5 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null, deadZoneCenterRatio:
   }
 
   // list: 우→좌 = index (오른쪽 페이지 없음 → 오른쪽 끌림 완전 차단, 중앙 데드존 30%)
-  initDragSwipe({ goLeftHref: 'index.html', goRightHref: null, threshold:60, slop:45, timeMax:700, feel:1.0, deadZoneCenterRatio: 0.30 });
+  initDragSwipe({ goLeftHref: 'index.html', goRightHref: null, threshold:60, slop:45, timeMax:700, feel:1.0, deadZoneCenterRatio: 0.15 });
 })();
