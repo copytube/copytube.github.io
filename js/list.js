@@ -1,4 +1,4 @@
-// js/list.js (v1.7.2) — 제목 oEmbed 보강(+7일 캐시) 추가, 스와이프(단순/끌림) 유지, 드롭다운 로직 index 패턴 통일
+// js/list.js (v1.7.3) — 제목 oEmbed 보강(+7일 캐시) 유지, 스와이프 방향잠금(오른쪽 끌림 0), 드롭다운 로직 index 패턴 통일
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import {
@@ -23,14 +23,14 @@ let isMenuOpen = false;
 function openDropdown(){
   if (!dropdown) return;
   isMenuOpen = true;
-  dropdown.classList.remove('hidden');             // 표시 준비(display 차단 해제)
-  requestAnimationFrame(()=> dropdown.classList.add('show')); // 전환 시작(opacity/pointer-events)
+  dropdown.classList.remove('hidden');
+  requestAnimationFrame(()=> dropdown.classList.add('show'));
 }
 function closeDropdown(){
   if (!dropdown) return;
   isMenuOpen = false;
-  dropdown.classList.remove('show');               // 전환 종료
-  setTimeout(()=> dropdown.classList.add('hidden'), 180); // 트랜지션 후 완전 숨김
+  dropdown.classList.remove('show');
+  setTimeout(()=> dropdown.classList.add('hidden'), 180);
 }
 
 onAuthStateChanged(auth, (user) => {
@@ -46,12 +46,10 @@ menuBtn?.addEventListener('click', (e)=>{
   if (!dropdown) return;
   dropdown.classList.contains('hidden') ? openDropdown() : closeDropdown();
 });
-
 document.addEventListener('pointerdown', (e)=>{
   if (!dropdown || dropdown.classList.contains('hidden')) return;
   if (!e.target.closest('#dropdownMenu,#menuBtn')) closeDropdown();
 }, true);
-
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
 dropdown?.addEventListener('click', (e)=> e.stopPropagation());
 
@@ -69,7 +67,7 @@ const $cards     = document.getElementById('cards');
 const $msg       = document.getElementById('msg') || document.getElementById('resultMsg');
 const $q         = document.getElementById('q');
 const $btnSearch = document.getElementById('btnSearch');
-const $btnClear  = document.getElementById('btnClear'); // 없어도 안전 (옵셔널)
+const $btnClear  = document.getElementById('btnClear'); // 없어도 안전
 const $btnMore   = document.getElementById('btnMore');
 
 /* ---------- 상태 ---------- */
@@ -124,15 +122,12 @@ const TitleCache = {
     }catch{}
   }
 };
-// 렌더/검색 품질 강화를 위한 임시 메모리(세션 중)
 const lazyTitleMap = new Map();
 
 async function fetchYouTubeTitleById(id){
   if(!id) return null;
-  // 캐시 히트 우선
   const c = TitleCache.get(id);
   if(c){ lazyTitleMap.set(id,c); return c; }
-
   try{
     const url = `https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=${id}`;
     const res = await fetch(url, { mode:'cors' });
@@ -144,11 +139,8 @@ async function fetchYouTubeTitleById(id){
       lazyTitleMap.set(id, title);
     }
     return title;
-  }catch{
-    return null; // 실패 시 조용히 패스
-  }
+  }catch{ return null; }
 }
-
 async function hydrateTitleIfNeeded(titleEl, url, existingTitle){
   if(!titleEl) return;
   if(existingTitle && existingTitle !== '(제목 없음)') return;
@@ -158,7 +150,7 @@ async function hydrateTitleIfNeeded(titleEl, url, existingTitle){
   if(t) titleEl.textContent = t;
 }
 
-/* ---------- 개인자료 모드 지원 ---------- */
+/* ---------- 개인자료 모드 ---------- */
 function isPersonalOnlySelection(){
   try{
     const raw = localStorage.getItem('selectedCats');
@@ -169,7 +161,7 @@ function isPersonalOnlySelection(){
 function getPersonalSlot(){
   try{
     const v = JSON.parse(localStorage.getItem('selectedCats') || '[]');
-    return Array.isArray(v) ? v[0] : null; // 'personal1' | 'personal2'
+    return Array.isArray(v) ? v[0] : null;
   }catch{ return null; }
 }
 function readPersonalItems(slot){
@@ -220,7 +212,6 @@ function renderPersonalList(){
         <div class="thumb-wrap"><img class="thumb" src="${esc(thumb)}" alt="썸네일" loading="lazy"></div>
       </div>
     `;
-    // 제목 보강(개인자료)
     hydrateTitleIfNeeded(card.querySelector('.title'), url, title);
 
     card.querySelector('.left') ?.addEventListener('click', ()=> openInWatchPersonal(sorted, idx, slot, label));
@@ -242,7 +233,6 @@ function openInWatchPersonal(items, index, slot, label){
   }));
   sessionStorage.setItem('playQueue', JSON.stringify(queue));
   sessionStorage.setItem('playIndex', String(index));
-  // 큐 모드로 바로: idx만으로도 watch가 재생되도록 (watch.js에 idx/doc 가드 있음)
   location.href = `watch.html?idx=${index}&cats=${encodeURIComponent(slot)}`;
 }
 
@@ -260,10 +250,7 @@ async function loadPage(){
     const snap = await getDocs(query(collection(db,'videos'), ...parts));
     if (snap.empty) { hasMore = false; toggleMore(false); setStatus(allDocs.length ? `총 ${allDocs.length}개` : '등록된 영상이 없습니다.'); isLoading=false; return; }
 
-    const batch = snap.docs.map(d => ({
-      id: d.id,
-      data: d.data()
-    }));
+    const batch = snap.docs.map(d => ({ id: d.id, data: d.data() }));
     allDocs = allDocs.concat(batch);
     lastDoc = snap.docs[snap.docs.length-1] || lastDoc;
     if (snap.size < PAGE_SIZE) hasMore = false;
@@ -290,12 +277,11 @@ async function loadPage(){
   isLoading = false;
 }
 
-/* ---------- 렌더 & 필터 (일반 카테고리) ---------- */
+/* ---------- 렌더 & 필터 ---------- */
 function render(){
   const cats = getSelectedCats();
   const q = ($q?.value || '').trim().toLowerCase();
 
-  // 필터
   let list = allDocs.slice();
   if (cats.length){
     list = list.filter(x => {
@@ -312,7 +298,6 @@ function render(){
     });
   }
 
-  // 렌더
   $cards.innerHTML = '';
   if (!list.length){
     $cards.innerHTML = `<div style="padding:14px;border:1px dashed var(--border,#333);border-radius:12px;color:#cfcfcf;">결과가 없습니다.</div>`;
@@ -338,20 +323,15 @@ function render(){
         <div class="thumb-wrap"><img class="thumb" src="${esc(thumb)}" alt="썸네일" loading="lazy"></div>
       </div>
     `;
-
-    // 제목 보강(oEmbed) — 서버 title이 없을 때만
     hydrateTitleIfNeeded(card.querySelector('.title'), url, title);
-
-    // 왼쪽/썸네일 클릭 → watch로 이동(큐+인덱스)
     card.querySelector('.left') ?.addEventListener('click', ()=> openInWatch(list, idx));
     card.querySelector('.thumb')?.addEventListener('click', ()=> openInWatch(list, idx));
-
     frag.appendChild(card);
   });
   $cards.appendChild(frag);
 }
 
-/* ---------- watch로 이동(큐 + 인덱스 + doc + cats 파라미터) ---------- */
+/* ---------- watch로 이동(큐+인덱스+doc+cats) ---------- */
 function openInWatch(list, index){
   const queue = list.map(x => {
     const id = extractId(x.data?.url || '');
@@ -367,7 +347,6 @@ function openInWatch(list, index){
 
   const docId = encodeURIComponent(list[index].id);
 
-  // 현재 선택된 카테고리를 URL에도 포함(복구/공유 대비)
   let catsParam = '';
   try{
     const raw = localStorage.getItem('selectedCats');
@@ -392,9 +371,9 @@ $btnMore  ?.addEventListener('click', async ()=>{
 (async function init(){
   try{
     if (isPersonalOnlySelection()){
-      renderPersonalList();     // ✅ 개인자료 전용 목록
+      renderPersonalList();
     } else {
-      await loadPage();         // ✅ 일반(Cloud) 목록
+      await loadPage();
     }
   }catch(e){
     console.error(e);
@@ -437,8 +416,6 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
   }
   function onEnd(e){
     if(!tracking) return; tracking = false;
-
-    // 고급형이 이미 처리 중이면 종료
     if (window.__swipeNavigating) return;
 
     const p = getPoint(e);
@@ -462,19 +439,18 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
   document.addEventListener('pointerdown',onStart, { passive:true });
   document.addEventListener('pointerup',  onEnd,   { passive:true });
 }
-
 // ✅ list: 우→좌 = index 로 돌아가기 (단순형 유지)
 initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
 
 /* ===================== */
-/* 고급형 스와이프 — 끌리는 모션 (upload와 동일 감) */
+/* 고급형 스와이프 — 끌리는 모션 (upload와 동일 감) + 방향 잠금 */
 /* ===================== */
 (function(){
   function initDragSwipe({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0 }={}){
     const page = document.querySelector('main') || document.body;
     if(!page) return;
 
-    // 드래그 성능 향상 힌트
+    // 드래그 성능 힌트
     if(!page.style.willChange || !page.style.willChange.includes('transform')){
       page.style.willChange = (page.style.willChange ? page.style.willChange + ', transform' : 'transform');
     }
@@ -489,12 +465,10 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
     }
 
     function start(e){
-      // 이미 다른 네비가 진행 중이면 무시
       if (window.__swipeNavigating) return;
-
       const t = (e.touches && e.touches[0]) || (e.pointerType ? e : null);
       if(!t) return;
-      if(isInteractive(e.target)) return; // 폼 요소 위에서는 시작하지 않음
+      if(isInteractive(e.target)) return;
       x0 = t.clientX; y0 = t.clientY; t0 = Date.now();
       active = true; canceled = false;
       page.style.transition = 'none';
@@ -504,16 +478,33 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
       if(!active) return;
       const t = (e.touches && e.touches[0]) || (e.pointerType ? e : null);
       if(!t) return;
+
       const dx = t.clientX - x0;
       const dy = t.clientY - y0;
+
+      // 세로 제스처면 취소
       if(Math.abs(dy) > slop){
         canceled = true; active = false;
         reset(true);
         return;
       }
-      // 손가락에 따라 화면을 좌/우로 끌기
-      e.preventDefault(); // 수평 제스처 시 스크롤 방지
-      page.style.transform = 'translateX(' + (dx * feel) + 'px)';
+
+      // ★ 방향 잠금: 허용된 방향 외에는 끌림 0, preventDefault도 호출하지 않음
+      const allowLeft  = !!goLeftHref;
+      const allowRight = !!goRightHref;
+
+      let dxAdj = dx;
+      if (dx < 0 && !allowLeft)  dxAdj = 0; // 왼쪽 금지
+      if (dx > 0 && !allowRight) dxAdj = 0; // 오른쪽 금지
+
+      if (dxAdj === 0){
+        page.style.transform = 'translateX(0px)';
+        return; // 기본 스크롤/터치에 영향 주지 않음
+      }
+
+      // 허용된 방향만 끌림 + 수평 제스처 방지
+      e.preventDefault();
+      page.style.transform = 'translateX(' + (dxAdj * feel) + 'px)';
     }
 
     function end(e){
@@ -524,19 +515,20 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
       const dy = t.clientY - y0;
       const dt = Date.now() - t0;
 
+      const allowLeft  = !!goLeftHref;
+      const allowRight = !!goRightHref;
+
       if(canceled || Math.abs(dy) > slop || dt > timeMax){
         reset(true);
         return;
       }
 
-      if(dx >= threshold && goRightHref){
-        // 오른쪽 스와이프
+      if(dx >= threshold && allowRight){
         window.__swipeNavigating = true;
         page.style.transition = 'transform 160ms ease';
         page.style.transform  = 'translateX(100vw)';
         setTimeout(()=>{ location.href = goRightHref; }, 150);
-      } else if(dx <= -threshold && goLeftHref){
-        // 왼쪽 스와이프 → index
+      } else if(dx <= -threshold && allowLeft){
         window.__swipeNavigating = true;
         page.style.transition = 'transform 160ms ease';
         page.style.transform  = 'translateX(-100vw)';
@@ -546,7 +538,7 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
       }
     }
 
-    // 터치 & 포인터: end/up은 capture:true로 등록해 단순형보다 먼저 실행
+    // 터치 & 포인터
     document.addEventListener('touchstart',  start, { passive:true });
     document.addEventListener('touchmove',   move,  { passive:false });
     document.addEventListener('touchend',    end,   { passive:true, capture:true });
@@ -556,6 +548,6 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
     document.addEventListener('pointerup',   end,   { passive:true, capture:true });
   }
 
-  // list: 우→좌 = index 로 돌아가기 (끌리는 모션)
+  // list: 우→좌 = index (오른쪽 페이지 없음 → 오른쪽 끌림 완전 차단)
   initDragSwipe({ goLeftHref: 'index.html', goRightHref: null, threshold:60, slop:45, timeMax:700, feel:1.0 });
 })();
