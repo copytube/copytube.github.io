@@ -1,4 +1,4 @@
-// js/list.js (v1.7.1) — 제목 oEmbed 보강(+7일 캐시) 추가, 스와이프(단순/끌림) 유지
+// js/list.js (v1.7.2) — 제목 oEmbed 보강(+7일 캐시) 추가, 스와이프(단순/끌림) 유지, 드롭다운 로직 index 패턴 통일
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import {
@@ -8,7 +8,7 @@ import {
 /* ---------- 전역 내비 중복 방지 플래그 ---------- */
 window.__swipeNavigating = window.__swipeNavigating || false;
 
-/* ---------- Topbar 로그인 상태 동기화 ---------- */
+/* ---------- Topbar 로그인 상태 동기화 & 드롭다운 ---------- */
 const signupLink = document.getElementById('signupLink');
 const signinLink = document.getElementById('signinLink');
 const welcome    = document.getElementById('welcome');
@@ -18,23 +18,49 @@ const btnSignOut = document.getElementById('btnSignOut');
 const btnGoUpload= document.getElementById('btnGoUpload');
 const btnAbout   = document.getElementById('btnAbout');
 
+let isMenuOpen = false;
+function openDropdown(){
+  if (!dropdown) return;
+  isMenuOpen = true;
+  dropdown.classList.remove('hidden');             // 표시 준비(display 차단 해제)
+  requestAnimationFrame(()=> dropdown.classList.add('show')); // 전환 시작(opacity/pointer-events)
+}
+function closeDropdown(){
+  if (!dropdown) return;
+  isMenuOpen = false;
+  dropdown.classList.remove('show');               // 전환 종료
+  setTimeout(()=> dropdown.classList.add('hidden'), 180); // 트랜지션 후 완전 숨김
+}
+
 onAuthStateChanged(auth, (user) => {
   const loggedIn = !!user;
   signupLink?.classList.toggle('hidden', loggedIn);
   signinLink?.classList.toggle('hidden', loggedIn);
   if (welcome) welcome.textContent = loggedIn ? `Hi! ${user?.displayName || '회원'}님` : '';
+  closeDropdown();
 });
 
-// 메뉴/버튼
-menuBtn   ?.addEventListener('click', (e)=>{ e.stopPropagation(); dropdown?.classList.toggle('hidden'); });
-document.addEventListener('pointerdown',(e)=>{ if(dropdown?.classList.contains('hidden')) return; if(!e.target.closest('#dropdownMenu,#menuBtn')) dropdown?.classList.add('hidden'); }, true);
+menuBtn?.addEventListener('click', (e)=>{
+  e.stopPropagation();
+  if (!dropdown) return;
+  dropdown.classList.contains('hidden') ? openDropdown() : closeDropdown();
+});
+
+document.addEventListener('pointerdown', (e)=>{
+  if (!dropdown || dropdown.classList.contains('hidden')) return;
+  if (!e.target.closest('#dropdownMenu,#menuBtn')) closeDropdown();
+}, true);
+
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
+dropdown?.addEventListener('click', (e)=> e.stopPropagation());
+
 btnSignOut?.addEventListener('click', async ()=>{
   if (!auth.currentUser) { location.href = 'signin.html'; return; }
   try { await fbSignOut(auth); } catch {}
-  dropdown?.classList.add('hidden');
+  closeDropdown();
 });
-btnGoUpload?.addEventListener('click', ()=>{ location.href = 'upload.html'; });
-btnAbout   ?.addEventListener('click', ()=>{ location.href = 'about.html'; });
+btnGoUpload?.addEventListener('click', ()=>{ location.href = 'upload.html'; closeDropdown(); });
+btnAbout   ?.addEventListener('click', ()=>{ location.href = 'about.html';  closeDropdown(); });
 
 /* ---------- DOM ---------- */
 const $cards     = document.getElementById('cards');
@@ -531,5 +557,3 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
   // list: 우→좌 = index 로 돌아가기 (끌리는 모션)
   initDragSwipe({ goLeftHref: 'index.html', goRightHref: null, threshold:60, slop:45, timeMax:700, feel:1.0 });
 })();
-
-// End of js/list.js (v1.7.1)
