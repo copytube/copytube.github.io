@@ -26,6 +26,8 @@ export const CATEGORY_GROUPS = [
       { value: 'music_rock',           label: 'Rock' },
       { value: 'music_hiphop_rnb',     label: '힙합 & R&B' },
       { value: 'music_pop',            label: 'Pop' },
+      { value: 'music_jpop',            label: 'J-Pop' },
+      { value: 'music_3pop',            label: '3rd_Pop' },
       { value: 'music_classic',        label: '클래식' },
       { value: 'music_ost_musical',    label: '영화/뮤지컬' },
       { value: 'music_ani',            label: '애니메이션' },
@@ -124,6 +126,7 @@ export const CATEGORY_GROUPS = [
       { value: 'coding',      label: '코딩' },
       { value: 'graphic',     label: '그래픽영상' },
       { value: 'app',         label: '앱·어플' },
+      { value: 'engineer',    label: '공학' },
     ],
   },
 
@@ -161,29 +164,7 @@ export const CATEGORY_GROUPS = [
 
   /* 사회 */
   {
-    key: 'society',
-    label: '사회',
-    children: [
-      { value: 'politics',    label: '시사정치' },
-      { value: 'finance',     label: '금융경제' },
-      { value: 'era_insight', label: '시대통찰' },
-      { value: 'christian',   label: '기독교' },
-    ],
-  },
-
-  /* 교육 */
-  {
-    key: 'edu',
-    label: '교육',
-    children: [
-      { value: 'edu_general', label: '일반' },
-      { value: 'edu_child',   label: '어린이' },
-      { value: 'science',     label: '과학' },
-      { value: 'math',        label: '수학' },
-      { value: 'english',     label: '영어' },
-      { value: 'korean',      label: '국어' },
-      { value: 'edu_social',  label: '사회' }, // 충돌 방지용 확정 키
-      { value: 'history',     label: '역사' },
+    key: 'so리' },
       { value: 'art',         label: '미술' },
       { value: 'music',       label: '음악' },
       { value: 'japanese',    label: '일본어' },
