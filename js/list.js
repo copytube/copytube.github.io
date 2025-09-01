@@ -17,6 +17,7 @@ const dropdown   = document.getElementById('dropdownMenu');
 const btnSignOut = document.getElementById('btnSignOut');
 const btnGoUpload= document.getElementById('btnGoUpload');
 const btnAbout   = document.getElementById('btnAbout');
+const btnList    = document.getElementById('btnList');
 
 let isMenuOpen = false;
 function openDropdown(){
@@ -36,7 +37,7 @@ onAuthStateChanged(auth, (user) => {
   const loggedIn = !!user;
   signupLink?.classList.toggle('hidden', loggedIn);
   signinLink?.classList.toggle('hidden', loggedIn);
-  if (welcome) welcome.textContent = loggedIn ? `Hi! ${user?.displayName || '회원'}님` : '';
+  if (welcome) welcome.textContent = loggedIn ? `Welcome! ${user?.displayName || '회원'}` : '';
   closeDropdown();
 });
 
@@ -61,6 +62,7 @@ btnSignOut?.addEventListener('click', async ()=>{
 });
 btnGoUpload?.addEventListener('click', ()=>{ location.href = 'upload.html'; closeDropdown(); });
 btnAbout   ?.addEventListener('click', ()=>{ location.href = 'about.html';  closeDropdown(); });
+btnList    ?.addEventListener('click', ()=>{ location.href = 'list.html';   closeDropdown(); });
 
 /* ---------- DOM ---------- */
 const $cards     = document.getElementById('cards');
