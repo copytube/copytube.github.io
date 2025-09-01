@@ -1,4 +1,4 @@
-// js/signin.js
+// js/signin.js  (v1.6.0 — 규칙 호환: 변경 없음, 에러 처리 보강)
 import { auth } from './firebase-init.js';
 import {
   signInWithEmailAndPassword
