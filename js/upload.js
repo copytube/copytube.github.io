@@ -435,5 +435,5 @@ function simpleSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260, dead
   }
 
   // upload: 오른쪽으로 스와이프하면 index로 (왼쪽은 아예 안 움직임)
-  initDragSwipe({ goLeftHref: null, goRightHref: 'index.html', threshold:60, slop:45, timeMax:700, feel:1.0, deadZoneCenterRatio: 0.30 });
+  initDragSwipe({ goLeftHref: null, goRightHref: 'index.html', threshold:60, slop:45, timeMax:700, feel:1.0, deadZoneCenterRatio: 0.15 });
 })();
