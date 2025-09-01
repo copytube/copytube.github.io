@@ -1,7 +1,8 @@
-// js/upload.js (v1.7.0)
-// - 업로드 시 제목(oEmbed) 저장 유지
-// - 스와이프: 중앙 30% 데드존 + 방향 잠금(오른쪽으로만 이동 가능) + 중복 내비 가드(__swipeNavigating)
-// - Topbar/드롭다운 동일 패턴 유지
+// js/upload.js (v1.7.1)
+// - Firestore rules 호환: videos.create 필수 필드 충족 (uid/title/url/category/createdAt)
+// - 멀티 카테고리는 cats 보조 필드로 저장, 대표 카테고리는 category에 1개만 저장
+// - 제목(oEmbed) 실패 시 안전한 폴백 제목 채택
+// - 스와이프/드롭다운/그룹순서/개인자료 로직은 기존 유지
 import { auth, db } from './firebase-init.js?v=1.5.1';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
@@ -145,7 +146,8 @@ renderCats();
 /* ------- URL 유틸 ------- */
 const urlsBox = $('#urls');
 function parseUrls(){ return urlsBox.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); }
-function extractId(url){ const m=String(url).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/); return m?m[1]:''; }
+function extractId(url){ const m=String(url).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/i); return m?m[1]:''; }
+function looksLikeHttpUrl(u){ return /^https?:\/\//i.test(u||''); }
 
 /* ------- 제목 가져오기: oEmbed ------- */
 async function fetchTitleById(id){
@@ -227,24 +229,33 @@ async function submitAll(){
   setMsg(`등록 중... (0/${list.length})`);
   let ok=0, fail=0;
 
-  // 순차 처리(간단/안전)
   for(let i=0;i<list.length;i++){
     const url = list[i];
-    const id  = extractId(url);
-    if(!id){ fail++; setMsg(`등록 중... (${ok+fail}/${list.length})`); continue; }
+    if(!looksLikeHttpUrl(url)){ fail++; setMsg(`등록 중... (${ok+fail}/${list.length})`); continue; }
 
-    // 제목 oEmbed — 실패해도 진행
+    const id  = extractId(url);
+    // 제목 oEmbed — 실패해도 진행 (폴백 제공)
     let title = '';
     try{ title = await fetchTitleById(id); }catch{}
+    if(!title){
+      if (id) title = `YouTube: ${id}`;
+      else {
+        try{ title = new URL(url).hostname; }catch{ title = '영상'; }
+      }
+    }
+
+    // 대표 카테고리: 첫 번째 일반 카테고리
+    const primaryCategory = String(normals[0] || 'uncategorized');
 
     try{
       const docData = {
-        url,
-        ...(title ? { title } : {}),     // 빈 문자열이면 필드 생략
-        categories: normals,
-        uid: user.uid,
-        createdAt: serverTimestamp(),
-        // thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, // 썸네일 저장 원하면 주석 해제
+        uid: user.uid,                 // 규칙 필수
+        title: String(title || '영상'),// 규칙 필수(문자열)
+        url,                           // 규칙 필수
+        category: primaryCategory,     // 규칙 필수(단일)
+        cats: normals,                 // 보조 필드(멀티 선택 보존)
+        createdAt: serverTimestamp(),  // 규칙 필수
+        // thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, // 필요하면 사용
       };
       await addDoc(collection(db,'videos'), docData);
       ok++;
