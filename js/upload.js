@@ -15,6 +15,7 @@ const btnSignOut = $('#btnSignOut');
 const btnGoUpload= $('#btnGoUpload');
 const btnMyUploads = $('#btnMyUploads');
 const btnAbout   = $('#btnAbout');
+const btnList    = $('#btnList');
 
 function openDropdown(){ dropdown?.classList.remove('hidden'); requestAnimationFrame(()=> dropdown?.classList.add('show')); }
 function closeDropdown(){ dropdown?.classList.remove('show'); setTimeout(()=> dropdown?.classList.add('hidden'), 180); }
@@ -33,6 +34,7 @@ dropdown?.addEventListener('click',(e)=> e.stopPropagation());
 btnGoUpload ?.addEventListener('click', ()=>{ location.href='upload.html'; closeDropdown(); });
 btnMyUploads?.addEventListener('click', ()=>{ location.href='manage-uploads.html'; closeDropdown(); });
 btnAbout    ?.addEventListener('click', ()=>{ location.href='about.html'; closeDropdown(); });
+btnList     ?.addEventListener('click', ()=>{ location.href='list.html'; closeDropdown(); });
 btnSignOut  ?.addEventListener('click', async ()=>{ await fbSignOut(auth); closeDropdown(); });
 
 /* ------- 공통 키 ------- */
