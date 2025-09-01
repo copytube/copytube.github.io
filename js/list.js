@@ -1,4 +1,4 @@
-// js/list.js (v1.7.3) — 제목 oEmbed 보강(+7일 캐시) 유지, 스와이프 방향잠금(오른쪽 끌림 0), 드롭다운 로직 index 패턴 통일
+// js/list.js (v1.8.0) — oEmbed(7일 캐시) 유지 + 무한 스크롤 + 필터 인지형 선로딩 + 스와이프 방향잠금
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import {
@@ -20,18 +20,8 @@ const btnAbout   = document.getElementById('btnAbout');
 const btnList    = document.getElementById('btnList');
 
 let isMenuOpen = false;
-function openDropdown(){
-  if (!dropdown) return;
-  isMenuOpen = true;
-  dropdown.classList.remove('hidden');
-  requestAnimationFrame(()=> dropdown.classList.add('show'));
-}
-function closeDropdown(){
-  if (!dropdown) return;
-  isMenuOpen = false;
-  dropdown.classList.remove('show');
-  setTimeout(()=> dropdown.classList.add('hidden'), 180);
-}
+function openDropdown(){ if(!dropdown) return; isMenuOpen = true; dropdown.classList.remove('hidden'); requestAnimationFrame(()=> dropdown.classList.add('show')); }
+function closeDropdown(){ if(!dropdown) return; isMenuOpen = false; dropdown.classList.remove('show'); setTimeout(()=> dropdown.classList.add('hidden'), 180); }
 
 onAuthStateChanged(auth, (user) => {
   const loggedIn = !!user;
@@ -41,23 +31,12 @@ onAuthStateChanged(auth, (user) => {
   closeDropdown();
 });
 
-menuBtn?.addEventListener('click', (e)=>{
-  e.stopPropagation();
-  if (!dropdown) return;
-  dropdown.classList.contains('hidden') ? openDropdown() : closeDropdown();
-});
-document.addEventListener('pointerdown', (e)=>{
-  if (!dropdown || dropdown.classList.contains('hidden')) return;
-  if (!e.target.closest('#dropdownMenu,#menuBtn')) closeDropdown();
-}, true);
+menuBtn?.addEventListener('click', (e)=>{ e.stopPropagation(); dropdown?.classList.contains('hidden') ? openDropdown() : closeDropdown(); });
+document.addEventListener('pointerdown', (e)=>{ if(!dropdown || dropdown.classList.contains('hidden')) return; if(!e.target.closest('#dropdownMenu,#menuBtn')) closeDropdown(); }, true);
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDropdown(); });
 dropdown?.addEventListener('click', (e)=> e.stopPropagation());
 
-btnSignOut?.addEventListener('click', async ()=>{
-  if (!auth.currentUser) { location.href = 'signin.html'; return; }
-  try { await fbSignOut(auth); } catch {}
-  closeDropdown();
-});
+btnSignOut?.addEventListener('click', async ()=>{ if (!auth.currentUser) { location.href = 'signin.html'; return; } try { await fbSignOut(auth); } catch {} closeDropdown(); });
 btnGoUpload?.addEventListener('click', ()=>{ location.href = 'upload.html'; closeDropdown(); });
 btnAbout   ?.addEventListener('click', ()=>{ location.href = 'about.html';  closeDropdown(); });
 btnList    ?.addEventListener('click', ()=>{ location.href = 'list.html';   closeDropdown(); });
@@ -67,7 +46,7 @@ const $cards     = document.getElementById('cards');
 const $msg       = document.getElementById('msg') || document.getElementById('resultMsg');
 const $q         = document.getElementById('q');
 const $btnSearch = document.getElementById('btnSearch');
-const $btnClear  = document.getElementById('btnClear'); // 없어도 안전
+const $btnClear  = document.getElementById('btnClear'); // optional
 const $btnMore   = document.getElementById('btnMore');
 
 /* ---------- 상태 ---------- */
@@ -81,8 +60,8 @@ let isLoading = false;
 function getSelectedCats(){
   try {
     const raw = localStorage.getItem('selectedCats');
-    const arr = JSON.parse(raw || '[]');
-    return Array.isArray(arr) ? arr : [];
+    const v = JSON.parse(raw || '[]');           // '"ALL"' → "ALL", 배열이면 배열
+    return Array.isArray(v) ? v : [];            // "ALL" 같은 비배열이면 필터 미적용으로 간주
   } catch { return []; }
 }
 function esc(s=''){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
@@ -128,6 +107,7 @@ async function fetchYouTubeTitleById(id){
   if(!id) return null;
   const c = TitleCache.get(id);
   if(c){ lazyTitleMap.set(id,c); return c; }
+
   try{
     const url = `https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=${id}`;
     const res = await fetch(url, { mode:'cors' });
@@ -141,6 +121,7 @@ async function fetchYouTubeTitleById(id){
     return title;
   }catch{ return null; }
 }
+
 async function hydrateTitleIfNeeded(titleEl, url, existingTitle){
   if(!titleEl) return;
   if(existingTitle && existingTitle !== '(제목 없음)') return;
@@ -150,7 +131,7 @@ async function hydrateTitleIfNeeded(titleEl, url, existingTitle){
   if(t) titleEl.textContent = t;
 }
 
-/* ---------- 개인자료 모드 ---------- */
+/* ---------- 개인자료 모드 지원 ---------- */
 function isPersonalOnlySelection(){
   try{
     const raw = localStorage.getItem('selectedCats');
@@ -236,9 +217,33 @@ function openInWatchPersonal(items, index, slot, label){
   location.href = `watch.html?idx=${index}&cats=${encodeURIComponent(slot)}`;
 }
 
+/* ---------- 필터 공통 ---------- */
+function filterDocs(){
+  const cats = getSelectedCats();
+  const q = ($q?.value || '').trim().toLowerCase();
+
+  let list = allDocs.slice();
+
+  if (Array.isArray(cats) && cats.length){
+    list = list.filter(x => {
+      const arr = Array.isArray(x.data?.categories) ? x.data.categories : [];
+      return arr.some(v => cats.includes(v));
+    });
+  }
+  if (q){
+    list = list.filter(x => {
+      const id = extractId(x.data?.url || '');
+      const t = String(x.data?.title || lazyTitleMap.get(id) || '').toLowerCase();
+      const u = String(x.data?.url || '').toLowerCase();
+      return t.includes(q) || u.includes(q);
+    });
+  }
+  return list;
+}
+
 /* ---------- Firestore 로드 ---------- */
 async function loadPage(){
-  if(isLoading || !hasMore) return;
+  if(isLoading || !hasMore) return false;
   isLoading = true;
   setStatus(allDocs.length ? `총 ${allDocs.length}개 불러옴 · 더 불러오는 중…` : '불러오는 중…');
 
@@ -248,7 +253,7 @@ async function loadPage(){
     parts.push(limit(PAGE_SIZE));
 
     const snap = await getDocs(query(collection(db,'videos'), ...parts));
-    if (snap.empty) { hasMore = false; toggleMore(false); setStatus(allDocs.length ? `총 ${allDocs.length}개` : '등록된 영상이 없습니다.'); isLoading=false; return; }
+    if (snap.empty) { hasMore = false; toggleMore(false); setStatus(allDocs.length ? `총 ${allDocs.length}개` : '등록된 영상이 없습니다.'); isLoading=false; return false; }
 
     const batch = snap.docs.map(d => ({ id: d.id, data: d.data() }));
     allDocs = allDocs.concat(batch);
@@ -267,7 +272,7 @@ async function loadPage(){
       setStatus('목록을 불러오지 못했습니다.');
       toggleMore(false);
       isLoading=false;
-      return;
+      return false;
     }
   }
 
@@ -275,28 +280,36 @@ async function loadPage(){
   toggleMore(hasMore);
   setStatus(`총 ${allDocs.length}개`);
   isLoading = false;
+  return true;
 }
 
-/* ---------- 렌더 & 필터 ---------- */
-function render(){
-  const cats = getSelectedCats();
-  const q = ($q?.value || '').trim().toLowerCase();
+/* ---------- 필터 인지형 선로딩(최소 PAGE_SIZE 보장 시도) ---------- */
+async function ensureMinFiltered(min = PAGE_SIZE){
+  // 개인자료 모드는 해당 없음
+  if (isPersonalOnlySelection()) return;
 
-  let list = allDocs.slice();
-  if (cats.length){
-    list = list.filter(x => {
-      const arr = Array.isArray(x.data?.categories) ? x.data.categories : [];
-      return arr.some(v => cats.includes(v));
-    });
+  let filtered = filterDocs();
+  let guard = 0;
+  while (filtered.length < min && hasMore && guard < 5){ // 과도한 로딩 방지 가드(최대 5회)
+    const ok = await loadPage();
+    if (!ok) break;
+    filtered = filterDocs();
+    guard++;
   }
-  if (q){
-    list = list.filter(x => {
-      const id = extractId(x.data?.url || '');
-      const t = String(x.data?.title || lazyTitleMap.get(id) || '').toLowerCase();
-      const u = String(x.data?.url || '').toLowerCase();
-      return t.includes(q) || u.includes(q);
-    });
+  // 최종 렌더(이미 loadPage가 렌더를 호출하지만 안전하게 보강)
+  render();
+  toggleMore(hasMore);
+}
+
+/* ---------- 렌더 ---------- */
+function render(){
+  // 개인자료 모드 분기
+  if (isPersonalOnlySelection()){
+    renderPersonalList();
+    return;
   }
+
+  const list = filterDocs();
 
   $cards.innerHTML = '';
   if (!list.length){
@@ -323,15 +336,18 @@ function render(){
         <div class="thumb-wrap"><img class="thumb" src="${esc(thumb)}" alt="썸네일" loading="lazy"></div>
       </div>
     `;
+
     hydrateTitleIfNeeded(card.querySelector('.title'), url, title);
+
     card.querySelector('.left') ?.addEventListener('click', ()=> openInWatch(list, idx));
     card.querySelector('.thumb')?.addEventListener('click', ()=> openInWatch(list, idx));
+
     frag.appendChild(card);
   });
   $cards.appendChild(frag);
 }
 
-/* ---------- watch로 이동(큐+인덱스+doc+cats) ---------- */
+/* ---------- watch로 이동(큐 + 인덱스 + doc + cats 파라미터) ---------- */
 function openInWatch(list, index){
   const queue = list.map(x => {
     const id = extractId(x.data?.url || '');
@@ -358,28 +374,79 @@ function openInWatch(list, index){
   location.href = `watch.html?doc=${docId}&idx=${index}${catsParam}`;
 }
 
-/* ---------- 이벤트 ---------- */
-$q?.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); isPersonalOnlySelection() ? renderPersonalList() : render(); }});
-$btnSearch?.addEventListener('click', ()=> isPersonalOnlySelection() ? renderPersonalList() : render());
-$btnClear ?.addEventListener('click', ()=> { if($q){ $q.value=''; } isPersonalOnlySelection() ? renderPersonalList() : render(); });
+/* ---------- 검색 이벤트 ---------- */
+$q?.addEventListener('keydown', async (e)=>{
+  if(e.key==='Enter'){
+    e.preventDefault();
+    if(isPersonalOnlySelection()){ renderPersonalList(); return; }
+    render();
+    await ensureMinFiltered(PAGE_SIZE);
+  }
+});
+$btnSearch?.addEventListener('click', async ()=>{
+  if(isPersonalOnlySelection()){ renderPersonalList(); return; }
+  render();
+  await ensureMinFiltered(PAGE_SIZE);
+});
+$btnClear ?.addEventListener('click', async ()=>{
+  if($q) $q.value='';
+  if(isPersonalOnlySelection()){ renderPersonalList(); return; }
+  render();
+  await ensureMinFiltered(PAGE_SIZE);
+});
 $btnMore  ?.addEventListener('click', async ()=>{
   $btnMore.disabled = true; $btnMore.textContent = '불러오는 중…';
-  try { await loadPage(); } finally { $btnMore.disabled=false; $btnMore.textContent='더 보기'; }
+  try {
+    await loadPage();
+    // 필터가 켜져 있고 결과가 적으면 한 번 더 시도
+    await ensureMinFiltered(PAGE_SIZE);
+  } finally {
+    $btnMore.disabled=false; $btnMore.textContent='더 보기';
+  }
 });
 
 /* ---------- 시작 ---------- */
 (async function init(){
   try{
     if (isPersonalOnlySelection()){
-      renderPersonalList();
-    } else {
-      await loadPage();
+      renderPersonalList();     // 개인자료 전용
+      return;
     }
+    // 최초 페이지 로드 + 필터 인지형 선로딩
+    await loadPage();
+    await ensureMinFiltered(PAGE_SIZE);
   }catch(e){
     console.error(e);
     setStatus('목록을 불러오지 못했습니다.');
   }
 })();
+
+/* ---------- 무한 스크롤 ---------- */
+const SCROLL_LOAD_OFFSET = 320;
+window.addEventListener('scroll', async ()=>{
+  if (isLoading || !hasMore) return;
+  const nearBottom = (window.innerHeight + window.scrollY) >= (document.body.offsetHeight - SCROLL_LOAD_OFFSET);
+  if (!nearBottom) return;
+
+  // 개인자료 모드 제외
+  if (isPersonalOnlySelection()) return;
+
+  // 추가 로드
+  const before = filterDocs().length;
+  const ok = await loadPage();
+  if (!ok) return;
+
+  // 필터가 켜져 있는데 결과가 여전히 적으면 추가로 더 당겨오기(최대 2회)
+  let guard=0;
+  while (filterDocs().length < PAGE_SIZE && hasMore && guard < 2){
+    const ok2 = await loadPage();
+    if(!ok2) break;
+    guard++;
+  }
+
+  const after = filterDocs().length;
+  if (after > before) render();
+}, { passive:true });
 
 /* ===================== */
 /* Slide-out CSS (단순형/백업용) */
@@ -416,6 +483,7 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
   }
   function onEnd(e){
     if(!tracking) return; tracking = false;
+
     if (window.__swipeNavigating) return;
 
     const p = getPoint(e);
@@ -439,6 +507,7 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260 } = {})
   document.addEventListener('pointerdown',onStart, { passive:true });
   document.addEventListener('pointerup',  onEnd,   { passive:true });
 }
+
 // ✅ list: 우→좌 = index 로 돌아가기 (단순형 유지)
 initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
 
@@ -450,7 +519,6 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
     const page = document.querySelector('main') || document.body;
     if(!page) return;
 
-    // 드래그 성능 힌트
     if(!page.style.willChange || !page.style.willChange.includes('transform')){
       page.style.willChange = (page.style.willChange ? page.style.willChange + ', transform' : 'transform');
     }
@@ -482,14 +550,12 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
       const dx = t.clientX - x0;
       const dy = t.clientY - y0;
 
-      // 세로 제스처면 취소
       if(Math.abs(dy) > slop){
         canceled = true; active = false;
         reset(true);
         return;
       }
 
-      // ★ 방향 잠금: 허용된 방향 외에는 끌림 0, preventDefault도 호출하지 않음
       const allowLeft  = !!goLeftHref;
       const allowRight = !!goRightHref;
 
@@ -499,10 +565,9 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
 
       if (dxAdj === 0){
         page.style.transform = 'translateX(0px)';
-        return; // 기본 스크롤/터치에 영향 주지 않음
+        return;
       }
 
-      // 허용된 방향만 끌림 + 수평 제스처 방지
       e.preventDefault();
       page.style.transform = 'translateX(' + (dxAdj * feel) + 'px)';
     }
@@ -538,7 +603,6 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null });
       }
     }
 
-    // 터치 & 포인터
     document.addEventListener('touchstart',  start, { passive:true });
     document.addEventListener('touchmove',   move,  { passive:false });
     document.addEventListener('touchend',    end,   { passive:true, capture:true });
