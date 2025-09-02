@@ -1,7 +1,8 @@
-// js/upload.js (v1.7.0)
-// - 업로드 시 제목(oEmbed) 저장 유지
-// - 스와이프: 중앙 30% 데드존 + 방향 잠금(오른쪽으로만 이동 가능) + 중복 내비 가드(__swipeNavigating)
-// - Topbar/드롭다운 동일 패턴 유지
+// js/upload.js (v1.7.1-xss-safe)
+// - XSS 방어: 카테고리 렌더에서 innerHTML 미사용(모두 createElement/textContent)
+// - 개인 라벨 추가 방어: 길이/문자 제한 + DOM 주입 차단
+// - URL 화이트리스트(YouTube/https만) — javascript:, data: 등 차단
+// - 기존 기능/UX, Firestore 스키마(uid) 그대로 유지
 import { auth, db } from './firebase-init.js?v=1.5.1';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
@@ -58,8 +59,11 @@ function getPersonalLabels(){
   try{ return JSON.parse(localStorage.getItem(PERSONAL_LABELS_KEY)||'{}'); }catch{ return {}; }
 }
 function setPersonalLabel(key,label){
+  let s = String(label||'').replace(/\r\n?/g,'\n').trim();
+  // 길이, 금지문자(꺾쇠/따옴표) 제거 — 추가 방어
+  s = s.slice(0,12).replace(/[<>"]/g,'').replace(/[\u0000-\u001F]/g,'');
   const map = getPersonalLabels();
-  map[key] = String(label||'').slice(0,12).replace(/[<>"]/g,'').trim();
+  map[key] = s;
   localStorage.setItem(PERSONAL_LABELS_KEY, JSON.stringify(map));
 }
 
@@ -74,7 +78,7 @@ function applyGroupOrder(groups){
   return sorted;
 }
 
-/* ------- 카테고리 렌더 ------- */
+/* ------- 카테고리 렌더 (XSS-safe: DOM API만 사용) ------- */
 const catsBox = $('#cats');
 
 function renderCats(){
@@ -91,35 +95,79 @@ function renderCats(){
   const personalLabels = getPersonalLabels();
   const groups = applyGroupOrder(CATEGORY_GROUPS);
 
-  const html = groups.map(g=>{
-    const kids = g.children.map(c=>{
-      const labelText = (g.key==='personal' && personalLabels[c.value]) ? personalLabels[c.value] : c.label;
-      const renameBtn = (g.key==='personal') ? ` <button class="rename-btn" data-key="${c.value}" type="button">이름변경</button>` : '';
-      return `<label><input type="checkbox" class="cat" value="${c.value}"> ${labelText}${renameBtn}</label>`;
-    }).join('');
-    const legend = (g.key==='personal') ? `${g.label} <span class="subnote">(로컬저장소)</span>` : g.label;
-    const note   = (g.key==='personal') ? '<div class="muted" style="margin:6px 4px 2px;">개인자료는 <b>단독 등록/재생</b>만 가능합니다.</div>' : '';
-    return `
-      <fieldset class="group" data-key="${g.key}">
-        <legend>${legend}</legend>
-        <div class="child-grid">${kids}</div>
-        ${note}
-      </fieldset>`;
-  }).join('');
+  // 기존 innerHTML 사용 → 모두 제거
+  catsBox.replaceChildren(); // 안전하게 초기화
 
-  catsBox.innerHTML = html;
+  const frag = document.createDocumentFragment();
 
-  // 이름변경
-  catsBox.querySelectorAll('.rename-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const key = btn.getAttribute('data-key');
-      const cur = getPersonalLabels()[key] || (key==='personal1'?'자료1':'자료2');
-      const name = prompt('개인자료 이름(최대 12자):', cur);
-      if(!name) return;
-      setPersonalLabel(key, name);
-      renderCats();
-    });
-  });
+  for (const g of groups){
+    const fieldset = document.createElement('fieldset');
+    fieldset.className = 'group';
+    fieldset.dataset.key = g.key;
+
+    const legend = document.createElement('legend');
+    legend.textContent = g.key === 'personal' ? `${g.label} ` : g.label;
+    fieldset.appendChild(legend);
+
+    if (g.key === 'personal'){
+      const sub = document.createElement('span');
+      sub.className = 'subnote';
+      sub.textContent = '(로컬저장소)';
+      legend.appendChild(sub);
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'child-grid';
+    fieldset.appendChild(grid);
+
+    for (const c of g.children){
+      const label = document.createElement('label');
+
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.className = 'cat';
+      input.value = c.value;
+
+      const text = document.createTextNode(' ' + (g.key==='personal' && personalLabels[c.value] ? personalLabels[c.value] : c.label));
+
+      label.appendChild(input);
+      label.appendChild(text);
+
+      if (g.key==='personal'){
+        const btn = document.createElement('button');
+        btn.className = 'rename-btn';
+        btn.type = 'button';
+        btn.dataset.key = c.value;
+        btn.textContent = '이름변경';
+        btn.addEventListener('click', ()=>{
+          const key = btn.getAttribute('data-key');
+          const cur = getPersonalLabels()[key] || (key==='personal1'?'자료1':'자료2');
+          const name = prompt('개인자료 이름(최대 12자):', cur);
+          if(!name) return;
+          setPersonalLabel(key, name);
+          renderCats();
+        });
+        // 공백 추가
+        label.appendChild(document.createTextNode(' '));
+        label.appendChild(btn);
+      }
+
+      grid.appendChild(label);
+    }
+
+    if (g.key==='personal'){
+      const note = document.createElement('div');
+      note.className = 'muted';
+      note.style.margin = '6px 4px 2px';
+      // 텍스트만
+      note.textContent = '개인자료는 단독 등록/재생만 가능합니다.';
+      fieldset.appendChild(note);
+    }
+
+    frag.appendChild(fieldset);
+  }
+
+  catsBox.appendChild(frag);
 
   // 선택 제약
   catsBox.querySelectorAll('input.cat').forEach(chk=>{
@@ -146,6 +194,9 @@ renderCats();
 const urlsBox = $('#urls');
 function parseUrls(){ return urlsBox.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); }
 function extractId(url){ const m=String(url).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/); return m?m[1]:''; }
+
+// (XSS/악성 URL 방지) — https + YouTube만 허용
+const YT_WHITELIST = /^(https:\/\/(www\.)?youtube\.com\/(watch\?v=|shorts\/)|https:\/\/youtu\.be\/)/i;
 
 /* ------- 제목 가져오기: oEmbed ------- */
 async function fetchTitleById(id){
@@ -194,6 +245,7 @@ async function submitAll(){
     let arr=[]; try{ arr=JSON.parse(localStorage.getItem(key)||'[]'); }catch{ arr=[]; }
     let added=0;
     for(const raw of lines){
+      if(!YT_WHITELIST.test(raw)) { continue; } // 안전하지 않은 URL 차단
       if(!extractId(raw)) continue;
       arr.push({ url: raw, savedAt: Date.now() });
       added++;
@@ -230,6 +282,10 @@ async function submitAll(){
   // 순차 처리(간단/안전)
   for(let i=0;i<list.length;i++){
     const url = list[i];
+
+    // 안전 URL 검사
+    if(!YT_WHITELIST.test(url)){ fail++; setMsg(`YouTube 링크만 등록할 수 있습니다. (${ok+fail}/${list.length})`); continue; }
+
     const id  = extractId(url);
     if(!id){ fail++; setMsg(`등록 중... (${ok+fail}/${list.length})`); continue; }
 
@@ -242,13 +298,14 @@ async function submitAll(){
         url,
         ...(title ? { title } : {}),     // 빈 문자열이면 필드 생략
         categories: normals,
-        uid: user.uid,
+        uid: user.uid,                   // (레거시 스키마 유지) — 규칙 ownerOf()가 uid/ownerUid 모두 수용
         createdAt: serverTimestamp(),
-        // thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, // 썸네일 저장 원하면 주석 해제
+        // thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
       };
       await addDoc(collection(db,'videos'), docData);
       ok++;
-    }catch{
+    }catch(e){
+      console.error('[upload] addDoc failed:', e?.code, e?.message, e);
       fail++;
     }
     setMsg(`등록 중... (${ok+fail}/${list.length})`);
@@ -335,14 +392,14 @@ function simpleSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260, dead
 }
 
 /* ===================== */
-/* 고급형 스와이프 — 끌리는 모션 + 방향 잠금 + 중앙 30% 데드존 */
+/* 고급형 스와이프 — 끌리는 모션 + 방향 잠금 + 중앙 데드존(15%) */
 /* ===================== */
 (function(){
-  function initDragSwipe({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0, deadZoneCenterRatio=0.30 }={}){
+  function initDragSwipe({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0, deadZoneCenterRatio=0.15 }={}){
     const page = document.querySelector('main') || document.body;
     if(!page) return;
 
-    // 드래그 성능 향상 힌트
+    // 드래그 성능 힌트
     if(!page.style.willChange || !page.style.willChange.includes('transform')){
       page.style.willChange = (page.style.willChange ? page.style.willChange + ', transform' : 'transform');
     }
