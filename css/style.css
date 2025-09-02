@@ -28,6 +28,7 @@ body{
   display:inline-flex; align-items:center; gap:8px; line-height:1;
 }
 .brand a:hover{ opacity:.9; cursor:pointer; }
+#list .content { white-space: pre-wrap; }
 
 /* 로고: 데스크톱 48px / 모바일 40px */
 .brand-logo{ height:48px; width:auto; display:block; object-fit:contain; }
