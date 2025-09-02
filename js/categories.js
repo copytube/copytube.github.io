@@ -95,6 +95,8 @@ export const CATEGORY_GROUPS = [
       { value: 'interior',        label: '인테리어건축' }, // ★ 라벨만 변경(키 유지)
       { value: 'reading',         label: '독서' },          // ★ 신규
       { value: 'instrument_play', label: '악기연주' },      // ★ 신규
+      { value: 'sports_fishing',    label: '낚시' },
+      { value: 'camera',            label: '카메라영상' }, 
       { value: 'game',            label: '게임' },          // ★ (정보·IT → 이동)
     ],
   },
@@ -110,7 +112,6 @@ export const CATEGORY_GROUPS = [
       { value: 'sports_baseball',   label: '야구' },
       { value: 'sports_golf',   label: '골프' },
       { value: 'sports_racket',     label: '탁구/테니스/배드민턴' }, // 탁테배 
-      { value: 'sports_fishing',    label: '낚시' },
       { value: 'sports_etc',   label: '그외' },
     ],
   },
