@@ -186,7 +186,8 @@ export const CATEGORY_GROUPS = [
       { value: 'english',     label: '영어' },
       { value: 'korean',      label: '국어' },
       { value: 'edu_social',  label: '사회' }, // 충돌 방지용 확정 키
-      { value: 'history',     label: '역사' },
+      { value: 'history',     label: '국사' },
+      { value: 'whistory',     label: '세계사' },
        { value: 'geography',     label: '지리' },
       { value: 'art',         label: '미술' },
       { value: 'music',       label: '음악' },
