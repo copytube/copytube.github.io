@@ -1,7 +1,7 @@
-// js/watch.js (v1.0.4 기반, 큐/인덱스 우선 재생 추가)
-// - 기존 기능은 유지(삼성인터넷 보정, 자동 상단바, 개인자료, 공용 카테고리, IntersectionObserver, AUTO_NEXT 등)
-// - 추가: list.html에서 넘겨준 sessionStorage.playQueue/playIndex 및 URL의 doc/idx를 최우선으로 사용하여
-//         해당 "목록의 n번째 영상"부터 재생하는 QUEUE_MODE를 지원
+// js/watch.js (v1.0.5-xss-safe)
+// - XSS 방어: 카드 렌더링에서 innerHTML 제거(모두 createElement/textContent)
+// - YouTube URL/ID 화이트리스트 검증 추가
+// - 기존 기능(큐/인덱스 우선 재생, 오토넥스트, 삼성인터넷 보정 등) 유지
 
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
@@ -49,7 +49,7 @@ const btnMyUploads   = document.getElementById("btnMyUploads");
 const btnAbout       = document.getElementById("btnAbout");
 const brandHome      = document.getElementById("brandHome");
 const videoContainer = document.getElementById("videoContainer");
-const btnList = document.getElementById('btnList'); // ✅ 추가
+const btnList        = document.getElementById('btnList');
 
 /* ---------- dropdown ---------- */
 let isMenuOpen=false;
@@ -91,25 +91,23 @@ function getSelectedCats(){
   if (fromUrl) return fromUrl;
   try{ return JSON.parse(localStorage.getItem('selectedCats')||'null'); }catch{ return "ALL"; }
 }
-/* ---- AutoNext 읽기(READ-ONLY) ---- */
 function readAutoNext(){
   const v = (localStorage.getItem('autonext') || '').toLowerCase();
-  // '1' | 'true' | 'on' 을 모두 켜짐으로 인정
   return v === '1' || v === 'true' || v === 'on';
 }
 let AUTO_NEXT = readAutoNext();
+window.addEventListener('storage', (e)=>{ if(e.key === 'autonext'){ AUTO_NEXT = readAutoNext(); } });
 
-// 다른 탭/페이지에서 값이 바뀌면 실시간 반영(선택)
-window.addEventListener('storage', (e)=>{
-  if(e.key === 'autonext'){ AUTO_NEXT = readAutoNext(); }
-});
-
-/* ---- 개인자료 모드 판정 ---- */
 const sel = getSelectedCats();
 const SEL_SET = Array.isArray(sel) ? new Set(sel) : (sel==="ALL" ? null : null);
 const wantsPersonal1 = SEL_SET?.has?.('personal1') || parseCatsFromQuery()?.includes('personal1');
 const wantsPersonal2 = SEL_SET?.has?.('personal2') || parseCatsFromQuery()?.includes('personal2');
 const PERSONAL_MODE = (wantsPersonal1 || wantsPersonal2) && !(SEL_SET && ([...SEL_SET].some(v => v!=='personal1' && v!=='personal2')));
+
+/* ---------- YouTube 검증 ---------- */
+const YT_URL_WHITELIST = /^(https:\/\/(www\.)?youtube\.com\/(watch\?v=|shorts\/)|https:\/\/youtu\.be\/)/i;
+// 유튜브 ID는 알파벳/숫자/_- 6~20 (실제는 11이 일반적)
+const YT_ID_SAFE = /^[a-zA-Z0-9_-]{6,20}$/;
 
 /* ---------- YouTube control ---------- */
 let userSoundConsent=false;
@@ -168,23 +166,66 @@ const activeIO = new IntersectionObserver((entries)=>{
   });
 },{ root: videoContainer, threshold:[0,0.6,1] });
 
-function extractId(url){ const m=String(url).match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/); return m?m[1]:url; }
+function safeExtractYouTubeId(url){
+  const m = String(url||'').match(/(?:youtu\.be\/|v=|shorts\/)([^?&/]+)/i);
+  const cand = m ? m[1] : '';
+  return YT_ID_SAFE.test(cand) ? cand : '';
+}
+
+function makeInfoRow(text){
+  const wrap = document.createElement('div');
+  wrap.className = 'video';
+  const p = document.createElement('p');
+  p.className = 'playhint';
+  p.style.position = 'static';
+  p.style.margin = '0 auto';
+  p.textContent = text;
+  wrap.appendChild(p);
+  return wrap;
+}
 
 function makeCard(url, docId){
-  const id = extractId(url);
+  // URL 화이트리스트 검사
+  if(!YT_URL_WHITELIST.test(String(url||''))) return null;
+
+  const id = safeExtractYouTubeId(url);
+  if(!id) return null;
+
   const card = document.createElement('div');
   card.className = 'video';
   card.dataset.vid = id;
   card.dataset.docId = docId || '';
-  card.innerHTML = `
-    <div class="thumb">
-      <img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="thumbnail" loading="lazy"/>
-      <div class="playhint">위로 스와이프 · 탭하여 소리 허용</div>
-      ${userSoundConsent ? '' : '<div class="mute-tip">🔇 현재 음소거 • 한 번만 허용하면 계속 소리 재생</div>'}
-    </div>
-    <div class="gesture-capture ${userSoundConsent ? 'hidden':''}" aria-label="tap to enable sound"></div>
-  `;
-  card.querySelector('.gesture-capture')?.addEventListener('pointerdown', ()=>{ grantSoundFromCard(); }, { once:false });
+
+  // thumb 영역
+  const thumbDiv = document.createElement('div');
+  thumbDiv.className = 'thumb';
+
+  const img = document.createElement('img');
+  img.src = `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+  img.alt = 'thumbnail';
+  img.loading = 'lazy';
+  thumbDiv.appendChild(img);
+
+  const hint = document.createElement('div');
+  hint.className = 'playhint';
+  hint.textContent = '위로 스와이프 · 탭하여 소리 허용';
+  thumbDiv.appendChild(hint);
+
+  if(!userSoundConsent){
+    const muteTip = document.createElement('div');
+    muteTip.className = 'mute-tip';
+    muteTip.textContent = '🔇 현재 음소거 • 한 번만 허용하면 계속 소리 재생';
+    thumbDiv.appendChild(muteTip);
+  }
+
+  card.appendChild(thumbDiv);
+
+  const gesture = document.createElement('div');
+  gesture.className = `gesture-capture ${userSoundConsent ? 'hidden' : ''}`;
+  gesture.setAttribute('aria-label', 'tap to enable sound');
+  gesture.addEventListener('pointerdown', ()=>{ grantSoundFromCard(); }, { once:false });
+  card.appendChild(gesture);
+
   activeIO.observe(card);
   return card;
 }
@@ -192,6 +233,8 @@ function makeCard(url, docId){
 function ensureIframe(card, preload=false){
   if(card.querySelector('iframe')) return;
   const id = card.dataset.vid;
+  if(!YT_ID_SAFE.test(id)) return;
+
   const origin = encodeURIComponent(location.origin);
   const playerId = `yt-${id}-${Math.random().toString(36).slice(2,8)}`;
   const iframe = document.createElement('iframe');
@@ -213,8 +256,11 @@ function ensureIframe(card, preload=false){
       if(preload) ytCmd(iframe,"mute");
     }catch{}
   });
+
+  // thumb ↔ iframe 교체
   const thumb = card.querySelector('.thumb');
-  thumb ? card.replaceChild(iframe, thumb) : card.appendChild(iframe);
+  if(thumb) card.replaceChild(iframe, thumb);
+  else card.appendChild(iframe);
 }
 
 /* ---------- Feed (개인/공용) ---------- */
@@ -243,7 +289,8 @@ function matchesFilter(data){
 
 function resetFeed(){
   document.querySelectorAll('#videoContainer .video').forEach(el=> activeIO.unobserve(el));
-  videoContainer.innerHTML=""; isLoading=false; hasMore=true; lastDoc=null; loadedIds.clear(); currentActive=null;
+  videoContainer.replaceChildren();
+  isLoading=false; hasMore=true; lastDoc=null; loadedIds.clear(); currentActive=null;
 }
 
 /* ---- 개인모드: 로컬에서 읽어 페이징 ---- */
@@ -267,7 +314,7 @@ function loadMorePersonal(initial=false){
   isLoading=true;
 
   if(initial && personalItems.length===0){
-    videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">개인자료가 없습니다. 업로드에서 개인자료에 저장해 보세요.</p></div>`;
+    videoContainer.appendChild(makeInfoRow('개인자료가 없습니다. 업로드에서 개인자료에 저장해 보세요.'));
     isLoading=false; hasMore=false; return;
   }
 
@@ -277,8 +324,10 @@ function loadMorePersonal(initial=false){
     if(!u) continue;
     const fakeId = `local-${i}`;
     if(loadedIds.has(fakeId)) continue;
+    const card = makeCard(u, fakeId);
+    if(!card) continue;
     loadedIds.add(fakeId);
-    videoContainer.appendChild(makeCard(u, fakeId));
+    videoContainer.appendChild(card);
   }
   personalOffset = end;
   if(personalOffset >= personalItems.length) hasMore=false;
@@ -324,7 +373,7 @@ async function loadMoreCommon(initial=false){
         if(snap.empty){
           hasMore=false;
           if(initial && appended===0){
-            videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
+            videoContainer.appendChild(makeInfoRow('해당 카테고리 영상이 없습니다.'));
           }
           break;
         }
@@ -334,8 +383,10 @@ async function loadMoreCommon(initial=false){
           if(loadedIds.has(d.id)) continue;
           const data = d.data();
           if(matchesFilter(data)){
+            const card = makeCard(data.url, d.id);
+            if(!card) continue;
             loadedIds.add(d.id);
-            videoContainer.appendChild(makeCard(data.url, d.id));
+            videoContainer.appendChild(card);
             appended++; addedThisRound++;
             if(appended >= PAGE_SIZE) break;
           }
@@ -346,14 +397,14 @@ async function loadMoreCommon(initial=false){
         if(addedThisRound===0 && snap.size < PAGE_SIZE){ hasMore=false; break; }
       }
       if(initial && videoContainer.children.length===0){
-        videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
+        videoContainer.appendChild(makeInfoRow('해당 카테고리 영상이 없습니다.'));
       }
     }
 
   }catch(e){
     console.error(e);
     if(initial){
-      videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">목록을 불러오지 못했습니다.</p></div>`;
+      videoContainer.appendChild(makeInfoRow('목록을 불러오지 못했습니다.'));
     }
   }finally{
     isLoading=false;
@@ -363,7 +414,7 @@ async function loadMoreCommon(initial=false){
 
 async function appendFromSnap(snap, initial, clientFilter=false){
   if(snap.empty){
-    if(initial) videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
+    if(initial) videoContainer.appendChild(makeInfoRow('해당 카테고리 영상이 없습니다.'));
     hasMore=false; return;
   }
   let appended=0;
@@ -371,14 +422,16 @@ async function appendFromSnap(snap, initial, clientFilter=false){
     if(loadedIds.has(d.id)) return;
     const data=d.data();
     if(clientFilter && !matchesFilter(data)) return;
+    const card = makeCard(data.url, d.id);
+    if(!card) return;
     loadedIds.add(d.id);
-    videoContainer.appendChild(makeCard(data.url, d.id));
+    videoContainer.appendChild(card);
     appended++;
   });
   lastDoc = snap.docs[snap.docs.length-1] || lastDoc;
   if(snap.size < PAGE_SIZE) hasMore=false;
   if(initial && appended===0){
-    videoContainer.innerHTML = `<div class="video"><p class="playhint" style="position:static;margin:0 auto;">해당 카테고리 영상이 없습니다.</p></div>`;
+    videoContainer.appendChild(makeInfoRow('해당 카테고리 영상이 없습니다.'));
   }
 }
 
@@ -418,13 +471,11 @@ function tryLoadFromQueue(){
   try { queue = JSON.parse(sessionStorage.getItem('playQueue') || '[]'); } catch { queue = []; }
   if (!Array.isArray(queue) || queue.length === 0) return false;
 
-  // idx: sessionStorage 우선, URL 보정
   let idx = sessionStorage.getItem('playIndex');
   const urlIdx = getParam('idx');
   if (urlIdx !== null) idx = urlIdx;
   const docParam = getParam('doc');
 
-  // doc 제공 시 큐에서 위치 동기화
   if (docParam) {
     const found = queue.findIndex(it => it.id === docParam);
     if (found >= 0) idx = String(found);
@@ -432,7 +483,6 @@ function tryLoadFromQueue(){
 
   const startIndex = Math.max(0, Math.min(queue.length - 1, parseInt(idx || '0', 10) || 0));
 
-  // 피드 초기화 후 큐로 카드 구성
   resetFeed();
   QUEUE_MODE = true;
   hasMore = false;
@@ -440,24 +490,21 @@ function tryLoadFromQueue(){
   queue.forEach((item, i) => {
     const url = item?.url || '';
     const did = item?.id  || `q-${i}`;
-    if (loadedIds.has(did)) return;
+    if(loadedIds.has(did)) return;
+    const card = makeCard(url, did);
+    if(!card) return;
     loadedIds.add(did);
-    videoContainer.appendChild(makeCard(url, did));
+    videoContainer.appendChild(card);
   });
 
-  // startIndex로 이동 → IO가 활성화/재생 처리
   const target = videoContainer.querySelectorAll('.video')[startIndex];
   if (target) {
     target.scrollIntoView({ behavior:'instant', block:'start' });
-    // 보수적으로 iframe 준비
     ensureIframe(target);
     currentActive = target;
   }
 
-  // 현재 인덱스 저장(재진입 대비)
   sessionStorage.setItem('playIndex', String(startIndex));
-
-  // 삼성인터넷 높이 보정
   updateSnapHeightForSamsung();
   showTopbar();
   return true;
@@ -465,12 +512,10 @@ function tryLoadFromQueue(){
 
 /* ---------- start ---------- */
 (async ()=>{
-  // 1) 목록에서 온 경우(큐 모드)를 최우선 적용
   if (tryLoadFromQueue()) {
     return;
   }
 
-  // 2) 큐가 없고 doc 파라미터만 있는 경우(단일 진입) — 기존 흐름 보강
   const docId = getParam('doc');
   if (docId) {
     try{
@@ -480,10 +525,15 @@ function tryLoadFromQueue(){
         resetFeed();
         const d = snap.data();
         const u = d?.url || '';
-        loadedIds.add(docId);
-        videoContainer.appendChild(makeCard(u, docId));
-        const target = videoContainer.querySelector('.video');
-        if (target) { ensureIframe(target); currentActive = target; }
+        const card = makeCard(u, docId);
+        if(card){
+          loadedIds.add(docId);
+          videoContainer.appendChild(card);
+          const target = videoContainer.querySelector('.video');
+          if (target) { ensureIframe(target); currentActive = target; }
+        }else{
+          videoContainer.appendChild(makeInfoRow('해당 영상을 재생할 수 없습니다.'));
+        }
         updateSnapHeightForSamsung();
         showTopbar();
         return;
@@ -491,7 +541,6 @@ function tryLoadFromQueue(){
     }catch(e){ console.warn('[watch] doc load fail:', e?.message||e); }
   }
 
-  // 3) 기존 로직 유지(개인/공용)
   resetFeed();
   if(PERSONAL_MODE){ loadPersonalInit(); loadMorePersonal(true); }
   else{ await loadMoreCommon(true); }
