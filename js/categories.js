@@ -112,6 +112,7 @@ export const CATEGORY_GROUPS = [
       { value: 'sports_baseball',   label: '야구' },
       { value: 'sports_golf',   label: '골프' },
       { value: 'sports_racket',     label: '탁구/테니스/배드민턴' }, // 탁테배 
+      { value: 'water',            label: '수영물놀이' }, 
       { value: 'sports_etc',   label: '그외' },
     ],
   },
