@@ -1,7 +1,7 @@
-// js/upload.js (v1.7.0)
-// - 업로드 시 제목(oEmbed) 저장 유지
-// - 스와이프: 중앙 30% 데드존 + 방향 잠금(오른쪽으로만 이동 가능) + 중복 내비 가드(__swipeNavigating)
-// - Topbar/드롭다운 동일 패턴 유지
+// js/upload.js (v1.7.2-secure, full)
+// - Firestore 규칙 대응: ownerUid 사용, 필수 키 보장(url, categories, ownerUid, createdAt, title은 옵션)
+// - YouTube URL 화이트리스트 검증 추가
+// - 기존 상단바/드롭다운/카테고리 렌더/개인자료 로컬 저장/스와이프(단순형+고급형)/슬라이드 CSS 모두 유지
 import { auth, db } from './firebase-init.js?v=1.5.1';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
@@ -43,7 +43,7 @@ btnAbout    ?.addEventListener('click', ()=>{ location.href='about.html'; closeD
 btnList     ?.addEventListener('click', ()=>{ location.href='list.html'; closeDropdown(); });
 btnSignOut  ?.addEventListener('click', async ()=>{ await fbSignOut(auth); closeDropdown(); });
 
-/* ------- 공통 키 ------- */
+/* ------- 로컬스토리지 키 ------- */
 const GROUP_ORDER_KEY      = 'groupOrderV1';
 const PERSONAL_LABELS_KEY  = 'personalLabels';
 const isPersonal = (v)=> v==='personal1' || v==='personal2';
@@ -146,6 +146,7 @@ renderCats();
 const urlsBox = $('#urls');
 function parseUrls(){ return urlsBox.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); }
 function extractId(url){ const m=String(url).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/); return m?m[1]:''; }
+const YT_WHITELIST = /^(https:\/\/(www\.)?youtube\.com\/watch\?v=|https:\/\/youtu\.be\/|https:\/\/(www\.)?youtube\.com\/shorts\/)/i;
 
 /* ------- 제목 가져오기: oEmbed ------- */
 async function fetchTitleById(id){
@@ -230,6 +231,10 @@ async function submitAll(){
   // 순차 처리(간단/안전)
   for(let i=0;i<list.length;i++){
     const url = list[i];
+
+    // URL 화이트리스트 검사
+    if(!YT_WHITELIST.test(url)){ fail++; setMsg(`YouTube 링크만 등록할 수 있습니다. (${ok+fail}/${list.length})`); continue; }
+
     const id  = extractId(url);
     if(!id){ fail++; setMsg(`등록 중... (${ok+fail}/${list.length})`); continue; }
 
@@ -241,14 +246,15 @@ async function submitAll(){
       const docData = {
         url,
         ...(title ? { title } : {}),     // 빈 문자열이면 필드 생략
-        categories: normals,
-        uid: user.uid,
-        createdAt: serverTimestamp(),
-        // thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, // 썸네일 저장 원하면 주석 해제
+        categories: normals,             // 배열(최대 3)
+        ownerUid: user.uid,              // 규칙 요구: 소유자 필드 고정
+        createdAt: serverTimestamp(),    // 규칙 요구: 타임스탬프
+        // thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, // 필요 시 사용
       };
       await addDoc(collection(db,'videos'), docData);
       ok++;
-    }catch{
+    }catch(e){
+      console.error('[upload] addDoc failed:', e);
       fail++;
     }
     setMsg(`등록 중... (${ok+fail}/${list.length})`);
@@ -287,7 +293,7 @@ try{
 })();
 
 /* ===================== */
-/* 단순형 스와이프 정의(중앙 30% 데드존 추가) — 호출 안 함 */
+/* 단순형 스와이프 정의(중앙 30% 데드존 추가) — 호출 안 함(백업) */
 /* ===================== */
 function simpleSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260, deadZoneCenterRatio=0.30 } = {}){
   let sx=0, sy=0, t0=0, tracking=false;
@@ -335,14 +341,14 @@ function simpleSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260, dead
 }
 
 /* ===================== */
-/* 고급형 스와이프 — 끌리는 모션 + 방향 잠금 + 중앙 30% 데드존 */
+/* 고급형 스와이프 — 끌리는 모션 + 방향 잠금 + 중앙 데드존(15%) */
 /* ===================== */
 (function(){
-  function initDragSwipe({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0, deadZoneCenterRatio=0.30 }={}){
+  function initDragSwipe({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0, deadZoneCenterRatio=0.15 }={}){
     const page = document.querySelector('main') || document.body;
     if(!page) return;
 
-    // 드래그 성능 향상 힌트
+    // 성능 힌트
     if(!page.style.willChange || !page.style.willChange.includes('transform')){
       page.style.willChange = (page.style.willChange ? page.style.willChange + ', transform' : 'transform');
     }
