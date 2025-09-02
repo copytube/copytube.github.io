@@ -1,6 +1,7 @@
-// js/manage-uploads.js (목록1.3, v1.3.2)
-// - 버튼을 썸네일 오른쪽(하단 행)에 가로 배치, 카테고리 버튼 색 #6495ED
-// - 로그인 유지 보강 + 모달 스크롤 픽스 + 제목 백필(oEmbed)
+// js/manage-uploads.js (목록1.3, v1.3.3-secure)
+// - Firestore 규칙 대응: ownerUid 기준 쿼리로 통일
+// - 업데이트 시 금지 필드 미전송(ownerUid/status)
+// - DOM 출력 안전화(textContent), oEmbed 백필은 본인 문서에서만 수행
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import {
@@ -62,15 +63,16 @@ async function fetchTitle(url){
   }catch(e){ console.warn('[manage-uploads] fetchTitle 실패:', e); return ''; }
 }
 async function ensureTitle(elRow, docId, v){
-  if(v.title) return; // 이미 있으면 스킵
+  if(v.title) return;
   const t = await fetchTitle(v.url);
   if(!t) return;
   try{
+    // 본인 문서에서만 호출되므로 규칙 충족(소유자 고정)
     await updateDoc(doc(db,'videos', docId), { title: t });
-    // 캐시/DOM 갱신
     const item = cache.find(x => x.id === docId);
     if(item){ item.data.title = t; }
-    elRow.querySelector('.title')?.replaceChildren(document.createTextNode(t));
+    const titleEl = elRow.querySelector('.title');
+    titleEl.replaceChildren(document.createTextNode(t));
   }catch(e){ console.warn('[manage-uploads] title 백필 실패:', e); }
 }
 
@@ -80,36 +82,80 @@ let curUser = null;
 let lastDoc = null;
 let hasMore = true;
 let isLoading = false;
-let cache = [];        // 화면에 적재된 전체(검색용)
-let usingClientFallback = false; // 인덱스 폴백 여부
+let cache = [];
+let usingClientFallback = false;
 
-/* ---------- 목록 렌더 (목록1.3) ---------- */
+/* ---------- DOM 안전 생성 ---------- */
 function catChips(values=[]){
-  return values.map(v=>`<span class="chip">${valueToLabel.get(v)||v}</span>`).join('');
+  const wrap = document.createElement('span');
+  values.forEach(v=>{
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.textContent = valueToLabel.get(v) || v;
+    wrap.appendChild(chip);
+  });
+  return wrap.childNodes; // NodeList-like
 }
+
 function rowEl(docId, v){
   const id = extractId(v.url);
   const el = document.createElement('div');
   el.className='row';
   el.dataset.id = docId;
-  el.innerHTML = `
-    <label class="sel"><input type="checkbox" class="selbox"/></label>
 
-    <div class="title" title="${v.title||''}">${v.title || '(제목없음)'}</div>
-    <div class="url" title="${v.url||''}">${v.url||''}</div>
-    <div class="cats">${catChips(v.categories||[])}</div>
+  // 구조
+  const sel = document.createElement('label');
+  sel.className = 'sel';
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.className = 'selbox';
+  sel.appendChild(cb);
 
-    <a class="thumb" href="${v.url}" target="_blank" rel="noopener">
-      <img src="https://i.ytimg.com/vi/${id}/mqdefault.jpg" alt="thumb"/>
-    </a>
+  const title = document.createElement('div');
+  title.className = 'title';
+  title.textContent = v.title || '(제목없음)';
 
-    <div class="actions">
-      <button class="btn btn-cat" data-act="edit">카테고리</button>
-      <button class="btn btn-danger" data-act="del">삭제</button>
-    </div>
-  `;
+  const url = document.createElement('div');
+  url.className = 'url';
+  url.textContent = v.url || '';
+
+  const cats = document.createElement('div');
+  cats.className = 'cats';
+  const chips = catChips(v.categories||[]);
+  chips.forEach(node => cats.appendChild(node));
+
+  const a = document.createElement('a');
+  a.className = 'thumb';
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.href = v.url || '#';
+  const img = document.createElement('img');
+  img.alt = 'thumb';
+  if (id) img.src = `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
+  a.appendChild(img);
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  const btnCat = document.createElement('button');
+  btnCat.className = 'btn btn-cat';
+  btnCat.dataset.act = 'edit';
+  btnCat.textContent = '카테고리';
+  const btnDel = document.createElement('button');
+  btnDel.className = 'btn btn-danger';
+  btnDel.dataset.act = 'del';
+  btnDel.textContent = '삭제';
+  actions.appendChild(btnCat);
+  actions.appendChild(btnDel);
+
+  el.appendChild(sel);
+  el.appendChild(title);
+  el.appendChild(url);
+  el.appendChild(cats);
+  el.appendChild(a);
+  el.appendChild(actions);
+
   // 핸들러
-  el.querySelector('[data-act="del"]')?.addEventListener('click', async ()=>{
+  btnDel.addEventListener('click', async ()=>{
     if(!confirm('이 영상을 삭제할까요?')) return;
     try{
       await deleteDoc(doc(db,'videos', docId));
@@ -117,9 +163,12 @@ function rowEl(docId, v){
       cache = cache.filter(x => x.id !== docId);
     }catch(e){ alert('삭제 실패: '+(e.message||e)); }
   });
-  el.querySelector('[data-act="edit"]')?.addEventListener('click', ()=> openEdit(docId, v.categories||[]));
-  // 제목 백필 시도
+
+  btnCat.addEventListener('click', ()=> openEdit(docId, v.categories||[]));
+
+  // 제목 백필 시도(본인 문서만 조회 중)
   ensureTitle(el, docId, v);
+
   return el;
 }
 
@@ -145,20 +194,20 @@ async function loadInit(){
   cache = []; list.innerHTML=''; lastDoc=null; hasMore=true; usingClientFallback=false;
   setStatus('불러오는 중...');
   try{
-    // 선호: uid where + createdAt desc
+    // ownerUid where + createdAt desc
     const base = collection(db,'videos');
-    const parts = [ where('uid','==', curUser.uid), orderBy('createdAt','desc'), limit(PAGE_SIZE) ];
+    const parts = [ where('ownerUid','==', curUser.uid), orderBy('createdAt','desc'), limit(PAGE_SIZE) ];
     const snap = await getDocs(query(base, ...parts));
     appendSnap(snap);
   }catch(e){
     console.warn('[manage-uploads] index fallback:', e?.message||e);
     usingClientFallback = true;
-    const snap = await getDocs(query(collection(db,'videos'), where('uid','==', curUser.uid)));
+    const snap = await getDocs(query(collection(db,'videos'), where('ownerUid','==', curUser.uid)));
     const arr = snap.docs.map(d=>({ id:d.id, data:d.data(), _created:(d.data().createdAt?.toMillis?.()||0) }));
     arr.sort((a,b)=> b._created - a._created);
     cache = arr;
     cache.forEach(x => list.appendChild(rowEl(x.id, x.data)));
-    hasMore = false; // 한 번에 다 가져왔으므로
+    hasMore = false;
   }finally{
     setStatus(cache.length ? `총 ${cache.length}개 불러옴` : '등록한 영상이 없습니다.');
     applyFilter();
@@ -178,7 +227,7 @@ async function loadMore(){
   isLoading = true;
   try{
     const base = collection(db,'videos');
-    const parts = [ where('uid','==', curUser.uid), orderBy('createdAt','desc'), startAfter(lastDoc), limit(PAGE_SIZE) ];
+    const parts = [ where('ownerUid','==', curUser.uid), orderBy('createdAt','desc'), startAfter(lastDoc), limit(PAGE_SIZE) ];
     const snap = await getDocs(query(base, ...parts));
     appendSnap(snap);
   }catch(e){
@@ -189,7 +238,7 @@ async function loadMore(){
   }
 }
 
-/* ---------- 카테고리 편집 (모달 스크롤 픽스 포함) ---------- */
+/* ---------- 카테고리 편집 (모달) ---------- */
 const editBackdrop = document.getElementById('editBackdrop');
 const editCatsBox  = document.getElementById('editCats');
 const btnEditSave  = document.getElementById('btnEditSave');
@@ -225,14 +274,14 @@ function renderEditCats(selected){
   editCatsBox.innerHTML = html;
 
   // 최대 3개 제한
-  const limit=3;
+  const limitSel=3;
   const boxes = Array.from(editCatsBox.querySelectorAll('input.cat'));
   boxes.forEach(chk=>{
     chk.addEventListener('change', ()=>{
       const count = boxes.filter(b=> b.checked).length;
-      if(count > limit){
+      if(count > limitSel){
         chk.checked = false;
-        alert(`카테고리는 최대 ${limit}개까지 선택 가능합니다.`);
+        alert(`카테고리는 최대 ${limitSel}개까지 선택 가능합니다.`);
       }
     });
   });
@@ -256,7 +305,7 @@ function closeEdit(){
 
 btnEditCancel?.addEventListener('click', closeEdit);
 editBackdrop?.addEventListener('click', (e)=>{ if(e.target===editBackdrop) closeEdit(); });
-// 백드롭에서의 바깥 스크롤 차단(PC/모바일)
+// 배경 스크롤 차단
 function preventBgScroll(e){ if(e.target===editBackdrop){ e.preventDefault(); } }
 editBackdrop?.addEventListener('wheel', preventBgScroll, {passive:false});
 editBackdrop?.addEventListener('touchmove', preventBgScroll, {passive:false});
@@ -264,9 +313,9 @@ editBackdrop?.addEventListener('touchmove', preventBgScroll, {passive:false});
 btnEditSave?.addEventListener('click', async ()=>{
   if(!editTargetId) return;
   const sel = Array.from(editCatsBox.querySelectorAll('input.cat:checked')).map(b=>b.value);
+  // 금지 필드 미전송(ownerUid/status 등)
   try{
     await updateDoc(doc(db,'videos', editTargetId), { categories: sel });
-    // 캐시 갱신 + UI 갱신
     const item = cache.find(x => x.id === editTargetId);
     if(item){ item.data.categories = sel; }
     applyFilter();
@@ -284,7 +333,6 @@ btnDeleteSel?.addEventListener('click', async ()=>{
   for(const id of ids){
     try{ await deleteDoc(doc(db,'videos', id)); ok++; }catch{ fail++; }
   }
-  // 캐시/화면 반영
   cache = cache.filter(x => !ids.includes(x.id));
   applyFilter();
   alert(`삭제 완료: 성공 ${ok}건, 실패 ${fail}건`);
@@ -296,21 +344,19 @@ let _authFallbackTimer = null;
 
 document.addEventListener('DOMContentLoaded', ()=>{
   setStatus('로그인 상태 확인 중...');
-  // 안전 타이머: onAuthStateChanged가 늦거나 유실된 경우 대비
   _authFallbackTimer = setTimeout(()=>{
     try{
       if(!_authFirstHandled && auth.currentUser){
         _authFirstHandled = true;
         loadInit();
       }else if(!_authFirstHandled){
-        // 여전히 비로그인이라면 안내만
         if(msg){
           msg.innerHTML = `<span style="color:#ffb4b4;font-weight:700;">로그인이 필요합니다.</span>
             <a href="signin.html" class="btn" style="background:#4ea1ff; border:0; font-weight:800; margin-left:8px;">로그인하기</a>`;
         }
       }
     }catch(e){ console.error(e); }
-  }, 1800); // 1.8s 정도 대기 후 폴백
+  }, 1800);
 });
 
 onAuthStateChanged(auth, (user)=>{
@@ -320,7 +366,7 @@ onAuthStateChanged(auth, (user)=>{
     signinLink?.classList.toggle('hidden', loggedIn);
     welcome && (welcome.textContent = loggedIn ? `Hi! ${user?.displayName||'회원'}님` : '');
 
-    if(_authFirstHandled) return;      // 최초 이벤트만 신뢰
+    if(_authFirstHandled) return;
     _authFirstHandled = true;
     clearTimeout(_authFallbackTimer);
 
