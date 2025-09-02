@@ -1,6 +1,8 @@
-// js/manage-uploads.js (목록1.3, v1.3.2)
-// - 버튼을 썸네일 오른쪽(하단 행)에 가로 배치, 카테고리 버튼 색 #6495ED
-// - 로그인 유지 보강 + 모달 스크롤 픽스 + 제목 백필(oEmbed)
+// js/manage-uploads.js (목록1.3, v1.3.3-xss-safe)
+// - XSS 방어: 목록 렌더 전부 createElement/textContent 사용(innerHTML 제거)
+// - URL 화이트리스트(YT) 적용, href는 화이트리스트 통과 시에만 부여
+// - 제목 백필(oEmbed) 동작 유지, 로그인 유지/모달 스크롤 픽스 유지
+
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
 import {
@@ -41,7 +43,15 @@ const btnSearch = $('#btnSearch');
 const btnDeleteSel = $('#btnDeleteSel');
 
 function setStatus(text){ if(msg) msg.textContent = text || ''; }
-function extractId(url){ const m=String(url||'').match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&\/]+)/); return m?m[1]:''; }
+
+// YouTube 전용 화이트리스트 & 안전 ID 추출
+const YT_WHITELIST = /^(https:\/\/(www\.)?youtube\.com\/(watch\?v=|shorts\/)|https:\/\/youtu\.be\/)/i;
+const YT_ID_SAFE   = /^[a-zA-Z0-9_-]{6,20}$/;
+function safeExtractId(url){
+  const m=String(url||'').match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([^?&/]+)/i);
+  const cand = m? m[1] : '';
+  return YT_ID_SAFE.test(cand) ? cand : '';
+}
 
 /* 카테고리 라벨 맵 */
 const valueToLabel = (()=> {
@@ -53,7 +63,7 @@ const valueToLabel = (()=> {
 /* ---------- 제목 가져오기(oEmbed) + 백필 ---------- */
 async function fetchTitle(url){
   try{
-    const id = extractId(url);
+    const id = safeExtractId(url);
     const u  = id ? ('https://www.youtube.com/watch?v=' + id) : url;
     const res = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(u));
     if(!res.ok) throw new Error('oEmbed ' + res.status);
@@ -70,7 +80,9 @@ async function ensureTitle(elRow, docId, v){
     // 캐시/DOM 갱신
     const item = cache.find(x => x.id === docId);
     if(item){ item.data.title = t; }
-    elRow.querySelector('.title')?.replaceChildren(document.createTextNode(t));
+    const titleEl = elRow.querySelector('.title');
+    titleEl?.replaceChildren(document.createTextNode(t));
+    titleEl?.setAttribute('title', t);
   }catch(e){ console.warn('[manage-uploads] title 백필 실패:', e); }
 }
 
@@ -83,44 +95,106 @@ let isLoading = false;
 let cache = [];        // 화면에 적재된 전체(검색용)
 let usingClientFallback = false; // 인덱스 폴백 여부
 
-/* ---------- 목록 렌더 (목록1.3) ---------- */
-function catChips(values=[]){
-  return values.map(v=>`<span class="chip">${valueToLabel.get(v)||v}</span>`).join('');
+/* ---------- DOM 생성 헬퍼 ---------- */
+function makeEl(tag, props={}, children=[]){
+  const el = document.createElement(tag);
+  // 속성/스타일/데이터
+  for(const [k,v] of Object.entries(props||{})){
+    if (k === 'className') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k === 'html') el.innerHTML = v; // (사용하지 않음: 안전 위해 제공만)
+    else if (k === 'attrs' && v){
+      for(const [ak,av] of Object.entries(v)) el.setAttribute(ak, av);
+    } else if (k === 'style' && v){
+      Object.assign(el.style, v);
+    } else {
+      // href 같은 표준 속성은 직접 할당
+      try { el[k] = v; } catch {}
+    }
+  }
+  if(!Array.isArray(children)) children = [children];
+  children.forEach(ch=>{
+    if (typeof ch === 'string') el.appendChild(document.createTextNode(ch));
+    else if (ch) el.appendChild(ch);
+  });
+  return el;
 }
+
+/* ---------- cat chips DOM ---------- */
+function catChipsEl(values=[]){
+  const wrap = document.createElement('span');
+  (values||[]).forEach(v=>{
+    const chip = makeEl('span', { className:'chip', text: (valueToLabel.get(v)||v) });
+    wrap.appendChild(chip);
+  });
+  return wrap;
+}
+
+/* ---------- 행 렌더 (XSS-safe) ---------- */
 function rowEl(docId, v){
-  const id = extractId(v.url);
-  const el = document.createElement('div');
-  el.className='row';
-  el.dataset.id = docId;
-  el.innerHTML = `
-    <label class="sel"><input type="checkbox" class="selbox"/></label>
+  const id = safeExtractId(v.url);
+  const row = makeEl('div', { className:'row' });
+  row.dataset.id = docId;
 
-    <div class="title" title="${v.title||''}">${v.title || '(제목없음)'}</div>
-    <div class="url" title="${v.url||''}">${v.url||''}</div>
-    <div class="cats">${catChips(v.categories||[])}</div>
+  // 선택 체크박스
+  const selLabel = makeEl('label', { className:'sel' },
+    makeEl('input', { type:'checkbox', className:'selbox' })
+  );
 
-    <a class="thumb" href="${v.url}" target="_blank" rel="noopener">
-      <img src="https://i.ytimg.com/vi/${id}/mqdefault.jpg" alt="thumb"/>
-    </a>
+  // 제목
+  const titleEl = makeEl('div', { className:'title' });
+  titleEl.textContent = v.title || '(제목없음)';
+  titleEl.title = v.title || '';
 
-    <div class="actions">
-      <button class="btn btn-cat" data-act="edit">카테고리</button>
-      <button class="btn btn-danger" data-act="del">삭제</button>
-    </div>
-  `;
-  // 핸들러
-  el.querySelector('[data-act="del"]')?.addEventListener('click', async ()=>{
+  // URL (텍스트로만 표시)
+  const urlEl = makeEl('div', { className:'url' });
+  urlEl.textContent = v.url || '';
+  urlEl.title = v.url || '';
+
+  // 카테고리
+  const catsEl = makeEl('div', { className:'cats' }, catChipsEl(v.categories||[]));
+
+  // 썸네일 링크 (화이트리스트 통과 시에만 href 부여)
+  const thumbLink = makeEl('a', { className:'thumb', attrs:{ target:'_blank', rel:'noopener' } });
+  if (YT_WHITELIST.test(v.url) && id){
+    thumbLink.href = v.url;
+  } else {
+    // 링크 불가: href 미지정 (클릭 금지)
+    thumbLink.href = 'javascript:void(0)';
+    thumbLink.addEventListener('click', (e)=> e.preventDefault());
+  }
+  const img = makeEl('img', { attrs:{ alt:'thumb' } });
+  if (id) img.src = `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
+  thumbLink.appendChild(img);
+
+  // 액션 버튼
+  const actions = makeEl('div', { className:'actions' }, [
+    makeEl('button', { className:'btn btn-cat', attrs:{ 'data-act':'edit' } , text:'카테고리' }),
+    makeEl('button', { className:'btn btn-danger', attrs:{ 'data-act':'del' } , text:'삭제' }),
+  ]);
+
+  // 조립
+  row.appendChild(selLabel);
+  row.appendChild(titleEl);
+  row.appendChild(urlEl);
+  row.appendChild(catsEl);
+  row.appendChild(thumbLink);
+  row.appendChild(actions);
+
+  // 이벤트
+  actions.querySelector('[data-act="del"]')?.addEventListener('click', async ()=>{
     if(!confirm('이 영상을 삭제할까요?')) return;
     try{
       await deleteDoc(doc(db,'videos', docId));
-      el.remove();
+      row.remove();
       cache = cache.filter(x => x.id !== docId);
     }catch(e){ alert('삭제 실패: '+(e.message||e)); }
   });
-  el.querySelector('[data-act="edit"]')?.addEventListener('click', ()=> openEdit(docId, v.categories||[]));
+  actions.querySelector('[data-act="edit"]')?.addEventListener('click', ()=> openEdit(docId, v.categories||[]));
+
   // 제목 백필 시도
-  ensureTitle(el, docId, v);
-  return el;
+  ensureTitle(row, docId, v);
+  return row;
 }
 
 qbox?.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); applyFilter(); }});
@@ -128,7 +202,7 @@ btnSearch?.addEventListener('click', ()=> applyFilter());
 
 function applyFilter(){
   const q = (qbox?.value||'').trim().toLowerCase();
-  list.innerHTML = '';
+  list.replaceChildren();
   const rows = !q ? cache : cache.filter(x=>{
     const t = (x.data.title||'').toLowerCase();
     const u = (x.data.url||'').toLowerCase();
@@ -142,7 +216,7 @@ function applyFilter(){
 async function loadInit(){
   if(!auth.currentUser) return;
   curUser = auth.currentUser;
-  cache = []; list.innerHTML=''; lastDoc=null; hasMore=true; usingClientFallback=false;
+  cache = []; list.replaceChildren(); lastDoc=null; hasMore=true; usingClientFallback=false;
   setStatus('불러오는 중...');
   try{
     // 선호: uid where + createdAt desc
@@ -208,21 +282,26 @@ function renderEditCats(selected){
   const groups = applyGroupOrder(CATEGORY_GROUPS)
     .filter(g => g.key!=='personal'); // 개인자료 제외(서버 저장 X)
 
-  const html = groups.map(g=>{
-    const kids = g.children.map(c=>{
-      const on = selected.includes(c.value) ? 'checked' : '';
-      return `<label style="display:flex; gap:6px; align-items:center; background:#0b0b0b; border:1px solid #2a2a2a; border-radius:8px; padding:6px 8px;">
-                <input type="checkbox" class="cat" value="${c.value}" ${on}> ${c.label}
-              </label>`;
-    }).join('');
-    return `
-      <fieldset class="group" data-key="${g.key}" style="border:1px solid var(--border); border-radius:10px; background:#101010; padding:8px; margin:6px 0;">
-        <legend style="padding:0 4px; font-weight:800; font-size:14px; color:#eee;">${g.label}</legend>
-        <div class="child-grid" style="display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:6px; margin-top:6px;">${kids}</div>
-      </fieldset>
-    `;
-  }).join('');
-  editCatsBox.innerHTML = html;
+  // DOM API로 안전 렌더
+  editCatsBox.replaceChildren();
+  for(const g of groups){
+    const fs = makeEl('fieldset', { className:'group', style:{ border:'1px solid var(--border)', borderRadius:'10px', background:'#101010', padding:'8px', margin:'6px 0' }});
+    const legend = makeEl('legend', { text:g.label, style:{ padding:'0 4px', fontWeight:'800', fontSize:'14px', color:'#eee' }});
+    fs.appendChild(legend);
+
+    const grid = makeEl('div', { style:{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0,1fr))', gap:'6px', marginTop:'6px' }});
+    for(const c of g.children){
+      const lab = makeEl('label', { style:{ display:'flex', gap:'6px', alignItems:'center', background:'#0b0b0b', border:'1px solid #2a2a2a', borderRadius:'8px', padding:'6px 8px' }});
+      const box = makeEl('input', { type:'checkbox', className:'cat' });
+      box.value = c.value;
+      box.checked = selected.includes(c.value);
+      lab.appendChild(box);
+      lab.appendChild(document.createTextNode(c.label));
+      grid.appendChild(lab);
+    }
+    fs.appendChild(grid);
+    editCatsBox.appendChild(fs);
+  }
 
   // 최대 3개 제한
   const limit=3;
@@ -296,21 +375,20 @@ let _authFallbackTimer = null;
 
 document.addEventListener('DOMContentLoaded', ()=>{
   setStatus('로그인 상태 확인 중...');
-  // 안전 타이머: onAuthStateChanged가 늦거나 유실된 경우 대비
   _authFallbackTimer = setTimeout(()=>{
     try{
       if(!_authFirstHandled && auth.currentUser){
         _authFirstHandled = true;
         loadInit();
       }else if(!_authFirstHandled){
-        // 여전히 비로그인이라면 안내만
         if(msg){
+          // 고정 문구라 innerHTML 사용 OK (유저 데이터 미포함)
           msg.innerHTML = `<span style="color:#ffb4b4;font-weight:700;">로그인이 필요합니다.</span>
             <a href="signin.html" class="btn" style="background:#4ea1ff; border:0; font-weight:800; margin-left:8px;">로그인하기</a>`;
         }
       }
     }catch(e){ console.error(e); }
-  }, 1800); // 1.8s 정도 대기 후 폴백
+  }, 1800);
 });
 
 onAuthStateChanged(auth, (user)=>{
@@ -320,7 +398,7 @@ onAuthStateChanged(auth, (user)=>{
     signinLink?.classList.toggle('hidden', loggedIn);
     welcome && (welcome.textContent = loggedIn ? `Hi! ${user?.displayName||'회원'}님` : '');
 
-    if(_authFirstHandled) return;      // 최초 이벤트만 신뢰
+    if(_authFirstHandled) return;
     _authFirstHandled = true;
     clearTimeout(_authFallbackTimer);
 
