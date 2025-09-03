@@ -1,8 +1,9 @@
-// js/list.js (v1.8.1) — oEmbed(7일 캐시) 유지 + 무한 스크롤 + 필터 인지형 선로딩 + 스와이프 방향잠금 + 중앙 30% 데드존
+// js/list.js (v1.9.4) — 제목/oEmbed(7일 캐시) + 무한 스크롤 + 필터 선로딩 + 스와이프 + 닉네임/카테고리칩
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import {
-  collection, getDocs, query, orderBy, limit, startAfter
+  collection, getDocs, query, orderBy, limit, startAfter,
+  doc, getDoc, where, setDoc
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 
 /* ---------- 전역 내비 중복 방지 플래그 ---------- */
@@ -56,12 +57,28 @@ let lastDoc   = null;
 let hasMore   = true;
 let isLoading = false;
 
+/* ---------- 카테고리 라벨 맵(항상 사람 읽는 이름 노출) ---------- */
+const LABEL_MAP = (() => {
+  if (window?.CATEGORIES?.labelMap) return window.CATEGORIES.labelMap;
+  if (window?.CATEGORY_LABELS)      return window.CATEGORY_LABELS;
+  if (window?.COPYTUBE?.categories?.labels) return window.COPYTUBE.categories.labels;
+  // CATEGORY_GROUPS 로부터 즉시 구성 (업로드 페이지와 동일 소스 사용)
+  const m = {};
+  try {
+    if (Array.isArray(window?.CATEGORY_GROUPS)) {
+      window.CATEGORY_GROUPS.forEach(g => (g.children||[]).forEach(c => { m[c.value] = c.label; }));
+    }
+  } catch {}
+  return m;
+})();
+function getLabel(key){ return LABEL_MAP?.[key] || key; }
+
 /* ---------- 유틸 ---------- */
 function getSelectedCats(){
   try {
     const raw = localStorage.getItem('selectedCats');
-    const v = JSON.parse(raw || '[]');           // '"ALL"' → "ALL", 배열이면 배열
-    return Array.isArray(v) ? v : [];            // "ALL" 같은 비배열이면 필터 미적용으로 간주
+    const v = JSON.parse(raw || '[]');
+    return Array.isArray(v) ? v : [];
   } catch { return []; }
 }
 function esc(s=''){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
@@ -72,13 +89,6 @@ function extractId(url=''){
 function toThumb(url, fallback=''){
   const id = extractId(url);
   return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : fallback;
-}
-function getLabel(key){
-  if (window?.CATEGORIES?.labelMap?.[key]) return window.CATEGORIES.labelMap[key];
-  if (window?.CATEGORY_LABELS?.[key]) return window.CATEGORY_LABELS[key];
-  if (window?.COPYTUBE?.categories?.labels?.[key]) return window.COPYTUBE.categories.labels[key];
-  try { if (typeof window.getLabel === 'function') return window.getLabel(key) ?? key; } catch {}
-  return key;
 }
 function setStatus(t){ if($msg) $msg.textContent = t || ''; }
 function toggleMore(show){ if($btnMore) $btnMore.style.display = show ? '' : 'none'; }
@@ -283,14 +293,13 @@ async function loadPage(){
   return true;
 }
 
-/* ---------- 필터 인지형 선로딩(최소 PAGE_SIZE 보장 시도) ---------- */
+/* ---------- 필터 인지형 선로딩 ---------- */
 async function ensureMinFiltered(min = PAGE_SIZE){
-  // 개인자료 모드는 해당 없음
   if (isPersonalOnlySelection()) return;
 
   let filtered = filterDocs();
   let guard = 0;
-  while (filtered.length < min && hasMore && guard < 5){ // 과도한 로딩 방지 가드(최대 5회)
+  while (filtered.length < min && hasMore && guard < 5){
     const ok = await loadPage();
     if (!ok) break;
     filtered = filterDocs();
@@ -298,6 +307,42 @@ async function ensureMinFiltered(min = PAGE_SIZE){
   }
   render();
   toggleMore(hasMore);
+}
+
+/* ---------- 닉네임 조회(캐시 + usernames 역참조 + 백필) ---------- */
+const userNameCache = new Map();
+const userNameInflight = new Map();
+
+async function getUserDisplayName(uid){
+  if(!uid) return null;
+  if (userNameCache.has(uid)) return userNameCache.get(uid);
+  if (userNameInflight.has(uid)) return userNameInflight.get(uid);
+
+  const p = (async ()=>{
+    // 1) users/{uid}.displayName
+    try{
+      const usnap = await getDoc(doc(db,'users', uid));
+      const nm = usnap.exists() ? usnap.data()?.displayName : null;
+      if(nm){ userNameCache.set(uid, nm); return nm; }
+    }catch{}
+
+    // 2) usernames 역참조 → 문서 ID가 닉네임
+    try{
+      const rs = await getDocs(query(collection(db,'usernames'), where('uid','==', uid), limit(1)));
+      if(!rs.empty){
+        const nickLower = rs.docs[0].id;
+        userNameCache.set(uid, nickLower);
+        // (선택) 백필
+        try{ await setDoc(doc(db,'users', uid), { displayName: nickLower }, { merge:true }); }catch{}
+        return nickLower;
+      }
+    }catch{}
+
+    return '회원';
+  })();
+
+  userNameInflight.set(uid, p);
+  try{ return await p; } finally { userNameInflight.delete(uid); }
 }
 
 /* ---------- 렌더 ---------- */
@@ -321,22 +366,45 @@ function render(){
     const url   = x.data?.url || '';
     const catsV = Array.isArray(x.data?.categories) ? x.data.categories : [];
     const thumb = x.data?.thumbnail || toThumb(url);
+    const uid   = x.data?.uid || x.data?.ownerUid || null;
 
     const card = document.createElement('article');
     card.className = 'card';
     card.innerHTML = `
       <div class="left">
+        <!-- 1) 제목 -->
         <div class="title" title="${esc(title)}">${esc(title)}</div>
-        <div class="url" title="${esc(url)}">${esc(url)}</div>
-        <div class="chips">${catsV.map(v=>`<span class="chip" title="${esc(v)}">${esc(getLabel(v))}</span>`).join('')}</div>
+
+        <!-- 2) 카테고리 칩 -->
+        <div class="chips">
+          ${catsV.map(v=>`<span class="chip" title="${esc(v)}">${esc(getLabel(v))}</span>`).join('')}
+        </div>
+
+        <!-- 3) 등록: 닉네임 (제목보다 2px 작게) -->
+        <div class="nickline">등록: 불러오는 중…</div>
       </div>
       <div class="right">
         <div class="thumb-wrap"><img class="thumb" src="${esc(thumb)}" alt="썸네일" loading="lazy"></div>
       </div>
     `;
 
-    hydrateTitleIfNeeded(card.querySelector('.title'), url, title);
+    // 제목 보정(oEmbed)
+    const titleEl = card.querySelector('.title');
+    hydrateTitleIfNeeded(titleEl, url, title);
 
+    // 닉네임 주입 + 폰트 크기 조정
+    (async ()=>{
+      const nickEl = card.querySelector('.nickline');
+      const nick = (await getUserDisplayName(uid)) || '회원';
+      nickEl.textContent = `등록: ${nick}`;
+      const fs = parseFloat(getComputedStyle(titleEl).fontSize || '0');
+      if (isFinite(fs) && fs > 0){
+        nickEl.style.fontSize = Math.max(10, fs - 2) + 'px';
+        nickEl.style.color = '#cfcfcf';
+      }
+    })();
+
+    // 클릭 이동
     card.querySelector('.left') ?.addEventListener('click', ()=> openInWatch(list, idx));
     card.querySelector('.thumb')?.addEventListener('click', ()=> openInWatch(list, idx));
 
@@ -474,7 +542,7 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260, deadZo
     const p = getPoint(e);
     if(!p) return;
 
-    // ★ 중앙 데드존(기본 30%) — 이 영역에서 시작한 제스처는 비활성
+    // 중앙 데드존
     const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
     const dz = Math.max(0, Math.min(0.9, deadZoneCenterRatio));
     const L  = vw * (0.5 - dz/2);
@@ -485,7 +553,6 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260, deadZo
   }
   function onEnd(e){
     if(!tracking) return; tracking = false;
-
     if (window.__swipeNavigating) return;
 
     const p = getPoint(e);
@@ -510,7 +577,7 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260, deadZo
   document.addEventListener('pointerup',  onEnd,   { passive:true });
 }
 
-// ✅ list: 우→좌 = index (단순형 + 중앙 데드존 30%)
+// ✅ list: 우→좌 = index
 initSwipeNav({ goLeftHref: 'index.html', goRightHref: null, deadZoneCenterRatio: 0.30 });
 
 /* ===================== */
@@ -540,7 +607,6 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null, deadZoneCenterRatio:
       if(!t) return;
       if(isInteractive(e.target)) return;
 
-      // ★ 중앙 데드존(기본 30%) — 이 영역에서 시작된 스와이프는 비활성
       const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
       const dz = Math.max(0, Math.min(0.9, deadZoneCenterRatio));
       const L  = vw * (0.5 - dz/2);
@@ -622,6 +688,6 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null, deadZoneCenterRatio:
     document.addEventListener('pointerup',   end,   { passive:true, capture:true });
   }
 
-  // list: 우→좌 = index (오른쪽 페이지 없음 → 오른쪽 끌림 완전 차단, 중앙 데드존 30%)
+  // list: 우→좌 = index (오른쪽 페이지 없음 → 오른쪽 끌림 차단)
   initDragSwipe({ goLeftHref: 'index.html', goRightHref: null, threshold:60, slop:45, timeMax:700, feel:1.0, deadZoneCenterRatio: 0.15 });
 })();
