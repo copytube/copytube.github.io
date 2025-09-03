@@ -1,8 +1,8 @@
-// js/list.js (v1.8.1) — oEmbed(7일 캐시) 유지 + 무한 스크롤 + 필터 인지형 선로딩 + 스와이프 방향잠금 + 중앙 30% 데드존
+// js/list.js (v1.8.2) — 칩=이름 표시 + 닉네임 3행 표시, oEmbed(7일 캐시) 유지 + 무한 스크롤 + 필터 인지형 선로딩 + 스와이프 방향잠금 + 중앙 30% 데드존
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import {
-  collection, getDocs, query, orderBy, limit, startAfter
+  collection, getDocs, getDoc, doc, query, orderBy, limit, startAfter
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 
 /* ---------- 전역 내비 중복 방지 플래그 ---------- */
@@ -60,8 +60,8 @@ let isLoading = false;
 function getSelectedCats(){
   try {
     const raw = localStorage.getItem('selectedCats');
-    const v = JSON.parse(raw || '[]');           // '"ALL"' → "ALL", 배열이면 배열
-    return Array.isArray(v) ? v : [];            // "ALL" 같은 비배열이면 필터 미적용으로 간주
+    const v = JSON.parse(raw || '[]');
+    return Array.isArray(v) ? v : [];
   } catch { return []; }
 }
 function esc(s=''){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
@@ -73,13 +73,30 @@ function toThumb(url, fallback=''){
   const id = extractId(url);
   return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : fallback;
 }
+
+/* ---- 카테고리 라벨: 이름(라벨) 반환 ---- */
+const LocalLabelMap = (() => {
+  // 가능한 전역 소스에서 labelMap 구축
+  const map = {};
+  try {
+    if (window?.CATEGORIES?.labelMap) return window.CATEGORIES.labelMap;
+    if (window?.CATEGORY_LABELS) return window.CATEGORY_LABELS;
+    if (window?.COPYTUBE?.categories?.labels) return window.COPYTUBE.categories.labels;
+    // CATEGORY_GROUPS가 전역에 있으면 거기서 만들어줌
+    if (Array.isArray(window?.CATEGORY_GROUPS)) {
+      window.CATEGORY_GROUPS.forEach(g => g?.children?.forEach(c => { if (c?.value) map[c.value] = c.label || c.value; }));
+      return map;
+    }
+  } catch {}
+  return map;
+})();
+
 function getLabel(key){
-  if (window?.CATEGORIES?.labelMap?.[key]) return window.CATEGORIES.labelMap[key];
-  if (window?.CATEGORY_LABELS?.[key]) return window.CATEGORY_LABELS[key];
-  if (window?.COPYTUBE?.categories?.labels?.[key]) return window.COPYTUBE.categories.labels[key];
+  if (LocalLabelMap && LocalLabelMap[key]) return LocalLabelMap[key];
   try { if (typeof window.getLabel === 'function') return window.getLabel(key) ?? key; } catch {}
-  return key;
+  return key; // fallback로 코드 그대로
 }
+
 function setStatus(t){ if($msg) $msg.textContent = t || ''; }
 function toggleMore(show){ if($btnMore) $btnMore.style.display = show ? '' : 'none'; }
 
@@ -96,7 +113,7 @@ const TitleCache = {
   },
   set(id, title){
     try{
-      const exp = Date.now() + 7*24*60*60*1000; // 7일
+      const exp = Date.now() + 7*24*60*60*1000;
       localStorage.setItem('yt_title_'+id, JSON.stringify({ t: String(title||'').slice(0,200), exp }));
     }catch{}
   }
@@ -107,7 +124,6 @@ async function fetchYouTubeTitleById(id){
   if(!id) return null;
   const c = TitleCache.get(id);
   if(c){ lazyTitleMap.set(id,c); return c; }
-
   try{
     const url = `https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=${id}`;
     const res = await fetch(url, { mode:'cors' });
@@ -121,7 +137,6 @@ async function fetchYouTubeTitleById(id){
     return title;
   }catch{ return null; }
 }
-
 async function hydrateTitleIfNeeded(titleEl, url, existingTitle){
   if(!titleEl) return;
   if(existingTitle && existingTitle !== '(제목 없음)') return;
@@ -131,7 +146,40 @@ async function hydrateTitleIfNeeded(titleEl, url, existingTitle){
   if(t) titleEl.textContent = t;
 }
 
-/* ---------- 개인자료 모드 지원 ---------- */
+/* ---------- 닉네임 캐시 ---------- */
+const NickCache = {
+  map: new Map(), // uid -> string (nickname/displayName) or ''(미상)
+  get(uid){ return this.map.get(uid) || ''; },
+  set(uid, name){ if(uid) this.map.set(uid, String(name||'')); }
+};
+
+function ownerUidOf(d = {}){
+  return d?.ownerUid || d?.uid || d?.userUid || null;
+}
+
+async function preloadNicknamesFor(docs){
+  // docs: [{id, data}]
+  const uids = new Set();
+  docs.forEach(x => {
+    const uid = ownerUidOf(x.data);
+    if (uid && !NickCache.map.has(uid)) uids.add(uid);
+  });
+  if (!uids.size) return;
+
+  const tasks = [...uids].map(async (uid) => {
+    try{
+      const snap = await getDoc(doc(db, 'users', uid));
+      const prof = snap.exists() ? snap.data() : null;
+      const name = prof?.nickname || prof?.displayName || '';
+      NickCache.set(uid, name);
+    }catch{
+      NickCache.set(uid, '');
+    }
+  });
+  await Promise.all(tasks);
+}
+
+/* ---------- 개인자료 모드 ---------- */
 function isPersonalOnlySelection(){
   try{
     const raw = localStorage.getItem('selectedCats');
@@ -186,8 +234,8 @@ function renderPersonalList(){
     card.innerHTML = `
       <div class="left">
         <div class="title" title="${esc(title)}">${esc(title)}</div>
-        <div class="url" title="${esc(url)}">${esc(url)}</div>
         <div class="chips"><span class="chip">${esc(label)}</span></div>
+        <div class="meta">등록: 나</div>
       </div>
       <div class="right">
         <div class="thumb-wrap"><img class="thumb" src="${esc(thumb)}" alt="썸네일" loading="lazy"></div>
@@ -247,6 +295,7 @@ async function loadPage(){
   isLoading = true;
   setStatus(allDocs.length ? `총 ${allDocs.length}개 불러옴 · 더 불러오는 중…` : '불러오는 중…');
 
+  let batch = [];
   try {
     const parts = [ orderBy('createdAt','desc') ];
     if (lastDoc) parts.push(startAfter(lastDoc));
@@ -255,7 +304,7 @@ async function loadPage(){
     const snap = await getDocs(query(collection(db,'videos'), ...parts));
     if (snap.empty) { hasMore = false; toggleMore(false); setStatus(allDocs.length ? `총 ${allDocs.length}개` : '등록된 영상이 없습니다.'); isLoading=false; return false; }
 
-    const batch = snap.docs.map(d => ({ id: d.id, data: d.data() }));
+    batch = snap.docs.map(d => ({ id: d.id, data: d.data() }));
     allDocs = allDocs.concat(batch);
     lastDoc = snap.docs[snap.docs.length-1] || lastDoc;
     if (snap.size < PAGE_SIZE) hasMore = false;
@@ -265,7 +314,8 @@ async function loadPage(){
       const snap = await getDocs(query(collection(db,'videos'), limit(PAGE_SIZE*3)));
       const arr = snap.docs.map(d => ({ id:d.id, data:d.data(), _t:(d.data()?.createdAt?.toMillis?.()||0) }));
       arr.sort((a,b)=> b._t - a._t);
-      allDocs = allDocs.concat(arr.map(({_t,...rest})=>rest));
+      batch = arr.map(({_t,...rest})=>rest);
+      allDocs = allDocs.concat(batch);
       hasMore = false;
     } catch(e2){
       console.error('[list] load failed:', e2);
@@ -276,6 +326,9 @@ async function loadPage(){
     }
   }
 
+  // ★ 신규: 배치 내 uploader 닉네임 미리 불러오기
+  await preloadNicknamesFor(batch);
+
   render();
   toggleMore(hasMore);
   setStatus(`총 ${allDocs.length}개`);
@@ -285,12 +338,11 @@ async function loadPage(){
 
 /* ---------- 필터 인지형 선로딩(최소 PAGE_SIZE 보장 시도) ---------- */
 async function ensureMinFiltered(min = PAGE_SIZE){
-  // 개인자료 모드는 해당 없음
   if (isPersonalOnlySelection()) return;
 
   let filtered = filterDocs();
   let guard = 0;
-  while (filtered.length < min && hasMore && guard < 5){ // 과도한 로딩 방지 가드(최대 5회)
+  while (filtered.length < min && hasMore && guard < 5){
     const ok = await loadPage();
     if (!ok) break;
     filtered = filterDocs();
@@ -317,18 +369,23 @@ function render(){
 
   const frag = document.createDocumentFragment();
   list.forEach((x, idx) => {
-    const title = x.data?.title || '(제목 없음)';
-    const url   = x.data?.url || '';
-    const catsV = Array.isArray(x.data?.categories) ? x.data.categories : [];
-    const thumb = x.data?.thumbnail || toThumb(url);
+    const d     = x.data || {};
+    const title = d.title || '(제목 없음)';
+    const url   = d.url || '';
+    const catsV = Array.isArray(d.categories) ? d.categories : [];
+    const thumb = d.thumbnail || toThumb(url);
+    const uid   = ownerUidOf(d);
+    const nick  = NickCache.get(uid) || '회원';
+
+    const chipsHTML = catsV.map(v => `<span class="chip" title="${esc(getLabel(v))}">${esc(getLabel(v))}</span>`).join('');
 
     const card = document.createElement('article');
     card.className = 'card';
     card.innerHTML = `
       <div class="left">
         <div class="title" title="${esc(title)}">${esc(title)}</div>
-        <div class="url" title="${esc(url)}">${esc(url)}</div>
-        <div class="chips">${catsV.map(v=>`<span class="chip" title="${esc(v)}">${esc(getLabel(v))}</span>`).join('')}</div>
+        <div class="chips">${chipsHTML}</div>
+        <div class="meta">등록: ${esc(nick)}</div>
       </div>
       <div class="right">
         <div class="thumb-wrap"><img class="thumb" src="${esc(thumb)}" alt="썸네일" loading="lazy"></div>
@@ -474,7 +531,6 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260, deadZo
     const p = getPoint(e);
     if(!p) return;
 
-    // ★ 중앙 데드존(기본 30%) — 이 영역에서 시작한 제스처는 비활성
     const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
     const dz = Math.max(0, Math.min(0.9, deadZoneCenterRatio));
     const L  = vw * (0.5 - dz/2);
@@ -517,7 +573,7 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null, deadZoneCenterRatio:
 /* 고급형 스와이프 — 끌리는 모션 + 방향 잠금 + 중앙 30% 데드존 */
 /* ===================== */
 (function(){
-  function initDragSwipe({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0, deadZoneCenterRatio=0.30 }={}){
+  function initDragSwipe({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0, deadZoneCenterRatio=0.15 }={}){
     const page = document.querySelector('main') || document.body;
     if(!page) return;
 
@@ -540,7 +596,6 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null, deadZoneCenterRatio:
       if(!t) return;
       if(isInteractive(e.target)) return;
 
-      // ★ 중앙 데드존(기본 30%) — 이 영역에서 시작된 스와이프는 비활성
       const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
       const dz = Math.max(0, Math.min(0.9, deadZoneCenterRatio));
       const L  = vw * (0.5 - dz/2);
@@ -570,8 +625,8 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null, deadZoneCenterRatio:
       const allowRight = !!goRightHref;
 
       let dxAdj = dx;
-      if (dx < 0 && !allowLeft)  dxAdj = 0; // 왼쪽 금지
-      if (dx > 0 && !allowRight) dxAdj = 0; // 오른쪽 금지
+      if (dx < 0 && !allowLeft)  dxAdj = 0;
+      if (dx > 0 && !allowRight) dxAdj = 0;
 
       if (dxAdj === 0){
         page.style.transform = 'translateX(0px)';
@@ -622,6 +677,6 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null, deadZoneCenterRatio:
     document.addEventListener('pointerup',   end,   { passive:true, capture:true });
   }
 
-  // list: 우→좌 = index (오른쪽 페이지 없음 → 오른쪽 끌림 완전 차단, 중앙 데드존 30%)
+  // list: 우→좌 = index (오른쪽 페이지 없음 → 오른쪽 끌림 완전 차단, 중앙 데드존 15%)
   initDragSwipe({ goLeftHref: 'index.html', goRightHref: null, threshold:60, slop:45, timeMax:700, feel:1.0, deadZoneCenterRatio: 0.15 });
 })();
