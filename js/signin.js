@@ -1,62 +1,79 @@
-// js/signin.js
-import { auth } from './firebase-init.js';
-import {
-  signInWithEmailAndPassword
-} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-import { normalizeIdOrEmail, dropFirstCharVariant } from './auth-util.js';
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>로그인 - CopyTube</title>
 
-const form  = document.getElementById('signinForm');
-const idIn  = document.getElementById('signinIdOrEmail');
-const pwdIn = document.getElementById('signinPassword');
+  <!-- CSP -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    connect-src 'self' https://www.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firebaseinstallations.googleapis.com https://www.gstatic.com https://www.youtube.com;
+    img-src 'self' data: https://i.ytimg.com;
+    frame-src https://www.youtube.com;
+    script-src 'self' https://www.gstatic.com 'unsafe-inline';
+    style-src 'self' 'unsafe-inline';
+    object-src 'none';
+    base-uri 'self';
+  ">
 
-if (!form || !idIn || !pwdIn) {
-  console.warn('[signin] 필요한 폼 요소를 찾을 수 없습니다. (signinForm / signinIdOrEmail / signinPassword)');
-}
-
-// 로그인 입력 힌트(선택)
-(function injectHint(){
-  const host = idIn?.parentElement;
-  if (!host) return;
-  let h = document.createElement('div');
-  h.style.fontSize = '12px';
-  h.style.color = '#9aa0a6';
-  h.style.marginTop = '6px';
-  h.textContent = '아이디는 영어 소문자만 허용됩니다. 이메일 로그인도 가능합니다.';
-  host.appendChild(h);
-})();
-
-form?.addEventListener('submit', async (e)=>{
-  e.preventDefault();
-
-  const raw = (idIn?.value || '').trim();
-  const pwd = (pwdIn?.value || '');
-
-  if (!raw || !pwd) {
-    alert('아이디/이메일과 비밀번호를 입력해 주세요.');
-    return;
-  }
-
-  const email = normalizeIdOrEmail(raw);
-  if (!email) {
-    alert('아이디는 영어 소문자만 가능합니다. (이메일은 그대로 입력 가능)');
-    return;
-  }
-
-  try {
-    await signInWithEmailAndPassword(auth, email, pwd);
-    location.href = 'index.html';
-  } catch (err1) {
-    // 과거 ‘첫 글자 잘림’ 계정 호환 보조 시도
-    try {
-      const legacy = dropFirstCharVariant(email);
-      if (legacy !== email) {
-        await signInWithEmailAndPassword(auth, legacy, pwd);
-        location.href = 'index.html';
-        return;
-      }
-      throw err1;
-    } catch (err2) {
-      alert('로그인 실패: ' + (err2?.message || err2));
+  <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    body{ padding-top:84px; }
+    main{ max-width:520px; margin:0 auto; padding:16px; }
+    .field{ margin:10px 0 14px; }
+    .field label{ display:block; font-weight:800; margin-bottom:6px; }
+    .field input{
+      width:100%; padding:12px; border-radius:10px;
+      border:1px solid #333; background:#000; color:#fff; box-sizing:border-box;
     }
-  }
-});
+    .btn-primary{
+      width:100%; padding:12px; border-radius:10px; border:0;
+      background:#4ea1ff; color:#fff; font-weight:800; cursor:pointer;
+    }
+    .links{ margin-top:12px; font-size:14px; }
+    .links a{ color:#9ecbff; }
+    header #menuBtn, header #dropdownMenu{ display:none; }
+  </style>
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">
+      <a href="./" aria-label="CopyTube 홈으로">
+        <img class="brand-logo" src="image/copytube_logo_side.png" alt="CopyTube"/>
+      </a>
+    </div>
+    <div class="right">
+      <a class="link" href="signup.html">Sign up</a>
+    </div>
+  </header>
+
+  <main>
+    <h2>로그인</h2>
+
+    <form id="signinForm" autocomplete="on">
+      <div class="field">
+        <label for="signinIdOrEmail">아이디(닉네임) 또는 이메일</label>
+        <input id="signinIdOrEmail" type="text" inputmode="email" autocomplete="username"
+               placeholder="예) 별명 또는 nickname@example.com" required/>
+      </div>
+
+      <div class="field">
+        <label for="signinPassword">비밀번호</label>
+        <input id="signinPassword" type="password" autocomplete="current-password"
+               placeholder="비밀번호" required/>
+      </div>
+
+      <button class="btn-primary" type="submit">로그인</button>
+    </form>
+
+    <div class="links">
+      아직 계정이 없으신가요? <a href="signup.html">회원가입하기</a>
+    </div>
+  </main>
+
+  <!-- 모듈 스크립트 -->
+  <script type="module" src="js/firebase-init.js"></script>
+  <script type="module" src="js/signin.js"></script>
+</body>
+</html>
