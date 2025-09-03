@@ -337,7 +337,7 @@ function pickCurrentCategory(catsArr){
   return catsArr[0] || '';
 }
 
-// ▼ list.js 의 render() 교체
+// ▼ list.js의 render() 전체 교체
 function render(){
   if (isPersonalOnlySelection()){
     renderPersonalList();
@@ -358,18 +358,7 @@ function render(){
     const url   = x.data?.url || '';
     const catsV = Array.isArray(x.data?.categories) ? x.data.categories : [];
     const thumb = x.data?.thumbnail || toThumb(url);
-    const uid   = x.data?.uid || null;
-
-    // 현재(필터 기준) 카테고리 1개 선택
-    const curCatKey = (()=>{
-      const selected = getSelectedCats();
-      if (Array.isArray(selected) && selected.length){
-        const hit = catsV.find(v => selected.includes(v));
-        if (hit) return hit;
-      }
-      return catsV[0] || '';
-    })();
-    const curCatLbl = curCatKey ? getLabel(curCatKey) : '';
+    const uid   = x.data?.uid || x.data?.ownerUid || null;   // ★ 과거 문서 호환
 
     const card = document.createElement('article');
     card.className = 'card';
@@ -377,23 +366,24 @@ function render(){
       <div class="left">
         <!-- 1) 제목 -->
         <div class="title" title="${esc(title)}">${esc(title)}</div>
-        <!-- 2) 카테고리(현재 카테고리 1개만 노출) -->
-        <div class="catline" title="${esc(curCatLbl)}">${esc(curCatLbl)}</div>
+
+        <!-- 2) 카테고리 칩(아래만 유지) -->
+        <div class="chips">
+          ${catsV.map(v=>`<span class="chip" title="${esc(v)}">${esc(getLabel(v))}</span>`).join('')}
+        </div>
+
         <!-- 3) 닉네임 -->
         <div class="nickline" title="등록자">불러오는 중…</div>
-
-        <!-- 기존 칩(전체 카테고리)은 유지: 목록1.3 밀도에 맞게 그대로 표시 -->
-        <div class="chips">${catsV.map(v=>`<span class="chip" title="${esc(v)}">${esc(getLabel(v))}</span>`).join('')}</div>
       </div>
       <div class="right">
         <div class="thumb-wrap"><img class="thumb" src="${esc(thumb)}" alt="썸네일" loading="lazy"></div>
       </div>
     `;
 
-    // 제목 보정(oEmbed)
+    // 제목 oEmbed 보정(필요 시)
     hydrateTitleIfNeeded(card.querySelector('.title'), url, title);
 
-    // 닉네임 비동기 주입
+    // 닉네임 비동기 주입 (users/{uid}.displayName)
     (async ()=>{
       const el = card.querySelector('.nickline');
       const nick = (await getUserDisplayName(uid)) || '회원';
@@ -408,6 +398,7 @@ function render(){
   });
   $cards.appendChild(frag);
 }
+
 
 
 /* ---------- watch로 이동(큐 + 인덱스 + doc + cats 파라미터) ---------- */
