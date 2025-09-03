@@ -13,18 +13,6 @@ if (!form || !idIn || !pwdIn) {
   console.warn('[signin] 필요한 폼 요소를 찾을 수 없습니다. (signinForm / signinIdOrEmail / signinPassword)');
 }
 
-// 로그인 입력 힌트(선택)
-(function injectHint(){
-  const host = idIn?.parentElement;
-  if (!host) return;
-  let h = document.createElement('div');
-  h.style.fontSize = '12px';
-  h.style.color = '#9aa0a6';
-  h.style.marginTop = '6px';
-  h.textContent = '아이디는 영어 소문자만 허용됩니다. 이메일 로그인도 가능합니다.';
-  host.appendChild(h);
-})();
-
 form?.addEventListener('submit', async (e)=>{
   e.preventDefault();
 
