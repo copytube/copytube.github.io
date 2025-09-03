@@ -129,6 +129,7 @@ export const CATEGORY_GROUPS = [
       { value: 'graphic',     label: '그래픽영상' },
       { value: 'app',         label: '앱·어플' },
       { value: 'engineer',    label: '공학' },
+      { value: 'ai',    label: 'AI' },
     ],
   },
 
