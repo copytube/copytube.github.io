@@ -1,6 +1,7 @@
 // js/list.js (v1.8.2) — 칩=이름 표시 + 닉네임 3행 표시, oEmbed(7일 캐시) 유지 + 무한 스크롤 + 필터 인지형 선로딩 + 스와이프 방향잠금 + 중앙 30% 데드존
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
+import { CATEGORY_GROUPS } from './categories.js?v=1.5.1';
 import {
   collection, getDocs, getDoc, doc, query, orderBy, limit, startAfter
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
@@ -75,27 +76,17 @@ function toThumb(url, fallback=''){
 }
 
 /* ---- 카테고리 라벨: 이름(라벨) 반환 ---- */
-const LocalLabelMap = (() => {
-  // 가능한 전역 소스에서 labelMap 구축
-  const map = {};
-  try {
-    if (window?.CATEGORIES?.labelMap) return window.CATEGORIES.labelMap;
-    if (window?.CATEGORY_LABELS) return window.CATEGORY_LABELS;
-    if (window?.COPYTUBE?.categories?.labels) return window.COPYTUBE.categories.labels;
-    // CATEGORY_GROUPS가 전역에 있으면 거기서 만들어줌
-    if (Array.isArray(window?.CATEGORY_GROUPS)) {
-      window.CATEGORY_GROUPS.forEach(g => g?.children?.forEach(c => { if (c?.value) map[c.value] = c.label || c.value; }));
-      return map;
-    }
-  } catch {}
-  return map;
-})();
+ const LABEL_MAP = (() => {
+   const m = {};
+   try {
+     CATEGORY_GROUPS.forEach(g => g?.children?.forEach(c => {
+       if (c?.value) m[c.value] = c.label || c.value;
+     }));
+   } catch {}
+   return m;
+ })();
 
-function getLabel(key){
-  if (LocalLabelMap && LocalLabelMap[key]) return LocalLabelMap[key];
-  try { if (typeof window.getLabel === 'function') return window.getLabel(key) ?? key; } catch {}
-  return key; // fallback로 코드 그대로
-}
+ function getLabel(key){ return LABEL_MAP[key] || key; }
 
 function setStatus(t){ if($msg) $msg.textContent = t || ''; }
 function toggleMore(show){ if($btnMore) $btnMore.style.display = show ? '' : 'none'; }
