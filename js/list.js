@@ -1,8 +1,8 @@
-// js/list.js (v1.8.1) — oEmbed(7일 캐시) 유지 + 무한 스크롤 + 필터 인지형 선로딩 + 스와이프 방향잠금 + 중앙 30% 데드존
+// js/list.js (v1.9.0) — URL 자리에 "현재 카테고리 · 닉네임" 표시
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import {
-  collection, getDocs, query, orderBy, limit, startAfter
+  collection, getDocs, query, orderBy, limit, startAfter, doc, getDoc
 } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js';
 
 /* ---------- 전역 내비 중복 방지 플래그 ---------- */
@@ -60,8 +60,8 @@ let isLoading = false;
 function getSelectedCats(){
   try {
     const raw = localStorage.getItem('selectedCats');
-    const v = JSON.parse(raw || '[]');           // '"ALL"' → "ALL", 배열이면 배열
-    return Array.isArray(v) ? v : [];            // "ALL" 같은 비배열이면 필터 미적용으로 간주
+    const v = JSON.parse(raw || '[]');
+    return Array.isArray(v) ? v : [];
   } catch { return []; }
 }
 function esc(s=''){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
@@ -96,7 +96,7 @@ const TitleCache = {
   },
   set(id, title){
     try{
-      const exp = Date.now() + 7*24*60*60*1000; // 7일
+      const exp = Date.now() + 7*24*60*60*1000;
       localStorage.setItem('yt_title_'+id, JSON.stringify({ t: String(title||'').slice(0,200), exp }));
     }catch{}
   }
@@ -285,12 +285,11 @@ async function loadPage(){
 
 /* ---------- 필터 인지형 선로딩(최소 PAGE_SIZE 보장 시도) ---------- */
 async function ensureMinFiltered(min = PAGE_SIZE){
-  // 개인자료 모드는 해당 없음
   if (isPersonalOnlySelection()) return;
 
   let filtered = filterDocs();
   let guard = 0;
-  while (filtered.length < min && hasMore && guard < 5){ // 과도한 로딩 방지 가드(최대 5회)
+  while (filtered.length < min && hasMore && guard < 5){
     const ok = await loadPage();
     if (!ok) break;
     filtered = filterDocs();
@@ -300,7 +299,45 @@ async function ensureMinFiltered(min = PAGE_SIZE){
   toggleMore(hasMore);
 }
 
+/* ---------- 닉네임 조회(캐시/합치기) ---------- */
+const userNameCache = new Map();           // uid -> displayName(or null)
+const userNameInflight = new Map();        // uid -> Promise<string|null>
+
+async function getUserDisplayName(uid){
+  if(!uid) return null;
+  if (userNameCache.has(uid)) return userNameCache.get(uid);
+
+  if (userNameInflight.has(uid)) return userNameInflight.get(uid);
+
+  const p = (async ()=>{
+    try{
+      const snap = await getDoc(doc(db,'users', uid));
+      const name = (snap.exists() && snap.data()?.displayName) ? String(snap.data().displayName) : null;
+      userNameCache.set(uid, name);
+      return name;
+    }catch{
+      userNameCache.set(uid, null);
+      return null;
+    }finally{
+      userNameInflight.delete(uid);
+    }
+  })();
+
+  userNameInflight.set(uid, p);
+  return p;
+}
+
 /* ---------- 렌더 ---------- */
+function pickCurrentCategory(catsArr){
+  const selected = getSelectedCats();
+  if (Array.isArray(selected) && selected.length){
+    const hit = catsArr.find(v => selected.includes(v));
+    if (hit) return hit;
+  }
+  return catsArr[0] || '';
+}
+
+// ▼ list.js 의 render() 교체
 function render(){
   if (isPersonalOnlySelection()){
     renderPersonalList();
@@ -321,13 +358,31 @@ function render(){
     const url   = x.data?.url || '';
     const catsV = Array.isArray(x.data?.categories) ? x.data.categories : [];
     const thumb = x.data?.thumbnail || toThumb(url);
+    const uid   = x.data?.uid || null;
+
+    // 현재(필터 기준) 카테고리 1개 선택
+    const curCatKey = (()=>{
+      const selected = getSelectedCats();
+      if (Array.isArray(selected) && selected.length){
+        const hit = catsV.find(v => selected.includes(v));
+        if (hit) return hit;
+      }
+      return catsV[0] || '';
+    })();
+    const curCatLbl = curCatKey ? getLabel(curCatKey) : '';
 
     const card = document.createElement('article');
     card.className = 'card';
     card.innerHTML = `
       <div class="left">
+        <!-- 1) 제목 -->
         <div class="title" title="${esc(title)}">${esc(title)}</div>
-        <div class="url" title="${esc(url)}">${esc(url)}</div>
+        <!-- 2) 카테고리(현재 카테고리 1개만 노출) -->
+        <div class="catline" title="${esc(curCatLbl)}">${esc(curCatLbl)}</div>
+        <!-- 3) 닉네임 -->
+        <div class="nickline" title="등록자">불러오는 중…</div>
+
+        <!-- 기존 칩(전체 카테고리)은 유지: 목록1.3 밀도에 맞게 그대로 표시 -->
         <div class="chips">${catsV.map(v=>`<span class="chip" title="${esc(v)}">${esc(getLabel(v))}</span>`).join('')}</div>
       </div>
       <div class="right">
@@ -335,8 +390,17 @@ function render(){
       </div>
     `;
 
+    // 제목 보정(oEmbed)
     hydrateTitleIfNeeded(card.querySelector('.title'), url, title);
 
+    // 닉네임 비동기 주입
+    (async ()=>{
+      const el = card.querySelector('.nickline');
+      const nick = (await getUserDisplayName(uid)) || '회원';
+      if (el) { el.textContent = nick; el.title = nick; }
+    })();
+
+    // 클릭 이동
     card.querySelector('.left') ?.addEventListener('click', ()=> openInWatch(list, idx));
     card.querySelector('.thumb')?.addEventListener('click', ()=> openInWatch(list, idx));
 
@@ -344,6 +408,7 @@ function render(){
   });
   $cards.appendChild(frag);
 }
+
 
 /* ---------- watch로 이동(큐 + 인덱스 + doc + cats 파라미터) ---------- */
 function openInWatch(list, index){
@@ -473,21 +538,16 @@ function initSwipeNav({ goLeftHref=null, goRightHref=null, animateMs=260, deadZo
   function onStart(e){
     const p = getPoint(e);
     if(!p) return;
-
-    // ★ 중앙 데드존(기본 30%) — 이 영역에서 시작한 제스처는 비활성
     const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
     const dz = Math.max(0, Math.min(0.9, deadZoneCenterRatio));
     const L  = vw * (0.5 - dz/2);
     const R  = vw * (0.5 + dz/2);
     if (p.clientX >= L && p.clientX <= R) { tracking = false; return; }
-
     sx = p.clientX; sy = p.clientY; t0 = Date.now(); tracking = true;
   }
   function onEnd(e){
     if(!tracking) return; tracking = false;
-
     if (window.__swipeNavigating) return;
-
     const p = getPoint(e);
     const dx = p.clientX - sx;
     const dy = p.clientY - sy;
@@ -517,7 +577,7 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null, deadZoneCenterRatio:
 /* 고급형 스와이프 — 끌리는 모션 + 방향 잠금 + 중앙 30% 데드존 */
 /* ===================== */
 (function(){
-  function initDragSwipe({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0, deadZoneCenterRatio=0.30 }={}){
+  function initDragSwipe({ goLeftHref=null, goRightHref=null, threshold=60, slop=45, timeMax=700, feel=1.0, deadZoneCenterRatio=0.15 }={}){
     const page = document.querySelector('main') || document.body;
     if(!page) return;
 
@@ -540,7 +600,6 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null, deadZoneCenterRatio:
       if(!t) return;
       if(isInteractive(e.target)) return;
 
-      // ★ 중앙 데드존(기본 30%) — 이 영역에서 시작된 스와이프는 비활성
       const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
       const dz = Math.max(0, Math.min(0.9, deadZoneCenterRatio));
       const L  = vw * (0.5 - dz/2);
@@ -570,8 +629,8 @@ initSwipeNav({ goLeftHref: 'index.html', goRightHref: null, deadZoneCenterRatio:
       const allowRight = !!goRightHref;
 
       let dxAdj = dx;
-      if (dx < 0 && !allowLeft)  dxAdj = 0; // 왼쪽 금지
-      if (dx > 0 && !allowRight) dxAdj = 0; // 오른쪽 금지
+      if (dx < 0 && !allowLeft)  dxAdj = 0;
+      if (dx > 0 && !allowRight) dxAdj = 0;
 
       if (dxAdj === 0){
         page.style.transform = 'translateX(0px)';
