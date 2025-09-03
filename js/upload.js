@@ -31,7 +31,7 @@ onAuthStateChanged(auth, (user)=>{
   const loggedIn = !!user;
   signupLink?.classList.toggle('hidden', loggedIn);
   signinLink?.classList.toggle('hidden', loggedIn);
-  if (welcome) welcome.textContent = loggedIn ? `Hi! ${user.displayName||'회원'}님` : '';
+  if (welcome) welcome.textContent = loggedIn ? `ThankU ${user.displayName||'회원'}!!` : '';
   closeDropdown();
 });
 menuBtn?.addEventListener('click',(e)=>{ e.stopPropagation(); dropdown?.classList.contains('hidden') ? openDropdown() : closeDropdown(); });
