@@ -1,7 +1,8 @@
-// js/watch.js (v1.0.5-xss-safe)
+// js/watch.js (v1.0.6-xss-safe)
 // - XSS 방어: 카드 렌더링에서 innerHTML 제거(모두 createElement/textContent)
 // - YouTube URL/ID 화이트리스트 검증 추가
-// - 기존 기능(큐/인덱스 우선 재생, 오토넥스트, 삼성인터넷 보정 등) 유지
+// - 폴백 스캔 확장: 다중 카테고리(>10)일 때 최근 문서 스캔 페이지수를 12로 확대
+// - 초기 로드 안내 개선: 상단부에서 아직 못 찾았을 때는 '탐색 중' 메시지 표시 후 스크롤로 지속 탐색
 
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js';
@@ -298,7 +299,7 @@ let personalItems=[], personalOffset=0;
 const PERSONAL_PAGE_SIZE = 12;
 
 function loadPersonalInit(){
-  const slot = wantsPersonal1 ? 'personal1' : 'personal2';
+  const slot = wantsPersonal1 ? 'personal1' : wantsPersonal2 ? 'personal2' : 'personal1';
   const key  = `copytube_${slot}`;
   try{
     personalItems = JSON.parse(localStorage.getItem(key) || '[]');
@@ -337,6 +338,8 @@ function loadMorePersonal(initial=false){
 }
 
 /* ---- 공용모드: Firestore ---- */
+const MAX_SCAN_PAGES = 12; // 폴백 스캔 허용 페이지 수(각 10개 기준 최대 120개까지)
+
 async function loadMoreCommon(initial=false){
   if(isLoading || !hasMore) return;
   isLoading=true;
@@ -361,22 +364,24 @@ async function loadMoreCommon(initial=false){
       await appendFromSnap(snap, initial, false);
     }
     else{
+      // 다중 카테고리(>10): 최신순으로 여러 페이지를 스캔하면서 클라이언트 필터링
       let appended = 0;
-      let guardFetches = 0;
+      let scannedPages = 0;
       let localLast = lastDoc;
+      let reachedEnd = false;
 
-      while(appended < PAGE_SIZE && hasMore && guardFetches < 3){
+      while(appended < PAGE_SIZE && !reachedEnd && scannedPages < MAX_SCAN_PAGES){
         const parts=[ orderBy("createdAt","desc") ];
         if(localLast) parts.push(startAfter(localLast));
         parts.push(limit(PAGE_SIZE));
         const snap = await getDocs(query(base, ...parts));
+
         if(snap.empty){
-          hasMore=false;
-          if(initial && appended===0){
-            videoContainer.appendChild(makeInfoRow('해당 카테고리 영상이 없습니다.'));
-          }
+          reachedEnd = true;
           break;
         }
+
+        // 문서 순회
         let addedThisRound = 0;
         for(const d of snap.docs){
           localLast = d;
@@ -391,13 +396,24 @@ async function loadMoreCommon(initial=false){
             if(appended >= PAGE_SIZE) break;
           }
         }
+
+        // 페이지 진행 상태 갱신
+        scannedPages++;
         lastDoc = localLast || lastDoc;
-        if(snap.size < PAGE_SIZE){ hasMore=false; }
-        guardFetches++;
-        if(addedThisRound===0 && snap.size < PAGE_SIZE){ hasMore=false; break; }
+        if(snap.size < PAGE_SIZE){ reachedEnd = true; }
+        // addedThisRound가 0이더라도 끝난 건 아님(다음 페이지 계속 탐색)
       }
-      if(initial && videoContainer.children.length===0){
-        videoContainer.appendChild(makeInfoRow('해당 카테고리 영상이 없습니다.'));
+
+      hasMore = !reachedEnd; // 끝에 도달했을 때만 false
+      if(initial){
+        if(appended===0){
+          // 아직 끝까지 가진 않았으면 '탐색 중' 안내만 표시 (스크롤 시 계속 탐색)
+          if(hasMore){
+            videoContainer.appendChild(makeInfoRow('최근 업로드 상위에서 해당 카테고리를 찾는 중입니다. 아래로 스크롤하면 더 탐색합니다.'));
+          }else{
+            videoContainer.appendChild(makeInfoRow('해당 카테고리 영상이 없습니다.'));
+          }
+        }
       }
     }
 
