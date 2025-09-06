@@ -1,4 +1,4 @@
-// js/index.js (v1.7.2) — drag-follow & simple swipe kept + 중앙 30% 데드존
+// js/index.js (v1.7.2) — drag-follow & simple swipe kept + 중앙 10% 데드존
 import { CATEGORY_GROUPS } from './categories.js?v=1.5.1';
 import { auth } from './firebase-init.js?v=1.5.1';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
