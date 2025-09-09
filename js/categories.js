@@ -132,7 +132,7 @@ export const CATEGORY_GROUPS = [
 
          /* 여행·미식  */
   {
-    key: 'leisure_food',
+    key: 'travel_food',
     label: '여행·미식',
     children: [
       { value: 'foodie',          label: '국내맛집' },
