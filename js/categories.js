@@ -130,18 +130,6 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
-  /* 사회 */
-  {
-    key: 'society',
-    label: '사회',
-    children: [
-      { value: 'politics',    label: '시사정치' },
-      { value: 'finance',     label: '금융경제' },
-      { value: 'era_insight', label: '시대통찰' },
-      { value: 'christian',   label: '기독교' },
-    ],
-  },
-
          /* 여행·미식  */
   {
     key: 'leisure_food',
@@ -223,6 +211,18 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
+    /* 사회 */
+  {
+    key: 'society',
+    label: '사회',
+    children: [
+      { value: 'politics',    label: '시사정치' },
+      { value: 'finance',     label: '금융경제' },
+      { value: 'era_insight', label: '시대통찰' },
+      { value: 'christian',   label: '기독교' },
+    ],
+  },
+  
   /* 의학 */
   {
     key: 'medical',
