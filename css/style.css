@@ -279,3 +279,10 @@ body{
 #controlsGrid .btn-submit{ min-height: 64px !important; padding: 6px 12px !important; }
 #controlsGrid .order-col{ gap: 8px !important; }
 #controlsGrid .pill-radio{ padding: 8px 12px !important; gap: 8px !important; }
+
+.custom-separator {
+  border: none;
+  border-top: 1px solid #555; /* 어두운 회색 실선 */
+  margin: 8px 0; /* 위아래 간격 조절 (원하는 만큼 조정 가능) */
+}
+
