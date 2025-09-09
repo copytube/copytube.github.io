@@ -123,9 +123,8 @@ export const CATEGORY_GROUPS = [
     label: '생존',
     children: [
       { value: 'expert_master',  label: '전문가' },
-
       { value: 'agri_fish_ind',  label: '농어광공업' },
-      { value: 'camp',       label: '캠핑매듶' },
+      { value: 'camp',       label: '캠핑매듭' },
       { value: 'survival',       label: '서바이벌' },
       { value: 'military',       label: '군사' },
     ],
