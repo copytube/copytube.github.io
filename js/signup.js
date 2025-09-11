@@ -103,7 +103,7 @@ form?.addEventListener('submit', async (e)=>{
   // 닉네임 경로 (영소문자만)
   const nickLower = toNickLower(rawId);
   if (!isValidNick(nickLower)){
-    alert('아이디는 영어 소문자 2~20자로 입력해 주세요.');
+    alert('아이디는 영어 소문자, 숫자 2~20자로 입력해 주세요.');
     return;
   }
 
