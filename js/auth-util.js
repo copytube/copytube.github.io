@@ -6,7 +6,7 @@ export const DEFAULT_ID_DOMAIN = 'copytube.local';
 // 영어 소문자 아이디만 허용 (a~z)
 // (원하면 숫자도 허용: /^[a-z0-9]+$/ 로 변경)
 export function isValidSimpleId(id) {
-  return /^[a-z]+$/.test(id);
+  return /^[a-z0-9]+$/.test(id);
 }
 
 // 입력이 이메일이면 그대로(소문자), 아이디이면 영어 소문자만 허용 후 도메인 부착
