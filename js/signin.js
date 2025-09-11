@@ -26,7 +26,7 @@ form?.addEventListener('submit', async (e)=>{
 
   const email = normalizeIdOrEmail(raw);
   if (!email) {
-    alert('아이디는 영어 소문자만 가능합니다. (이메일은 그대로 입력 가능)');
+    alert('아이디는 영어 소문자, 숫자만 가능합니다. (이메일은 그대로 입력 가능)');
     return;
   }
 
