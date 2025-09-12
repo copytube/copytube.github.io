@@ -244,6 +244,7 @@ export const CATEGORY_GROUPS = [
       { value: 'neuro',       label: '신경' },
       { value: 'ophthalmo',   label: '안과' },
       { value: 'ent',         label: '이비인후과' },
+      { value: 'psychology    label: '정신건강' },
       { value: 'dental',      label: '구강치과' },
       { value: 'saib',        label: '대체의학' },
     ],
