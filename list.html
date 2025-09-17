@@ -80,7 +80,12 @@
   </header>
 
   <main>
-    <h2>영상 목록</h2>
+    <div class="toolbar" style="margin-bottom:10px;">
+      <h2 style="margin:0;">영상 목록</h2>
+      <div></div>
+      <!-- ★ 정렬 토글 버튼 (디폴트 최신순) -->
+      <button id="btnSortToggle" class="btn" aria-pressed="false" title="목록 순서를 뒤집습니다.">최신순</button>
+    </div>
 
 <div class="s_bar">
   <div class="search">
@@ -106,6 +111,6 @@
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/auth.js"></script>
   <script type="module" src="js/categories.js"></script>
-  <script type="module" src="js/list.js?v=1.8.2"></script>
+  <script type="module" src="js/list.js?v=1.9.0-ascdesc"></script>
 </body>
 </html>
