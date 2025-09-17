@@ -1,4 +1,5 @@
-// js/list.js (v1.8.2) — 칩=이름 표시 + 닉네임 3행 표시, oEmbed(7일 캐시) 유지 + 무한 스크롤 + 필터 인지형 선로딩 + 스와이프 방향잠금 + 중앙 30% 데드존
+// js/list.js (v1.9.0-ascdesc) — 칩=이름 표시 + 닉네임 3행 + oEmbed(7일 캐시) + 무한 스크롤 + 필터 인지형 선로딩 + 스와이프 방향잠금 + 중앙 30% 데드존
+// + 정렬 토글: 최신순(desc)↔등록순(asc) — 쿼리 리셋 & 재조회 방식
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut as fbSignOut } from './auth.js?v=1.5.1';
 import { CATEGORY_GROUPS } from './categories.js?v=1.5.1';
@@ -43,12 +44,13 @@ btnAbout   ?.addEventListener('click', ()=>{ location.href = 'about.html';  clos
 btnList    ?.addEventListener('click', ()=>{ location.href = 'list.html';   closeDropdown(); });
 
 /* ---------- DOM ---------- */
-const $cards     = document.getElementById('cards');
-const $msg       = document.getElementById('msg') || document.getElementById('resultMsg');
-const $q         = document.getElementById('q');
-const $btnSearch = document.getElementById('btnSearch');
-const $btnClear  = document.getElementById('btnClear'); // optional
-const $btnMore   = document.getElementById('btnMore');
+const $cards       = document.getElementById('cards');
+const $msg         = document.getElementById('msg') || document.getElementById('resultMsg');
+const $q           = document.getElementById('q');
+const $btnSearch   = document.getElementById('btnSearch');
+const $btnClear    = document.getElementById('btnClear'); // optional
+const $btnMore     = document.getElementById('btnMore');
+const $btnSort     = document.getElementById('btnSortToggle'); // ★ 신규: 정렬 토글
 
 /* ---------- 상태 ---------- */
 const PAGE_SIZE = 60;
@@ -56,6 +58,52 @@ let allDocs   = [];
 let lastDoc   = null;
 let hasMore   = true;
 let isLoading = false;
+let sortDir   = 'desc'; // 'desc'=최신순, 'asc'=등록순
+
+/* ---------- 정렬 토글(상태/표시/재조회) ---------- */
+const SORT_KEY = 'list_sort_dir';
+function readSortDir(){
+  try{
+    const v = (localStorage.getItem(SORT_KEY)||'').toLowerCase();
+    return (v==='asc' || v==='desc') ? v : 'desc';
+  }catch{ return 'desc'; }
+}
+function saveSortDir(dir){
+  try{ localStorage.setItem(SORT_KEY, dir==='asc'?'asc':'desc'); }catch{}
+}
+function labelFor(dir){
+  // 버튼 라벨 = 현재 정렬 상태를 보여줌
+  return dir==='asc' ? '등록순' : '최신순';
+}
+function applySortButtonUI(){
+  if(!$btnSort) return;
+  $btnSort.textContent = labelFor(sortDir);
+  $btnSort.setAttribute('aria-pressed', sortDir==='asc' ? 'true' : 'false');
+  $btnSort.title = (sortDir==='asc' ? '등록된 순서대로 보기' : '최신 등록 먼저 보기');
+}
+function setSortDir(dir){
+  sortDir = (dir==='asc') ? 'asc' : 'desc';
+  saveSortDir(sortDir);
+  applySortButtonUI();
+}
+function resetPaging(){
+  allDocs = [];
+  lastDoc = null;
+  hasMore = true;
+}
+async function reloadWithCurrentSort(){
+  if(!$btnSort) return;
+  $btnSort.disabled = true;
+  setStatus('불러오는 중…');
+  $cards.innerHTML = '';
+  resetPaging();
+  try{
+    await loadPage();
+    await ensureMinFiltered(PAGE_SIZE);
+  }finally{
+    $btnSort.disabled = false;
+  }
+}
 
 /* ---------- 유틸 ---------- */
 function getSelectedCats(){
@@ -288,7 +336,7 @@ async function loadPage(){
 
   let batch = [];
   try {
-    const parts = [ orderBy('createdAt','desc') ];
+    const parts = [ orderBy('createdAt', sortDir) ];
     if (lastDoc) parts.push(startAfter(lastDoc));
     parts.push(limit(PAGE_SIZE));
 
@@ -304,7 +352,7 @@ async function loadPage(){
     try {
       const snap = await getDocs(query(collection(db,'videos'), limit(PAGE_SIZE*3)));
       const arr = snap.docs.map(d => ({ id:d.id, data:d.data(), _t:(d.data()?.createdAt?.toMillis?.()||0) }));
-      arr.sort((a,b)=> b._t - a._t);
+      arr.sort((a,b)=> sortDir==='asc' ? (a._t - b._t) : (b._t - a._t));
       batch = arr.map(({_t,...rest})=>rest);
       allDocs = allDocs.concat(batch);
       hasMore = false;
@@ -317,7 +365,7 @@ async function loadPage(){
     }
   }
 
-  // ★ 신규: 배치 내 uploader 닉네임 미리 불러오기
+  // 배치 내 uploader 닉네임 미리 불러오기
   await preloadNicknamesFor(batch);
 
   render();
@@ -345,6 +393,11 @@ async function ensureMinFiltered(min = PAGE_SIZE){
 
 /* ---------- 렌더 ---------- */
 function render(){
+  // 개인자료 모드: 정렬 토글 숨김(의미 없음)
+  if ($btnSort) {
+    $btnSort.style.display = isPersonalOnlySelection() ? 'none' : '';
+  }
+
   if (isPersonalOnlySelection()){
     renderPersonalList();
     return;
@@ -450,9 +503,20 @@ $btnMore  ?.addEventListener('click', async ()=>{
   }
 });
 
+/* ---------- 정렬 토글 바인딩 ---------- */
+$btnSort?.addEventListener('click', async ()=>{
+  // asc<->desc 토글
+  setSortDir(sortDir==='asc' ? 'desc' : 'asc');
+  await reloadWithCurrentSort();
+});
+
 /* ---------- 시작 ---------- */
 (async function init(){
   try{
+    // 정렬 초기화: 저장된 값 우선
+    setSortDir(readSortDir());
+    applySortButtonUI();
+
     if (isPersonalOnlySelection()){
       renderPersonalList();
       return;
