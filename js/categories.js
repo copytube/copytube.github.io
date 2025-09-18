@@ -86,7 +86,7 @@ export const CATEGORY_GROUPS = [
   /* 정보·IT (게임 제거) */
   {
     key: 'infoit',
-    label: '정보·IT',
+    label: '정보·IT·기술',
     children: [
       { value: 'new_product', label: '신제품' },
       { value: 'tech_future', label: '기술미래' },
