@@ -53,15 +53,16 @@ export const CATEGORY_GROUPS = [
       { value: 'cook',            label: '요리' },
       { value: 'activity',        label: '액티비티' },
       { value: 'proart',          label: '예술' },
-      { value: 'hobby',           label: '취미' },
+      { value: 'drawing',         label: '그림만들기' },
+      { value: 'hobby',           label: '취미' },      
       { value: 'play',            label: '놀이' },
-      { value: 'making',          label: '제작수리' },
       { value: 'mobility',        label: '모빌리티' },
-      { value: 'interior',        label: '인테리어건축' }, // ★ 라벨만 변경(키 유지)
+      { value: 'camera',            label: '카메라영상' }, 
+      { value: 'making',          label: '소품제작수리' },      
+      { value: 'interior',        label: '집수리인테리어' }, // ★ 라벨만 변경(키 유지)
       { value: 'reading',         label: '독서' },          // ★ 신규
       { value: 'instrument_play', label: '악기연주' },      // ★ 신규
-      { value: 'sports_fishing',    label: '낚시' },
-      { value: 'camera',            label: '카메라영상' }, 
+      { value: 'sports_fishing',    label: '낚시' },      
       { value: 'game',            label: '게임' },          // ★ (정보·IT → 이동)
     ],
   },
@@ -91,10 +92,11 @@ export const CATEGORY_GROUPS = [
       { value: 'new_product', label: '신제품' },
       { value: 'tech_future', label: '기술미래' },
       { value: 'computer',    label: '컴퓨터' },
-      { value: 'coding',      label: '코딩' },
+      { value: 'coding',      label: '코딩AI' },
       { value: 'graphic',     label: '그래픽영상' },
       { value: 'app',         label: '앱·어플' },
       { value: 'engineer',    label: '공학' },
+      { value: 'architecture',    label: '건축' },
     ],
   },
 
