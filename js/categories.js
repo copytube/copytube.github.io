@@ -36,6 +36,7 @@ export const CATEGORY_GROUPS = [
       { value: 'housework',  label: '가사' },
       { value: 'health',     label: '건강' },
       { value: 'exercise',   label: '운동' },
+      { value: 'fasion',   label: '패션' },
       { value: 'self',       label: '자기관리' },
       { value: 'social',     label: '사회생활' },
       { value: 'law',        label: '법률' },
@@ -62,8 +63,7 @@ export const CATEGORY_GROUPS = [
       { value: 'interior',        label: '집수리인테리어' }, // ★ 라벨만 변경(키 유지)
       { value: 'reading',         label: '독서' },          // ★ 신규
       { value: 'instrument_play', label: '악기연주' },      // ★ 신규
-      { value: 'sports_fishing',    label: '낚시' },      
-      { value: 'game',            label: '게임' },          // ★ (정보·IT → 이동)
+      { value: 'sports_fishing',    label: '낚시' },            
     ],
   },
 
@@ -191,7 +191,17 @@ export const CATEGORY_GROUPS = [
       { value: 'music_gospel',         label: '가스펠' },
     ],
   },
-
+  /* 게임 */
+  {
+    key: 'games',
+    label: '게임',
+    children: [
+      { value: 'game',            label: '게임' },
+      { value: 'oldgame',       label: '고전게임' },
+      { value: 'minecraft',  label: '마인크래프트' },
+      { value: 'starcrafy',  label: '스타크래프트' },
+    ],
+  },
   /* 교육 */
   {
     key: 'edu',
