@@ -22,6 +22,7 @@ export const CATEGORY_GROUPS = [
       { value: 'nature',         label: '자연' },
       { value: 'proman',         label: '달인마술' },
       { value: 'saida',          label: '사이다' },
+      { value: ' youtuber',          label: '유투버' },
     ],
   },
 
