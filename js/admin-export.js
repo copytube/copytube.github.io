@@ -1,12 +1,17 @@
+// js/admin-export.js — v1.1 (CopyTube v1.5 호환)
+// - Firebase v12.1.0로 통일
+// - categories.js의 CATEGORY_MODEL/children[{value,label}]까지 안전 지원
+// - 4자리 코드(1000~9999) 보장 + 충돌 순환
+// - 추출 중 버튼 중복 클릭 방지
+
 import { auth, db } from "./firebase-init.js";
 import {
-  collection, getDocs, query, orderBy, limit, startAfter,
-  doc, getDoc
-} from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+  collection, getDocs, query, orderBy, limit, startAfter, doc, getDoc
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 
 /* ===== 설정 ===== */
-const VIDEO_COLL = "videos"; // 프로젝트에서 사용중인 컬렉션명과 다르면 여기만 바꾸세요.
+const VIDEO_COLL = "videos";
 
 /* ===== 관리자 게이트 ===== */
 async function isAdmin(uid) {
@@ -25,44 +30,71 @@ function deny() {
 }
 
 /* ===== 카테고리 로딩 & 코드 매핑 =====
-   - categories.js가 ESM으로 CATEGORIES(또는 default)를 export한다고 가정
-   - 실패 시: DB에서 영상의 cats 필드를 스캔해 키 목록을 추정(확실하지 않음: 빈 DB면 목록이 줄어듦)
+   - categories.js가 CATEGORY_MODEL(CopyTube v1.5) 또는 CATEGORIES를 export한다고 가정
+   - 실패 시: DB cats 스캔으로 키 추정
 */
 async function loadCategoriesSafe() {
   try {
     const mod = await import("./categories.js");
-    const CATS = mod.CATEGORIES || mod.default || null;
-    if (!CATS) throw new Error("CATEGORIES export not found");
-    return flattenCats(CATS);
+    const MODEL = mod.CATEGORY_MODEL || mod.CATEGORIES || mod.default || null;
+    if (!MODEL) throw new Error("CATEGORY_MODEL/CATEGORIES export not found");
+    return flattenCatsUniversal(MODEL);
   } catch (e) {
-    console.warn("categories.js 로드 실패. DB 스캔으로 대체(확실하지 않음):", e);
+    console.warn("categories.js 로드 실패. DB 스캔으로 대체:", e);
     const keys = await scanCategoryKeysFromDB();
     return keys.map(k => ({ key: k, label: k }));
   }
 }
-function flattenCats(CATS) {
-  // 예상 구조: 그룹/하위카테고리 → {key,label}
+
+/** CATEGORY_MODEL/CATEGORIES 어떤 형태도 최대한 수용:
+ *  - 그룹: { key, label, children:[...] } or { id, ... }
+ *  - 카테고리 항목: { value, label } or { key, label }
+ */
+function flattenCatsUniversal(model) {
   const out = [];
-  const pushItem = (k, label) => out.push({ key: k, label: label || k });
-  // 유연한 파서: 객체/배열 혼합 지원
+  const seen = new Set();
+
+  const push = (k, label) => {
+    if (!k || seen.has(k)) return;
+    seen.add(k);
+    out.push({ key: k, label: label || k });
+  };
+
   const dfs = (node) => {
     if (!node) return;
+
     if (Array.isArray(node)) {
       node.forEach(dfs);
-    } else if (typeof node === "object") {
-      // {key, label} 형태
-      if (node.key) pushItem(node.key, node.label);
-      // 중첩 탐색
-      Object.values(node).forEach(v => {
-        if (v && typeof v === "object") dfs(v);
-      });
+      return;
+    }
+    if (typeof node !== "object") return;
+
+    // 카테고리 항목
+    const maybeKey = node.key || node.value; // value도 카테고리 키로 인정
+    const maybeLabel = node.label || node.name || node.title;
+
+    if (typeof maybeKey === "string") {
+      push(maybeKey, maybeLabel);
+    }
+
+    // 흔한 필드들 재귀
+    if (node.children) dfs(node.children);
+    if (node.groups) dfs(node.groups);
+    if (node.types) dfs(node.types);
+    if (node.items) dfs(node.items);
+
+    // 기타 중첩 객체들도 훑기(과도 중복 방지용 간단 필터)
+    for (const [k, v] of Object.entries(node)) {
+      if (v && typeof v === "object" && !["children","groups","types","items"].includes(k)) {
+        dfs(v);
+      }
     }
   };
-  dfs(CATS);
-  // key 중복 제거
-  const seen = new Set();
-  return out.filter(({key}) => (key && !seen.has(key)) && seen.add(key));
+
+  dfs(model);
+  return out;
 }
+
 async function scanCategoryKeysFromDB() {
   const keys = new Set();
   try {
@@ -78,24 +110,34 @@ async function scanCategoryKeysFromDB() {
   return [...keys].sort();
 }
 
-/* 안정적 4자리 숫자 코드 (DJB2 해시 → 1000~9999) */
-function keyToCodeStable(key) {
+/* ===== 안정적 4자리 숫자 코드 =====
+   - DJB2 해시 → 1000~9999
+   - 충돌 시 1000~9999 범위 내에서 순환
+*/
+function keyToCodeStable4(key) {
   let h = 5381;
   for (const ch of key) h = ((h << 5) + h) + ch.charCodeAt(0);
-  const code = (h >>> 0) % 9000 + 1000;
-  return String(code);
+  const base = (h >>> 0) % 9000;           // 0..8999
+  return String(base + 1000);              // 1000..9999
 }
-/* 충돌 방지: 키를 정렬된 순서로 배정하며 충돌시 +1 순회 */
+
+function bump4(codeStr) {
+  // 1000..9999 내에서 +1 순환
+  const n = ((parseInt(codeStr, 10) - 1000 + 1) % 9000) + 1000;
+  return String(n);
+}
+
 function buildCodeMaps(keys) {
   const sorted = [...keys].sort();
   const used = new Set();
   const keyToCode = new Map();
   const codeToKey = new Map();
+
   for (const k of sorted) {
-    let c = keyToCodeStable(k);
+    let c = keyToCodeStable4(k);
     let guard = 0;
-    while (used.has(c) && guard < 10000) {
-      c = String((Number(c) % 9000) + 1001); // 1001~10000 순회
+    while (used.has(c) && guard < 9001) {
+      c = bump4(c); // 항상 4자리 유지
       guard++;
     }
     used.add(c);
@@ -106,61 +148,80 @@ function buildCodeMaps(keys) {
 }
 
 /* ===== UI ===== */
-const $ = sel => document.querySelector(sel);
+const $  = sel => document.querySelector(sel);
 const $$ = sel => document.querySelectorAll(sel);
 
 let ABORT = false;
+let RUNNING = false;
+
+function setRunning(on) {
+  RUNNING = on;
+  $("#btnExtract").disabled  = on;
+  $("#btnStop").disabled     = !on;
+  $("#btnCopy").disabled     = on;
+  $("#btnDownload").disabled = on;
+  $("#btnClear").disabled    = on;
+  $("#batchSize").disabled   = on;
+}
 
 async function renderCodeTable(list, keyToCode) {
   const tb = $("#codeTable tbody");
   tb.innerHTML = "";
-  for (const {key, label} of list) {
+  for (const { key, label } of list) {
     const tr = document.createElement("tr");
-    const code = keyToCode.get(key);
+    const code = keyToCode.get(key) || "";
     tr.innerHTML = `<td>${code}</td><td>${key}</td><td>${label || ""}</td>`;
     tb.appendChild(tr);
   }
 }
 
-async function extractAll(batchSize, codeToKey, keyToCode) {
+async function extractAll(batchSize, keyToCode) {
   ABORT = false;
+  setRunning(true);
   $("#exportBox").value = "";
   $("#stat").textContent = "추출 중…";
   let cursor = null;
   let total = 0;
 
   const append = (lines) => {
+    if (!lines.length) return;
     const ta = $("#exportBox");
     ta.value += (ta.value ? "\n" : "") + lines.join("\n");
   };
 
-  while (!ABORT) {
-    const q = cursor
-      ? query(collection(db, VIDEO_COLL), orderBy("createdAt"), startAfter(cursor), limit(batchSize))
-      : query(collection(db, VIDEO_COLL), orderBy("createdAt"), limit(batchSize));
-    const snap = await getDocs(q);
-    if (snap.empty) break;
+  try {
+    while (!ABORT) {
+      const qy = cursor
+        ? query(collection(db, VIDEO_COLL), orderBy("createdAt"), startAfter(cursor), limit(batchSize))
+        : query(collection(db, VIDEO_COLL), orderBy("createdAt"), limit(batchSize));
 
-    const lines = [];
-    snap.forEach(docu => {
-      const d = docu.data();
-      const url = d.url || "";
-      const cats = Array.isArray(d.cats) ? d.cats : [];
-      const codes = cats.map(k => keyToCode.get(k)).filter(Boolean);
-      const line = [url, ...codes].join(" ").trim();
-      if (url) lines.push(line);
-    });
-    append(lines);
-    total += lines.length;
-    $("#stat").textContent = `총 ${total}개 내보냄`;
+      const snap = await getDocs(qy);
+      if (snap.empty) break;
 
-    const last = snap.docs[snap.docs.length - 1];
-    cursor = last;
+      const lines = [];
+      snap.forEach(docu => {
+        const d = docu.data();
+        const url = d.url || "";
+        const cats = Array.isArray(d.cats) ? d.cats : [];
+        const codes = cats.map(k => keyToCode.get(k)).filter(Boolean);
+        if (url) lines.push([url, ...codes].join(" ").trim());
+      });
 
-    if (snap.size < batchSize) break; // 마지막 배치
+      append(lines);
+      total += lines.length;
+      $("#stat").textContent = `총 ${total}개 내보냄`;
+
+      cursor = snap.docs[snap.docs.length - 1];
+      if (snap.size < batchSize) break; // 마지막 배치
+    }
+
+    $("#stat").textContent = ABORT ? `중지됨 (현재 ${total}개까지)` : `완료 (총 ${total}개)`;
+  } catch (e) {
+    console.error(e);
+    $("#stat").textContent = `오류 발생: ${e?.message || e}`;
+  } finally {
+    setRunning(false);
   }
-
-  $("#stat").textContent = ABORT ? `중지됨 (현재 ${total}개까지)` : `완료 (총 ${total}개)`;
 }
 
 function copyText() {
@@ -169,6 +230,7 @@ function copyText() {
     alert("복사되었습니다.");
   });
 }
+
 function downloadTxt() {
   const blob = new Blob([$("#exportBox").value], { type: "text/plain;charset=utf-8" });
   const a = document.createElement("a");
@@ -182,17 +244,21 @@ function downloadTxt() {
 onAuthStateChanged(auth, async (user) => {
   if (!user || !(await isAdmin(user.uid))) return deny();
 
-  const catsList = await loadCategoriesSafe();
-  const { keyToCode, codeToKey } = buildCodeMaps(catsList.map(x => x.key));
+  const catsList = await loadCategoriesSafe();               // [{key,label}...]
+  const { keyToCode } = buildCodeMaps(catsList.map(x => x.key));
   await renderCodeTable(catsList, keyToCode);
 
   $("#btnExtract").addEventListener("click", async () => {
     const bs = parseInt($("#batchSize").value || "500", 10);
-    ABORT = false;
-    await extractAll(bs, codeToKey, keyToCode);
+    if (RUNNING) return;
+    await extractAll(bs, keyToCode);
   });
   $("#btnStop").addEventListener("click", () => { ABORT = true; });
   $("#btnCopy").addEventListener("click", copyText);
   $("#btnDownload").addEventListener("click", downloadTxt);
-  $("#btnClear").addEventListener("click", () => { $("#exportBox").value = ""; $("#stat").textContent = "대기중"; });
+  $("#btnClear").addEventListener("click", () => {
+    if (RUNNING) return;
+    $("#exportBox").value = "";
+    $("#stat").textContent = "대기중";
+  });
 });
