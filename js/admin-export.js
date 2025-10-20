@@ -93,10 +93,6 @@ function flattenCatsUniversal(model) {
 }
 
 
-  dfs(model);
-  return out;
-}
-
 async function scanCategoryKeysFromDB() {
   const keys = new Set();
   try {
