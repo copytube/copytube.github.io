@@ -33,12 +33,14 @@ function deny() {
    - categories.js가 CATEGORY_MODEL(CopyTube v1.5) 또는 CATEGORIES를 export한다고 가정
    - 실패 시: DB cats 스캔으로 키 추정
 */
+// (교체) loadCategoriesSafe
 async function loadCategoriesSafe() {
   try {
     const mod = await import("./categories.js");
-    const MODEL = mod.CATEGORY_MODEL || mod.CATEGORIES || mod.default || null;
-    if (!MODEL) throw new Error("CATEGORY_MODEL/CATEGORIES export not found");
-    return flattenCatsUniversal(MODEL);
+    // CopyTube 우선순위: CATEGORIES / CATEGORY_GROUPS / default
+    const MODEL = mod.CATEGORIES || mod.CATEGORY_GROUPS || mod.default || null;
+    if (!MODEL) throw new Error("CATEGORIES/CATEGORY_GROUPS export not found");
+    return flattenCatsUniversal(MODEL); // 아래 2번에서 정의
   } catch (e) {
     console.warn("categories.js 로드 실패. DB 스캔으로 대체:", e);
     const keys = await scanCategoryKeysFromDB();
@@ -46,10 +48,12 @@ async function loadCategoriesSafe() {
   }
 }
 
+
 /** CATEGORY_MODEL/CATEGORIES 어떤 형태도 최대한 수용:
  *  - 그룹: { key, label, children:[...] } or { id, ... }
  *  - 카테고리 항목: { value, label } or { key, label }
  */
+// (교체) flattenCatsUniversal
 function flattenCatsUniversal(model) {
   const out = [];
   const seen = new Set();
@@ -62,34 +66,32 @@ function flattenCatsUniversal(model) {
 
   const dfs = (node) => {
     if (!node) return;
-
-    if (Array.isArray(node)) {
-      node.forEach(dfs);
-      return;
-    }
+    if (Array.isArray(node)) { node.forEach(dfs); return; }
     if (typeof node !== "object") return;
 
-    // 카테고리 항목
-    const maybeKey = node.key || node.value; // value도 카테고리 키로 인정
+    // CopyTube: { value, label } / 과거 호환: { key, label }
+    const maybeKey = node.value || node.key;
     const maybeLabel = node.label || node.name || node.title;
+    if (typeof maybeKey === "string") push(maybeKey, maybeLabel);
 
-    if (typeof maybeKey === "string") {
-      push(maybeKey, maybeLabel);
-    }
-
-    // 흔한 필드들 재귀
+    // 흔한 중첩 컨테이너
     if (node.children) dfs(node.children);
-    if (node.groups) dfs(node.groups);
-    if (node.types) dfs(node.types);
-    if (node.items) dfs(node.items);
+    if (node.groups)   dfs(node.groups);
+    if (node.items)    dfs(node.items);
+    if (node.types)    dfs(node.types);
 
-    // 기타 중첩 객체들도 훑기(과도 중복 방지용 간단 필터)
+    // 기타 중첩 객체(광범위 탐색)
     for (const [k, v] of Object.entries(node)) {
-      if (v && typeof v === "object" && !["children","groups","types","items"].includes(k)) {
+      if (v && typeof v === "object" && !["children","groups","items","types"].includes(k)) {
         dfs(v);
       }
     }
   };
+
+  dfs(model);
+  return out;
+}
+
 
   dfs(model);
   return out;
