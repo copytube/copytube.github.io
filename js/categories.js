@@ -38,6 +38,7 @@ export const CATEGORY_GROUPS = [
       { value: 'health',     label: '건강' },
       { value: 'exercise',   label: '운동' },
       { value: 'fasion',   label: '패션' },
+      { value: 'job',   label: '직업' },
       { value: 'self',       label: '자기관리' },
       { value: 'social',     label: '사회생활' },
       { value: 'law',        label: '법률' },
