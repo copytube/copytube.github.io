@@ -123,6 +123,7 @@ export const CATEGORY_GROUPS = [
       { value: 'prd_pet',       label: '애완' },
       { value: 'prd_study',     label: '공부' },
       { value: 'prd_props',     label: '소품' },
+      { value: 'prd_toy',       label: '장난감' },
       { value: 'prd_misc',      label: '그외' },
     ],
   },
