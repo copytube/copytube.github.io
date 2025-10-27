@@ -54,7 +54,7 @@ export const CATEGORY_GROUPS = [
     label: '여가·취미',
     children: [
       { value: 'cook',            label: '요리' },
-      { value: 'snack',     label: '간식디저트' },
+      { value: 'snack',     label: '간식편의점' },
       { value: 'activity',        label: '액티비티' },
       { value: 'proart',          label: '예술' },
       { value: 'drawing',         label: '그림만들기' },
@@ -67,6 +67,7 @@ export const CATEGORY_GROUPS = [
       { value: 'reading',         label: '독서' },          // ★ 신규
       { value: 'instrument_play', label: '악기연주' },      // ★ 신규
       { value: 'sports_fishing',    label: '낚시' },
+      { value: 'activity',        label: '액티비티' },
       { value: 'novel_matter',    label: '소설소재' },            
 
     ],
