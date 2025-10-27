@@ -55,7 +55,6 @@ export const CATEGORY_GROUPS = [
     children: [
       { value: 'cook',            label: '요리' },
       { value: 'snack',     label: '간식편의점' },
-      { value: 'activity',        label: '액티비티' },
       { value: 'proart',          label: '예술' },
       { value: 'drawing',         label: '그림만들기' },
       { value: 'hobby',           label: '취미' },      
@@ -64,10 +63,11 @@ export const CATEGORY_GROUPS = [
       { value: 'camera',            label: '카메라영상' }, 
       { value: 'making',          label: '소품제작수리' },      
       { value: 'interior',        label: '집수리인테리어' }, // ★ 라벨만 변경(키 유지)
-      { value: 'reading',         label: '독서' },          // ★ 신규
+      { value: 'singing',         label: '노래부르기' },          // ★ 신규
       { value: 'instrument_play', label: '악기연주' },      // ★ 신규
       { value: 'sports_fishing',    label: '낚시' },
       { value: 'activity',        label: '액티비티' },
+      { value: 'reading',         label: '독서' },
       { value: 'novel_matter',    label: '소설소재' },            
 
     ],
