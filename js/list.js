@@ -50,6 +50,7 @@ const $q           = document.getElementById('q');
 const $btnSearch   = document.getElementById('btnSearch');
 const $btnClear    = document.getElementById('btnClear'); // optional
 const $btnMore     = document.getElementById('btnMore');
+const $moreWrap    = document.getElementById('more');
 const $btnSort     = document.getElementById('btnSortToggle'); // ★ 신규: 정렬 토글
 
 /* ---------- 상태 ---------- */
@@ -137,7 +138,10 @@ function toThumb(url, fallback=''){
  function getLabel(key){ return LABEL_MAP[key] || key; }
 
 function setStatus(t){ if($msg) $msg.textContent = t || ''; }
-function toggleMore(show){ if($btnMore) $btnMore.style.display = show ? '' : 'none'; }
+function toggleMore(show){
+  if($moreWrap) $moreWrap.style.display = show ? '' : 'none';
+  if($btnMore) $btnMore.style.display = show ? '' : 'none';
+}
 
 /* ---------- 제목 캐시(oEmbed, 7일) + 임시메모리 ---------- */
 const TitleCache = {
@@ -369,13 +373,29 @@ async function loadPage(){
   await preloadNicknamesFor(batch);
 
   render();
-  toggleMore(hasMore);
+  // 자동 무한스크롤이 끝나면(혹은 필터가 매우 좁으면) 하단에서 수동 추가 로드를 제공
+  if(!hasMore){
+    toggleMore(true);
+    if($btnMore) $btnMore.textContent = '영상 추가 로드';
+  }else{
+    toggleMore(false);
+  }
   setStatus(`총 ${allDocs.length}개`);
   isLoading = false;
   return true;
 }
 
 /* ---------- 필터 인지형 선로딩(최소 PAGE_SIZE 보장 시도) ---------- */
+
+function showAddLoadButton(show, reason=''){
+  // show: true => 하단 버튼 표시
+  // reason: 디버그/상태표시용(필요 시만)
+  toggleMore(!!show);
+  if(show && reason){
+    // 상태 메시지는 기존 UX를 깨지 않도록 별도 출력하지 않음
+  }
+}
+
 async function ensureMinFiltered(min = PAGE_SIZE){
   if (isPersonalOnlySelection()) return;
 
@@ -388,7 +408,14 @@ async function ensureMinFiltered(min = PAGE_SIZE){
     guard++;
   }
   render();
-  toggleMore(hasMore);
+  // 필터가 매우 좁아 자동 스크롤로는 계속 '끝'처럼 보일 수 있음
+  // hasMore가 true인데도 필터 결과가 min 미만이면 사용자가 수동으로 더 당길 수 있게 버튼을 표시
+  if(hasMore && filterDocs().length < min){
+    toggleMore(true);
+    if($btnMore) $btnMore.textContent = '영상 추가 로드';
+  }else{
+    toggleMore(hasMore);
+  }
 }
 
 /* ---------- 렌더 ---------- */
@@ -494,14 +521,42 @@ $btnClear ?.addEventListener('click', async ()=>{
   await ensureMinFiltered(PAGE_SIZE);
 });
 $btnMore  ?.addEventListener('click', async ()=>{
-  $btnMore.disabled = true; $btnMore.textContent = '불러오는 중…';
+  // 하단 수동 로드: 1회당 3페이지(=180개) 추가 로드
+  const BULK_PAGES = 3;
+  if(isLoading){ return; }
+
+  const before = filterDocs().length;
+
+  $btnMore.disabled = true; 
+  $btnMore.textContent = '불러오는 중…';
   try {
-    await loadPage();
-    await ensureMinFiltered(PAGE_SIZE);
+    if(!hasMore){
+      // 더 이상 DB에서 가져올 것이 없으면 안내만
+      setStatus(allDocs.length ? `총 ${allDocs.length}개 · 더 이상 불러올 영상이 없습니다.` : '등록된 영상이 없습니다.');
+      return;
+    }
+
+    let i = 0;
+    while(i < BULK_PAGES && hasMore){
+      const ok = await loadPage();
+      if(!ok) break;
+      i++;
+    }
   } finally {
-    $btnMore.disabled=false; $btnMore.textContent='더 보기';
+    $btnMore.disabled=false; 
+    $btnMore.textContent='영상 추가 로드';
+  }
+
+  const after = filterDocs().length;
+
+  // 실제로 늘어났다면 버튼은 다시 숨기고(무한스크롤로 이어짐), 늘지 않았으면 계속 표시
+  if(after > before && hasMore){
+    toggleMore(false);
+  }else{
+    toggleMore(true);
   }
 });
+
 
 /* ---------- 정렬 토글 바인딩 ---------- */
 $btnSort?.addEventListener('click', async ()=>{
@@ -549,7 +604,16 @@ window.addEventListener('scroll', async ()=>{
   }
 
   const after = filterDocs().length;
-  if (after > before) render();
+  if (after > before) {
+    render();
+    // 자동 로드가 정상적으로 늘어나면 버튼은 숨김
+    if(hasMore) toggleMore(false);
+  } else {
+    // 필터 조건 때문에 화면상 늘지 않는다면(혹은 매우 드문 렌더/정렬 상황)
+    // 사용자가 수동으로 더 당겨볼 수 있게 하단 버튼을 표시
+    toggleMore(true);
+    if($btnMore) $btnMore.textContent = '영상 추가 로드';
+  }
 }, { passive:true });
 
 /* ===================== */
