@@ -38,6 +38,11 @@
     @keyframes sir{ from{ transform:translateX(16px); opacity:0; } to{ transform:none; opacity:1; } }
 
     .msg{ margin:8px 0; font-size:13px; color:#ccc; min-height:1.2em; }
+  
+    /* 하단 '영상 추가 로드' 버튼: 화면 폭 3/5(60%) 중앙 정렬 */
+    #more{ text-align:center; margin:16px 0; }
+    #btnMore{ width:60%; max-width:720px; margin:0 auto; display:block; }
+
   </style>
       <!-- PWA Manifest -->
   <link rel="manifest" href="manifest.json">
@@ -103,7 +108,7 @@
 
     <div id="cards" class="cards slide-in-right" aria-live="polite"></div>
     <div id="more" style="text-align:center; margin:12px 0; display:none;">
-      <button id="btnMore" class="btn">더 보기</button>
+      <button id="btnMore" class="btn">영상 추가 로드</button>
     </div>
   </main>
 
