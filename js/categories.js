@@ -65,10 +65,10 @@ export const CATEGORY_GROUPS = [
       { value: 'interior',        label: '집수리인테리어' }, // ★ 라벨만 변경(키 유지)
       { value: 'singing',         label: '노래부르기' },          // ★ 신규
       { value: 'instrument_play', label: '악기연주' },      // ★ 신규
-      { value: 'sports_fishing',    label: '낚시' },
+      { value: 'dance',    label: '댄스' },  
       { value: 'activity',        label: '액티비티' },
       { value: 'reading',         label: '독서' },
-      { value: 'novel_matter',    label: '소설소재' },            
+      { value: 'sports_fishing',    label: '낚시' },          
 
     ],
   },
@@ -83,9 +83,11 @@ export const CATEGORY_GROUPS = [
       { value: 'sports_soccer',     label: '축구' },
       { value: 'sports_basketball', label: '농구' },
       { value: 'sports_baseball',   label: '야구' },
-      { value: 'sports_golf',   label: '골프' },
+      { value: 'sports_run',        label: '육상' },
       { value: 'sports_racket',     label: '탁구/테니스/배드민턴' }, // 탁테배 
-      { value: 'water',            label: '수영물놀이' }, 
+      { value: 'water',            label: '수영물놀이' },
+      { value: 'sports_winter',    label: '겨울스포츠' },
+      { value: 'sports_golf',   label: '골프' },
       { value: 'sports_etc',   label: '그외' },
     ],
   },
@@ -98,9 +100,11 @@ export const CATEGORY_GROUPS = [
       { value: 'new_product', label: '신제품' },
       { value: 'tech_future', label: '기술미래' },
       { value: 'computer',    label: '컴퓨터' },
-      { value: 'coding',      label: '코딩AI' },
+      { value: 'doc_excel',    label: '문서·엑셀' },
+      { value: 'coding',      label: '코딩' },
+      { value: 'ai',      label: 'AI' },
       { value: 'graphic',     label: '그래픽영상' },
-      { value: 'app',         label: '앱·어플' },
+      { value: 'app',         label: '스마트폰·어플' },
       { value: 'engineer',    label: '공학' },
       { value: 'architecture',    label: '건축' },
     ],
