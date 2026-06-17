@@ -210,7 +210,7 @@ export const CATEGORY_GROUPS = [
     children: [
       { value: 'game',            label: '게임' },
       { value: 'oldgame',       label: '고전게임' },
-      { value: 'gamestory',          label: '게임스토리' }
+      { value: 'gamestory',          label: '게임스토리' },
       { value: 'progame',            label: '고인물' },
       { value: 'minecraft',  label: '마인크래프트' },
       { value: 'starcrafy',  label: '스타크래프트' },
