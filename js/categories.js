@@ -8,7 +8,7 @@ export const CATEGORY_GROUPS = [
     label: '일상',
     children: [
       { value: 'fun',            label: '유머짤' },
-      { value: 'funstory',       label: '유머스토리' },
+      { value: 'funstory',       label: '스토리' },
       { value: 'baby',           label: '아기' },
       { value: 'animal',         label: '동물' },
       { value: 'national_pride', label: '국뽕' },
