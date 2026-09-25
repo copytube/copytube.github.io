@@ -233,7 +233,9 @@ export const CATEGORY_GROUPS = [
       { value: 'earthspace',     label: '지구우주' },
       { value: 'math',        label: '수학' },
       { value: 'english',     label: '영어' },
+      { value: 'eword',     label: '영단어' },
       { value: 'korean',      label: '국어' },
+      { value: 'literature',      label: '문학' },
       { value: 'edu_social',  label: '사회' }, // 충돌 방지용 확정 키
       { value: 'history',     label: '국사' },
       { value: 'whistory',     label: '세계사' },
