@@ -216,6 +216,7 @@ export const CATEGORY_GROUPS = [
       { value: 'progame',            label: '고인물' },
       { value: 'minecraft',  label: '마인크래프트' },
       { value: 'starcrafy',  label: '스타크래프트' },
+      { value: 'brawl',  label: '브롤스타즈' },
       { value: 'makegame',            label: '게임개발' },
     ],
   },
