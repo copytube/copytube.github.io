@@ -26,31 +26,7 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
-  /* 생활정보 */
-  {
-    key: 'lifeinfo',
-    label: '생활정보',
-    children: [
-      { value: 'common',     label: '상식' },
-      { value: 'life',       label: '생활팁' },
-      { value: 'beauty',     label: '미용' },
-      { value: 'housework',  label: '가사' },
-      { value: 'health',     label: '건강' },
-      { value: 'diet',     label: '식이다이어트' },
-      { value: 'massage',     label: '마사지스트레칭' },
-      { value: 'exercise',   label: '운동' },
-      { value: 'fasion',   label: '패션' },
-      { value: 'job',   label: '직업' },
-      { value: 'self',       label: '자기관리' },
-      { value: 'social',     label: '사회생활' },
-      { value: 'law',        label: '법률' },
-      { value: 'estate',     label: '부동산' },
-      { value: 'parenting',  label: '육아' },
-      { value: 'misinfo',    label: '가짜정보' },
-    ],
-  },
-
-  /* 여가·미식 (게임 이동, 독서/악기연주 추가, 집꾸미기 라벨 변경) */
+    /* 여가·미식 (게임 이동, 독서/악기연주 추가, 집꾸미기 라벨 변경) */
   {
     key: 'leisure_food',
     label: '여가·취미',
@@ -72,6 +48,30 @@ export const CATEGORY_GROUPS = [
       { value: 'reading',         label: '독서' },
       { value: 'sports_fishing',    label: '낚시' },          
 
+    ],
+  },
+  
+  /* 생활정보 */
+  {
+    key: 'lifeinfo',
+    label: '생활정보',
+    children: [
+      { value: 'common',     label: '상식' },
+      { value: 'life',       label: '생활팁' },
+      { value: 'beauty',     label: '미용' },
+      { value: 'housework',  label: '가사' },
+      { value: 'health',     label: '건강' },
+      { value: 'diet',     label: '식이다이어트' },
+      { value: 'massage',     label: '마사지스트레칭' },
+      { value: 'exercise',   label: '운동' },
+      { value: 'fasion',   label: '패션' },
+      { value: 'job',   label: '직업' },
+      { value: 'self',       label: '자기관리' },
+      { value: 'social',     label: '사회생활' },
+      { value: 'law',        label: '법률' },
+      { value: 'estate',     label: '부동산' },
+      { value: 'parenting',  label: '육아' },
+      { value: 'misinfo',    label: '가짜정보' },
     ],
   },
 
@@ -134,20 +134,7 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
-  /* 생존 */
-  {
-    key: 'survival',
-    label: '생존',
-    children: [
-      { value: 'expert_master',  label: '전문가' },
-      { value: 'agri_fish_ind',  label: '농어광공업' },
-      { value: 'camp',       label: '캠핑매듭' },
-      { value: 'survival',       label: '서바이벌' },
-      { value: 'military',       label: '군사' },
-    ],
-  },
-
-         /* 여행·미식  */
+             /* 여행·미식  */
   {
     key: 'travel_food',
     label: '여행·미식',
@@ -162,23 +149,6 @@ export const CATEGORY_GROUPS = [
       { value: 'etravel',          label: '유럽여행' },
       { value: 'wfoodie',          label: '세계맛집' },
       { value: 'wtravel',          label: '세계여행' },
-    ],
-  },
-
-    /* 영상·리뷰 */
-  {
-    key: 'media',
-    label: '영상·리뷰',
-    children: [
-      { value: 'movie',      label: '영화' },
-      { value: 'movie_s',      label: '영화짤' },
-      { value: 'drama',      label: '드라마' },
-      { value: 'drama_s',      label: '드라마짤' },
-      { value: 'anime',      label: '애니' },
-      { value: 'anime_s',      label: '애니짤' },
-      { value: 'comic',      label: '만화' },
-      { value: 'novel',      label: '소설' },
-      { value: 'media_etc',  label: '그외' },
     ],
   },
 
@@ -205,6 +175,25 @@ export const CATEGORY_GROUPS = [
       { value: 'music_gospel',         label: '가스펠' },
     ],
   },
+
+
+    /* 영상·리뷰 */
+  {
+    key: 'media',
+    label: '영상·리뷰',
+    children: [
+      { value: 'movie',      label: '영화' },
+      { value: 'movie_s',      label: '영화짤' },
+      { value: 'drama',      label: '드라마' },
+      { value: 'drama_s',      label: '드라마짤' },
+      { value: 'anime',      label: '애니' },
+      { value: 'anime_s',      label: '애니짤' },
+      { value: 'comic',      label: '만화' },
+      { value: 'novel',      label: '소설' },
+      { value: 'media_etc',  label: '그외' },
+    ],
+  },
+  
   /* 게임 */
   {
     key: 'games',
@@ -220,6 +209,32 @@ export const CATEGORY_GROUPS = [
       { value: 'makegame',            label: '게임개발' },
     ],
   },
+
+      /* 사회 */
+  {
+    key: 'society',
+    label: '사회',
+    children: [
+      { value: 'politics',    label: '시사정치' },
+      { value: 'finance',     label: '금융경제' },
+      { value: 'era_insight', label: '시대통찰' },
+      { value: 'christian',   label: '기독교' },
+    ],
+  },
+
+    /* 생존 */
+  {
+    key: 'survival',
+    label: '생존',
+    children: [
+      { value: 'expert_master',  label: '전문가' },
+      { value: 'agri_fish_ind',  label: '농어광공업' },
+      { value: 'camp',       label: '캠핑매듭' },
+      { value: 'survival',       label: '서바이벌' },
+      { value: 'military',       label: '군사' },
+    ],
+  },
+  
   /* 교육 */
   {
     key: 'edu',
@@ -248,17 +263,6 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
-    /* 사회 */
-  {
-    key: 'society',
-    label: '사회',
-    children: [
-      { value: 'politics',    label: '시사정치' },
-      { value: 'finance',     label: '금융경제' },
-      { value: 'era_insight', label: '시대통찰' },
-      { value: 'christian',   label: '기독교' },
-    ],
-  },
   
   /* 의학 */
   {
@@ -282,6 +286,16 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
+    /* 시리즈 — ★ 개인자료 바로 앞에 배치 */
+  {
+    key: 'series',
+    label: '시리즈',
+    children: [
+      { value: 'series_miraculous', label: '미라큘러스' },
+      { value: 'series_marvel',     label: '마블' },
+    ],
+  },
+
   /* 기타 */
   {
     key: 'etc',
@@ -291,27 +305,6 @@ export const CATEGORY_GROUPS = [
     ],
   },
 
-  /* 성별·연령 (신규 대분류) */
-  {
-    key: 'demographics',
-    label: '성별·연령',
-    children: [
-      { value: 'female', label: '여성용' },
-      { value: 'male',   label: '남성용' },
-      { value: 'youth',  label: '잼민이' },
-      { value: 'senior', label: '노인' },
-    ],
-  },
-
-  /* 시리즈 — ★ 개인자료 바로 앞에 배치 */
-  {
-    key: 'series',
-    label: '시리즈',
-    children: [
-      { value: 'series_miraculous', label: '미라큘러스' },
-      { value: 'series_marvel',     label: '마블' },
-    ],
-  },
 
   /* 개인자료 (로컬 저장 전용) — 항상 최하단 */
   {
